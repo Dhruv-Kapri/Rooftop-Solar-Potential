@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rooftop-solar-potential"
+version = "0.0.0"
+description = "City-scale rooftop solar suitability pipeline"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [{ name = "Dhruv Kapri" }]
+# Runtime deps are managed via environment.yml (conda/geospatial). This file exists
+# mainly to make `rooftop_solar` an importable, editable-installable package.
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "scripts", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

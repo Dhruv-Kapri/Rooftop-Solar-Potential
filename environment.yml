@@ -1,0 +1,43 @@
+# Conda environment for the Rooftop Solar Potential pipeline.
+#   conda env create -f environment.yml
+#   conda activate rooftop-solar
+#   pip install -e .            # installs the src/rooftop_solar package (editable)
+#
+# NOTE: GRASS GIS (r.sun) is a SEPARATE system install and must be callable on PATH
+# (risks §14.2). It can be added here via `grass` on conda-forge, but it is heavy —
+# a system/package-manager install is usually cleaner. Confirm `grass --version` works.
+name: rooftop-solar
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  # --- geospatial core ---
+  - gdal
+  - pdal
+  - python-pdal
+  - geopandas
+  - rasterio
+  - shapely
+  - pyproj
+  - fiona
+  # --- data access (Planetary Computer STAC, OSM fallback, Census/NLR APIs) ---
+  - pystac-client
+  - planetary-computer
+  - osmnx
+  - requests
+  - python-dotenv
+  # --- modelling ---
+  - numpy
+  - scipy
+  - scikit-learn      # RANSAC roof-plane baseline (Phase 1)
+  - pvlib             # PVWatts irradiance -> yield
+  - pandas
+  # --- viz / delivery ---
+  - matplotlib
+  - folium
+  # --- dev ---
+  - ruff
+  - pytest
+  - pip
+  - pip:
+      - -e .
