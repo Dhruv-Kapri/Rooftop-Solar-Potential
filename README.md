@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <img alt="status" src="https://img.shields.io/badge/status-planning-D9740F">
+  <img alt="status" src="https://img.shields.io/badge/status-Phase%200%20complete%20%C2%B7%20Phase%201%20next-2F7D5B">
   <img alt="focus" src="https://img.shields.io/badge/focus-geospatial%20ML-2C6C8A">
   <img alt="data" src="https://img.shields.io/badge/data-public%20%2F%20open--source-2F7D5B">
   <img alt="delivery" src="https://img.shields.io/badge/delivery-interactive%20web%20map-6B7686">
@@ -20,8 +20,10 @@ energy, and CO₂ offset** — then aggregated to neighbourhood choropleths with
 from **public data and APIs**, modelled in **open-source Python**, and delivered as an **interactive
 web map**. The Esri stack is *one supported deployment target, not a dependency*.
 
-> **Status: planning / pre-development.** This repo currently holds the engineering plan and
-> supporting docs. Code lands starting Phase 1 (see the [roadmap](docs/roadmap.md)).
+> **Status: Phase 0 complete — Phase 1 (MVP) next.** Scoping & de-risking is done: study area +
+> LiDAR coverage confirmed, environment + GRASS + NLR API access set up, and a data-access smoke
+> test passing on all sources (`scripts/check_data_access.py`). The end-to-end pipeline code lands
+> in Phase 1 (see the [roadmap](docs/roadmap.md)).
 
 ## Lineage — from a hackathon prototype to a city pipeline
 

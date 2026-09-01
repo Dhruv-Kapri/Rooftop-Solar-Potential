@@ -15,12 +15,10 @@ for the radiation step now — **decided: GRASS `r.sun`.**
 - [x] A data-access check confirmed for each source — `scripts/check_data_access.py` (stdlib-only,
       runs before the conda env). All five verified live ([ok]) during `setup_phase0.sh` stage 6:
       footprints, DSM, imagery, boundaries, and irradiance (PVWatts, with the live key)
-- [x] Add the styled plan (`Rooftop_Solar_Project_Plan.html`) and publish it via GitHub Pages so
-      reviewers get the rendered version, not just the PDF download — HTML authored at
-      `docs/Rooftop_Solar_Project_Plan.html` (+ `docs/index.html` redirect, `docs/.nojekyll`).
-      **One manual step left:** enable Pages in repo Settings → Pages → Deploy from a branch →
-      `main` / `/docs`. Then the plan is live at
-      `https://dhruv-kapri.github.io/Rooftop-Solar-Potential/`
+- [x] Reviewers get a descriptive entry point — the `README.md` (lineage + prototype figures,
+      pipeline diagram, modelling modes, roadmap) links the full plan PDF as source of truth.
+      **Decision (2026-09-01):** dropped the separate styled-HTML + GitHub Pages step; the README
+      does the job, so there's nothing extra to build or host.
 
 **Phase 0 findings (data-access smoke test, verified):**
 - The only `3dep-lidar-dsm` item covering the Glover Park bbox is

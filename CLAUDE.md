@@ -18,10 +18,10 @@ Esri.
 
 **Phase 0 complete (2026-09-01); Phase 1 is next.** Phase 0 closed all exit criteria: study area +
 3DEP coverage verified, conda env + GRASS installed, NLR key obtained, a stdlib data-access smoke
-test (`scripts/check_data_access.py`) passing on all five sources, and the styled plan rendered to
-`docs/Rooftop_Solar_Project_Plan.html` (Pages just needs enabling — see roadmap). Real pipeline code
-(footprints → … → aggregate) starts in Phase 1. See `docs/roadmap.md` for phase boundaries and exit
-criteria.
+test (`scripts/check_data_access.py`) passing on all five sources. (The styled-HTML/GitHub-Pages
+exit criterion was dropped — the descriptive `README.md`, which links the full plan PDF, serves
+reviewers instead.) Real pipeline code (footprints → … → aggregate) starts in Phase 1. See
+`docs/roadmap.md` for phase boundaries and exit criteria.
 
 ## Source of truth
 
