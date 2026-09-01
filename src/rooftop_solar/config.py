@@ -9,7 +9,14 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - python-dotenv absent under bare system Python
+    # Keep this module importable with zero third-party deps (e.g. the Phase 0
+    # data-access smoke test runs under /usr/bin/python3, no conda env yet).
+    def load_dotenv() -> None:
+        return None
+
 
 load_dotenv()
 
