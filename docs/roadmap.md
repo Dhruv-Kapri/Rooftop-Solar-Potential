@@ -10,11 +10,11 @@ for the radiation step now — **decided: GRASS `r.sun`.**
 **Exit criteria:**
 - [x] Study area + neighbourhood confirmed (DC / Glover Park); 3DEP LiDAR coverage/vintage verified
       (see findings below)
-- [ ] NLR API key obtained — signup wizard ready: `bash scripts/setup_phase0.sh` (stage 5)
-- [ ] GRASS GIS installed and callable — covered by the same wizard (stage 4)
+- [x] NLR API key obtained — in `.env` (kept as a placeholder between sessions for safety)
+- [x] GRASS GIS installed and callable — verified via `setup_phase0.sh` stage 4 (`grass --version`)
 - [x] A data-access check confirmed for each source — `scripts/check_data_access.py` (stdlib-only,
-      runs before the conda env). Footprints/DSM/imagery/boundaries verified live; irradiance skips
-      until the NLR key lands
+      runs before the conda env). All five verified live ([ok]) during `setup_phase0.sh` stage 6:
+      footprints, DSM, imagery, boundaries, and irradiance (PVWatts, with the live key)
 - [ ] Add the styled plan (`Rooftop_Solar_Project_Plan.html`) and publish it via GitHub Pages so
       reviewers get the rendered version, not just the PDF download — **deferred to end of Phase 0**
 
