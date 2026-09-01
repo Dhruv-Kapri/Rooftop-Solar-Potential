@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rooftop Solar Potential — Project Plan</title>
+<meta name="description" content="A city-scale pipeline that scores every rooftop for solar suitability — the vendor-neutral engineering plan.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --serif: 'Spectral', Georgia, 'Times New Roman', serif;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+    --accent: #c2410c;      /* burnt orange — section numbers, eyebrows, markers */
+    --navy: #1e3a5f;        /* deep blue — insight callouts */
+    --ink: #2f3438;         /* body text */
+    --muted: #6b7280;       /* secondary text */
+    --faint: #9aa1a9;       /* metadata */
+    --border: #e6e8eb;
+    --chip-bg: #eef0f2;
+    --callout-bg: #f2f4f6;
+    --green: #2f7a52;
+    --warn: #b45309;
+    --page: #fdfdfc;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 780px; margin: 0 auto; padding: 64px 28px 120px; }
+
+  /* ---- header ---- */
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 18px;
+  }
+  h1.title {
+    font-family: var(--serif);
+    font-weight: 700;
+    font-size: clamp(38px, 7vw, 58px);
+    line-height: 1.05;
+    letter-spacing: -0.01em;
+    margin: 0 0 20px;
+    color: #1a1d20;
+  }
+  .lede {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: clamp(18px, 2.6vw, 22px);
+    line-height: 1.5;
+    color: #4a4f54;
+    margin: 0 0 30px;
+    max-width: 42ch;
+  }
+  .rule {
+    height: 4px; border: 0; border-radius: 2px; margin: 30px 0 22px;
+    background: linear-gradient(90deg, #2563eb 0%, #06b6d4 25%, #f59e0b 55%, #ea580c 78%, #dc2626 100%);
+  }
+  .meta {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.9;
+    color: var(--faint);
+  }
+  .meta strong { color: var(--muted); font-weight: 600; }
+
+  /* ---- inline bits ---- */
+  code {
+    font-family: var(--mono);
+    font-size: 0.85em;
+    background: var(--chip-bg);
+    padding: 1px 6px;
+    border-radius: 4px;
+    color: #3f464d;
+    white-space: nowrap;
+  }
+  strong { color: #1f2327; font-weight: 700; }
+  em { color: inherit; }
+  a { color: var(--accent); }
+
+  /* ---- section headings ---- */
+  section { margin-top: 54px; }
+  .h {
+    display: flex;
+    align-items: baseline;
+    gap: 18px;
+    margin: 0 0 18px;
+  }
+  .h .num {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--accent);
+    flex: 0 0 auto;
+    padding-top: 6px;
+  }
+  .h h2 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: clamp(24px, 4vw, 31px);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    margin: 0;
+    color: #1a1d20;
+  }
+  p { margin: 0 0 16px; }
+  .indent { padding-left: 33px; }
+  @media (max-width: 560px) { .indent { padding-left: 0; } .h { gap: 12px; } }
+
+  h3.sub {
+    font-family: var(--sans);
+    font-size: 17px;
+    font-weight: 700;
+    color: #1f2327;
+    margin: 28px 0 8px;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+
+  /* ---- lead / pitch quote ---- */
+  .pitch {
+    font-family: var(--serif);
+    font-size: 21px;
+    line-height: 1.5;
+    color: #34383c;
+    border-left: 3px solid var(--accent);
+    padding: 4px 0 4px 22px;
+    margin: 0 0 18px;
+  }
+
+  /* ---- callouts ---- */
+  .box {
+    background: var(--callout-bg);
+    border-radius: 10px;
+    border-left: 4px solid var(--accent);
+    padding: 20px 24px;
+    margin: 22px 0;
+  }
+  .box.navy { border-left-color: var(--navy); }
+  .box .label {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 10px;
+    font-weight: 500;
+  }
+  .box.navy .label { color: var(--navy); }
+  .box p:last-child { margin-bottom: 0; }
+
+  /* ---- badges ---- */
+  .badge {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--navy);
+    border: 1px solid #b9c4d1;
+    border-radius: 999px;
+    padding: 3px 11px;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+  .badge.warm { color: var(--accent); border-color: #e3b39a; }
+
+  /* ---- lists ---- */
+  ul.clean, ol.steps { padding-left: 0; margin: 16px 0; list-style: none; }
+  ul.clean > li { position: relative; padding-left: 26px; margin: 0 0 14px; }
+  ul.clean > li::before {
+    content: "•"; color: var(--accent); font-weight: 700;
+    position: absolute; left: 6px; top: -1px;
+  }
+  ol.steps { counter-reset: step; }
+  ol.steps > li {
+    position: relative; padding-left: 34px; margin: 0 0 14px;
+    counter-increment: step;
+  }
+  ol.steps > li::before {
+    content: counter(step) ".";
+    font-family: var(--mono); font-size: 13px; color: var(--accent); font-weight: 500;
+    position: absolute; left: 4px; top: 2px;
+  }
+
+  /* ---- pipeline flow ---- */
+  .flow { margin: 22px 0; }
+  .stage {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 22px;
+    align-items: center;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 22px;
+    background: #fff;
+  }
+  .stage .tag {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--accent); font-weight: 500;
+  }
+  .stage .desc { color: var(--ink); }
+  .arrow { text-align: left; color: #b8bdc3; padding: 5px 0 5px 62px; font-size: 15px; line-height: 1; }
+  @media (max-width: 560px) {
+    .stage { grid-template-columns: 1fr; gap: 6px; padding: 14px 18px; }
+    .arrow { padding-left: 24px; }
+  }
+
+  /* ---- tables ---- */
+  .tbl-scroll { overflow-x: auto; margin: 22px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 14.5px; min-width: 560px; }
+  thead th {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--muted); font-weight: 500; text-align: left; vertical-align: bottom;
+    padding: 10px 16px; background: #f6f7f8; border-bottom: 1px solid var(--border);
+  }
+  tbody td { padding: 15px 16px; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.55; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody td:first-child { font-weight: 700; color: #1f2327; width: 25%; }
+  .swap-good { color: var(--green); font-weight: 700; }
+  .swap-warn { color: var(--warn); font-weight: 700; }
+
+  .note {
+    font-size: 14px; color: var(--muted); line-height: 1.6; margin: 16px 0;
+  }
+  .note b { color: #3f464d; }
+
+  /* ---- phase cards ---- */
+  .phase {
+    background: var(--callout-bg); border-radius: 10px; border-left: 4px solid var(--accent);
+    padding: 18px 22px; margin: 16px 0;
+  }
+  .phase:nth-child(even) { border-left-color: var(--navy); }
+  .phase .ptitle {
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.13em; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 8px; font-weight: 500;
+  }
+  .phase:nth-child(even) .ptitle { color: var(--navy); }
+  .phase p { margin: 0; }
+
+  /* ---- appendix / footer ---- */
+  .divider { border: 0; border-top: 1px solid var(--border); margin: 60px 0 40px; }
+  .appendix-eyebrow {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--faint); margin: 0 0 6px;
+  }
+  footer { margin-top: 56px; }
+  footer .colophon { font-size: 13.5px; color: var(--muted); line-height: 1.7; }
+
+  @media print {
+    body { background: #fff; font-size: 12px; }
+    .wrap { padding: 0; max-width: none; }
+    .stage, .box, .phase { break-inside: avoid; }
+    a { color: inherit; text-decoration: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============ HEADER ============ -->
+  <header>
+    <p class="eyebrow">Portfolio Project · Computational Design × Geospatial ML</p>
+    <h1 class="title">Rooftop Solar Potential</h1>
+    <p class="lede">A city-scale pipeline that scores every rooftop for solar suitability — the engineering evolution of a Grasshopper&nbsp;+&nbsp;Ladybug prototype into a reproducible data pipeline over an entire city.</p>
+    <hr class="rule">
+    <p class="meta">
+      Project plan &nbsp;·&nbsp; <strong>v1 Washington, DC → v2 India</strong><br>
+      Grows from <strong>SIH 2024 BIPV prototype</strong> (Team Operation_VIJAY · PS SIH1739) — companion deck: <code>SIH2024_BIPV_Solar_Prototype_Deck.pdf</code><br>
+      Aug 2026 &nbsp;·&nbsp; stack-neutral core, Esri deployment track in the appendix
+    </p>
+  </header>
+
+  <div class="box">
+    <p class="label">Where this comes from</p>
+    <p>This is <strong>not</strong> a from-scratch portfolio piece. In 2024 I built a working <strong>Grasshopper / Rhino + Ladybug</strong> prototype (Smart India Hackathon, PS SIH1739) that pulled OpenStreetMap footprints, extruded them into a <strong>LOD-1 city model</strong> of central New Delhi, ran <strong>full-year solar-radiation and inter-building shadow simulation</strong>, and computed BIPV potential on both rooftops and facades.</p>
+    <p>This project scales that instinct — from one neighbourhood in a design tool to an <em>entire city in a reproducible pipeline</em>, trading hand-built LOD-1 blocks for LiDAR-derived per-roof geometry and deep-learning roof segmentation. The prototype already proved the hard part (mutual shading between buildings, §7); this version earns the resolution and the scale.</p>
+  </div>
+
+  <!-- ============ 01 ============ -->
+  <section>
+    <div class="h"><span class="num">01</span><h2>The one-line pitch</h2></div>
+    <p class="pitch">Score the rooftop-solar suitability of every building in a city — per-roof geometry, orientation, tilt, shading, and irradiance → estimated PV capacity, annual energy, and CO₂ offset — then aggregate to neighbourhood choropleths with an equity lens.</p>
+    <p class="note">Built entirely from <b>public data and APIs</b>, modelled in <b>open-source Python</b>, and delivered as an <b>interactive web map</b>. The Esri stack is one supported deployment target, not a dependency — see the appendix.</p>
+  </section>
+
+  <!-- ============ 02 ============ -->
+  <section>
+    <div class="h"><span class="num">02</span><h2>Why this project — the bridge</h2></div>
+    <p class="indent">This sits exactly where my history converges, which is the entire point: it is the argument for why I belong in geospatial ML, not a generic ML portfolio piece bolted onto an architecture CV.</p>
+    <ul class="clean indent">
+      <li><strong>Architecture + OCAD + Ladybug</strong> → reading a roof as geometry (planes, orientation, tilt, self-shading) and reasoning about solar exposure on built form is <em>native</em> to me. I already prototyped this logic in Grasshopper/Rhino; this project takes it from one building in a design tool to a whole city in a pipeline.</li>
+      <li><strong>Solar / SLnko</strong> → I work in solar energy. Rooftop suitability and its sibling, utility-scale siting, are the two core spatial questions of the industry. This is not a hobby topic — it is my domain, made spatial.</li>
+      <li><strong>ML</strong> → the roof-plane / obstruction extraction and the suitability model are genuine machine-learning problems (segmentation, learned ranking), not a GIS overlay dressed up as ML.</li>
+    </ul>
+  </section>
+
+  <!-- ============ 03 ============ -->
+  <section>
+    <div class="h"><span class="num">03</span><h2>The core design insight: building resolution × city extent</h2></div>
+    <div class="box navy">
+      <p class="label">The scale move</p>
+      <p>A single building is too small to read as "geospatial." The fix is not to abandon building-level detail — it is to <strong>keep building-level resolution while operating at city-wide extent</strong>, then aggregate up.</p>
+    </div>
+    <p>That is precisely what <strong>Google Project Sunroof</strong> and <strong>NREL/NLR</strong> rooftop-potential studies do: score tens of thousands of individual roofs across a metro, then roll up to neighbourhood / census-tract choropleths for planning and equity analysis. You get both the per-roof craft <em>and</em> the real urban-scale geospatial engineering — large data volumes, tiling, spatial joins, aggregation, spatial statistics.</p>
+  </section>
+
+  <!-- ============ 04 ============ -->
+  <section>
+    <div class="h"><span class="num">04</span><h2>What you'll build — system overview</h2></div>
+    <div class="flow">
+      <div class="stage"><span class="tag">Inputs</span><span class="desc">building footprints · LiDAR-derived surface model (DSM) · aerial imagery · solar irradiance</span></div>
+      <div class="arrow">↓</div>
+      <div class="stage"><span class="tag">Per-roof</span><span class="desc">extract roof planes → <strong>slope / aspect / usable area</strong> → solar radiation on surface (incl. shading) → PV yield</span></div>
+      <div class="arrow">↓</div>
+      <div class="stage"><span class="tag">ML layer</span><span class="desc">deep-learning roof-plane &amp; obstruction segmentation · learned suitability / ranking model</span></div>
+      <div class="arrow">↓</div>
+      <div class="stage"><span class="tag">Aggregate</span><span class="desc">roll up to census tract / neighbourhood → capacity, kWh/yr, CO₂ offset, equity view</span></div>
+      <div class="arrow">↓</div>
+      <div class="stage"><span class="tag">Deliver</span><span class="desc">publish as hosted feature layers → interactive web map / low-code app</span></div>
+    </div>
+  </section>
+
+  <!-- ============ 05 ============ -->
+  <section>
+    <div class="h"><span class="num">05</span><h2>Two modelling modes behind one interface</h2></div>
+    <p>The geometry front-end is swappable; the rest of the pipeline (radiation → yield → aggregation) is identical downstream. This is what makes the same codebase serve a data-rich US city and a sparse-data Indian one — and it is a direct descendant of the prototype.</p>
+
+    <h3 class="sub">High-resolution path — LiDAR per-roof <span class="badge">V1 default</span></h3>
+    <p>Clip the LiDAR point cloud per footprint, fit individual roof planes (RANSAC baseline or the ML route in §9), and resolve genuine per-roof slope, aspect, and obstructions. This is the Washington-DC v1 default and the source of the project's resolution story.</p>
+
+    <h3 class="sub">Block-model path — LOD-1 extruded footprints <span class="badge">Heritage + fallback</span></h3>
+    <p>Extrude footprints to a single height per building (the <strong>LOD-1 model my SIH prototype ran on</strong>). No roof-plane detail, but it still supports full inter-building shading and a flat-roof / fixed-tilt yield estimate. This mode is a first-class citizen, not an afterthought: it is both the honest fallback wherever LiDAR is unavailable (§13, India) and the direct continuation of the prototype's approach — proof the architecture degrades gracefully instead of breaking.</p>
+
+    <div class="box">
+      <p class="label">Design payoff</p>
+      <p>Framing LOD-1 as a <em>mode</em> rather than a limitation turns the prototype's constraint into an engineering feature: one provider-abstracted pipeline, two resolution regimes, an explicit and documented accuracy trade-off between them.</p>
+    </div>
+  </section>
+
+  <!-- ============ 06 ============ -->
+  <section>
+    <div class="h"><span class="num">06</span><h2>Data sources — US v1 (all public, all verified)</h2></div>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Layer</th><th>Recommended source</th><th>Access &amp; notes</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Building footprints</td>
+            <td>Microsoft Global ML Building Footprints (fallback: OSM via <code>osmnx</code>)</td>
+            <td>Bulk GeoJSON via GitHub <code>dataset-links.csv</code>, or STAC <code>ms-buildings</code> on Planetary Computer. License CDLA-Permissive-2.0. OSM is ODbL, coverage uneven.</td>
+          </tr>
+          <tr>
+            <td>Surface model (DSM)</td>
+            <td>USGS 3DEP LiDAR → derive DSM</td>
+            <td>Raw point cloud on AWS <code>usgs-lidar-public</code> (EPT/LAZ), read with PDAL <code>readers.ept</code>; rasterize via <code>writers.gdal</code>, <code>output_type: max</code>. Shortcut: Planetary Computer hosts a pre-derived <code>3dep-lidar-dsm</code> STAC collection — use it where it covers your city.</td>
+          </tr>
+          <tr>
+            <td>Imagery</td>
+            <td>NAIP</td>
+            <td>Planetary Computer <code>naip</code> STAC, Cloud-Optimized GeoTIFF, 0.3–1&nbsp;m, RGB+NIR, public domain. Revisit every 2–3&nbsp;yrs (not for change detection).</td>
+          </tr>
+          <tr>
+            <td>Solar irradiance</td>
+            <td>NSRDB + PVWatts v8 (NREL, now NLR)</td>
+            <td>Free API key at <code>developer.nlr.gov/signup</code>. PVWatts converts tilt/azimuth/area → annual kWh. NSRDB irradiance at ~4&nbsp;km (2&nbsp;km for some GOES products).</td>
+          </tr>
+          <tr>
+            <td>Admin boundaries</td>
+            <td>US Census TIGER/Line</td>
+            <td>Free, no auth, <code>www2.census.gov/geo/tiger/</code>. Census tracts for aggregation; join via GeoPandas.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note"><b>Naming note:</b> the National Renewable Energy Laboratory was renamed the National Laboratory of the Rockies (NLR) on 1 Dec 2025; its developer API moved from <code>developer.nrel.gov</code> to <code>developer.nlr.gov</code> (old keys still valid). Use the new domain so the work reads current. Historical NREL reports keep their original technical-report numbers.</p>
+  </section>
+
+  <!-- ============ 07 ============ -->
+  <section>
+    <div class="h"><span class="num">07</span><h2>Technical pipeline</h2></div>
+    <ol class="steps">
+      <li><strong>Footprints</strong> — pull building polygons for the study area (Microsoft Buildings or OSM).</li>
+      <li><strong>DSM from LiDAR</strong> — PDAL pipeline: <code>readers.ept</code> → ground filter (<code>filters.smrf</code>) → <code>writers.gdal</code> <code>output_type:max</code> for the surface (buildings + canopy); <code>min</code> gives bare-earth DTM. Keep the DSM — every building at its real height — this is what makes inter-building shading possible (§7).</li>
+      <li><strong>Solar radiation on the surface</strong> — compute per-cell insolation <em>with shadowing</em>. Three real options, no free lunch: <strong>(a) GRASS <code>r.sun</code></strong> (open-source, scriptable from Python; horizon/shadowing via <code>r.horizon</code>) — recommended for the raster surface; <strong>(b) ArcGIS Raster Solar Radiation</strong> (the "Esri way", Appendix); <strong>(c) <code>pvlib</code></strong> for point-based plane-of-array irradiance. There is no pure-Python raster solar model — plan on GRASS for the surface pass and <code>pvlib</code> for the final per-plane estimate. Decide this up front.</li>
+      <li><strong>Roof-plane / orientation / tilt extraction</strong> — clip points per footprint, then either RANSAC plane-fitting (classical baseline, same approach as Project Sunroof) or the ML route (§9). In block-model mode (§5) this step is skipped in favour of the extruded height.</li>
+      <li><strong>Filter usable roof area</strong> — adopt a documented baseline rather than inventing thresholds: drop slope &gt; 45°, radiation &lt; 800 kWh/m²/yr, and north-facing surfaces (N. hemisphere); aggregate per building via zonal statistics. Because the radiation raster already carries shading, a heavily shaded roof falls below the threshold automatically.</li>
+      <li><strong>PV capacity &amp; annual energy</strong> — feed usable area + tilt + azimuth <em>and the shading-adjusted insolation from step 3</em> into PVWatts v8 → annual kWh, capacity factor; derive CO₂ offset from a grid-emissions factor. See §7 for why the shading value must pass through here, not raw location irradiance.</li>
+      <li><strong>Aggregate</strong> — spatial-join per-building results into census tracts → choropleths of potential capacity, generation, and (with demographic joins) an equity view.</li>
+    </ol>
+  </section>
+
+  <!-- ============ 08 ============ -->
+  <section>
+    <div class="h"><span class="num">08</span><h2>Inter-building &amp; mutual shading — a first-class effect</h2></div>
+    <p>In dense areas, shadows cast by <em>neighbouring</em> buildings are often the single largest correction to raw roof potential — bigger than tilt or orientation. <strong>My SIH prototype already modelled this</strong> (shadows cast across the Delhi block); this project preserves that rigour at city scale, but only because of one deliberate design choice worth stating explicitly.</p>
+    <div class="box navy">
+      <p class="label">The mechanism</p>
+      <p>We model on a <strong>DSM</strong> — the full elevation surface, every building at its real height plus trees and terrain — not on isolated per-roof geometry. When the raster solar-radiation model runs over that DSM it performs <strong>horizon / shadow-casting per cell</strong>: for each point on a roof it tests whether a neighbour (or the roof's own parapet/dormer) blocks the sun along its path. Integrated across the day and year, this captures the time-varying reality — the tall building to the south shades your roof at 9&nbsp;am in December but not at noon in June.</p>
+    </div>
+    <p>So height differences and adjacency <em>are</em> accounted for — via the DSM feeding steps 3→6. But this only works if the following are handled; each is a real trap:</p>
+    <ol class="steps">
+      <li><strong>Use the DSM, never the DTM,</strong> for the radiation pass. The bare-earth DTM has no buildings, so it zeroes out all inter-building shading.</li>
+      <li><strong>Buffer the study area.</strong> A building on the AOI's south edge is shaded by a taller one just outside it. Pad the DSM by a margin sized to the tallest plausible shadow-caster, or edge buildings read as over-optimistic.</li>
+      <li><strong>Set an adequate shadow search distance.</strong> Both <code>r.sun</code> / <code>r.horizon</code> and the ArcGIS tools cap how far they look for obstructions; downtown, a far tall tower still matters, so default radii can under-capture.</li>
+      <li><strong>Don't let PVWatts silently undo it.</strong> PVWatts assumes an <em>unshaded</em> horizon. Feed it the shading-adjusted per-roof insolation (or convert to a shading-loss factor) — not the raw NSRDB location value, which discards the shading you just computed.</li>
+      <li><strong>Trees and seasonality are only partial.</strong> A single leaf-on LiDAR/NAIP capture models summer tree shadows but not deciduous leaf-off in winter — a known, documentable bias.</li>
+      <li><strong>Resolution sets the ceiling.</strong> At ~1&nbsp;m LiDAR DSM you resolve building edges and genuine inter-building shadows. A coarse (e.g. 30&nbsp;m) DEM cannot — one building shading its neighbour is sub-pixel. This directly bounds the block-model / India path (§5, §13).</li>
+    </ol>
+    <p class="note"><b>Interview value:</b> "here's how I handle mutual shading in dense blocks, and here's the subtle trap where PVWatts quietly discards it" is exactly the second-order reasoning that separates a modeller from a tutorial-follower.</p>
+  </section>
+
+  <!-- ============ 09 ============ -->
+  <section>
+    <div class="h"><span class="num">09</span><h2>Where the ML actually lives</h2></div>
+    <p>Two legitimate options — do the first for depth, or start with the second and add the first as a stretch:</p>
+    <ul class="clean">
+      <li><strong>Deep-learning roof-plane &amp; obstruction segmentation.</strong> Train / fine-tune on <strong>RoofN3D</strong> (TU Berlin, free LiDAR roof-plane dataset); reference modern architectures (RoofSeg, SPPSFormer for point-cloud roof-plane instance segmentation; U-Net / Mask R-CNN for imagery). Segmenting obstructions (chimneys, vents, HVAC) that eat usable area is where accuracy — and an architectural eye — pays off.</li>
+      <li><strong>Learned suitability / ranking model.</strong> Gradient boosting or a small NN over engineered features (slope, aspect, irradiance, usable area, self-shading), trained against PVWatts- or Sunroof-style labels. Simpler to ship, still a defensible ML story, and pairs naturally with SHAP-style feature attribution for interpretability.</li>
+    </ul>
+  </section>
+
+  <!-- ============ 10 ============ -->
+  <section>
+    <div class="h"><span class="num">10</span><h2>Vertical-facade BIPV <span class="badge warm">Stretch goal</span></h2></div>
+    <p>The SIH prototype scored solar potential on <em>vertical facades</em>, not just rooftops — the "BI" in BIPV. Rooftop-only would silently drop that ambition, so it stays on the map as an explicit, clearly-scoped stretch rather than a v1 promise.</p>
+    <p>The honest engineering note is what makes it interesting: <strong>LiDAR under-samples vertical surfaces</strong> (it is a broadly top-down capture), so the high-resolution path is actually the <em>weaker</em> route for facades. The <strong>block-model path (§5) is the more tractable one</strong> — extruded LOD-1 walls give clean vertical surfaces, and the same DSM radiation pass already computes irradiance on them. This is a neat inversion: the prototype-heritage mode is the natural home for the prototype's most distinctive feature. Scope: facades as a Phase-2+ add-on on the block-model path, with per-facade irradiance from the raster surface and a documented accuracy caveat versus rooftops.</p>
+  </section>
+
+  <!-- ============ 11 ============ -->
+  <section>
+    <div class="h"><span class="num">11</span><h2>Delivery — stack-neutral</h2></div>
+    <ul class="clean">
+      <li><strong>Publish results:</strong> turn the GeoDataFrame into hosted layers (vector tiles / a hosted feature service) consumable by any web-map client.</li>
+      <li><strong>Interactive deliverable:</strong> a web map wrapped in a lightweight app — the artifact a reviewer actually clicks. Keep it framework-agnostic; the prototype's own web front-end (React/Node) is one option.</li>
+      <li><strong>Esri route:</strong> the full ArcGIS Online / Experience Builder / <code>arcgis.learn</code> path is a first-class supported deployment — detailed in the appendix so it doesn't couple the core pipeline to one vendor.</li>
+    </ul>
+  </section>
+
+  <!-- ============ 12 ============ -->
+  <section>
+    <div class="h"><span class="num">12</span><h2>Phased roadmap</h2></div>
+    <div class="phase">
+      <p class="ptitle">Phase 0 · Scoping &amp; de-risking — a few evenings</p>
+      <p>Pick the study area (recommended: <strong>Washington, DC</strong> — dense open LiDAR, and a well-documented reference workflow exists for a DC neighbourhood to benchmark against). Confirm 3DEP coverage/vintage, get the NLR API key, stand up the repo and a data-access smoke test per source. Decide GRASS-vs-ArcGIS for the radiation step now.</p>
+    </div>
+    <div class="phase">
+      <p class="ptitle">Phase 1 · MVP — one neighbourhood, end-to-end · 2–3 weekends</p>
+      <p>One DC neighbourhood. Footprints + DSM + radiation (with shading) + RANSAC roof planes + PVWatts → a per-building suitability score and a clean static map. <strong>Explicit goal:</strong> reproduce and sanity-check against a published reference. Ship it even if rough — it proves the whole spine works.</p>
+    </div>
+    <div class="phase">
+      <p class="ptitle">Phase 2 · Full — city-scale + ML + deployed app · multi-week</p>
+      <p>Scale to the full District: tiling/batching for the whole point cloud, the ML segmentation model (RoofN3D-trained) for planes + obstructions, census-tract aggregation, an equity overlay, and the deployed web app. This is the portfolio centrepiece. Facade BIPV (§10) enters here as a stretch.</p>
+    </div>
+    <div class="phase">
+      <p class="ptitle">Phase 3 · India — re-version via modular adapters · stretch</p>
+      <p>Swap data adapters behind the common interface for an Indian city (§13). Deliberately showcases modular, provider-abstracted design — and the block-model path (§5) that traces straight back to the SIH prototype.</p>
+    </div>
+  </section>
+
+  <!-- ============ 13 ============ -->
+  <section>
+    <div class="h"><span class="num">13</span><h2>India re-version — modular, with an honest boundary</h2></div>
+    <p>Build a provider interface (<code>FootprintSource</code>, <code>ElevationSource</code>, <code>ImagerySource</code>, <code>IrradianceSource</code>); the core pipeline stays fixed, adapters change. The honest version of modularity is more impressive than pretending it's a clean swap.</p>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Layer</th><th>India equivalent</th><th>Swap quality</th></tr></thead>
+        <tbody>
+          <tr><td>Footprints</td><td>Google Open Buildings / Microsoft ML Footprints</td><td><span class="swap-good">Clean swap</span> — as good or better than US</td></tr>
+          <tr><td>Irradiance</td><td>NASA POWER + PVGIS, with <code>pvlib</code> replacing PVWatts</td><td><span class="swap-good">Clean swap</span> (PVWatts' NSRDB strength is US-centric)</td></tr>
+          <tr><td>Admin boundaries</td><td>Indian census / admin polygons</td><td><span class="swap-good">Clean swap</span></td></tr>
+          <tr><td>Elevation / DSM</td><td>Copernicus DEM GLO-30 (30&nbsp;m) / CartoDEM (~30&nbsp;m)</td><td><span class="swap-warn">Constrained</span> — no open LiDAR; 30&nbsp;m can't resolve roof planes</td></tr>
+          <tr><td>Imagery</td><td>Sentinel-2 (10&nbsp;m)</td><td><span class="swap-warn">Constrained</span> — ~10–15× coarser than NAIP; a roof is a few pixels</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="box">
+      <p class="label">The honest boundary — say it out loud</p>
+      <p>Footprints, irradiance, and aggregation are true adapter swaps. But DSM and imagery are limited by <em>resolution</em>, not just source — so the India version drops to the <strong>block-model path (§5)</strong>: LOD-1 extruded footprints with a flat-roof / fixed-tilt heuristic, exactly the prototype's original approach. <strong>Inter-building shading (§7) is the sharpest casualty:</strong> at 30&nbsp;m a building shading its neighbour is sub-pixel, so mutual shading drops to a coarse sky-view-factor or horizon estimate — state the accuracy hit plainly. Naming this trade-off is the senior move; hiding it is the junior one.</p>
+    </div>
+  </section>
+
+  <!-- ============ 14 ============ -->
+  <section>
+    <div class="h"><span class="num">14</span><h2>Honest risks &amp; caveats</h2></div>
+    <ol class="steps">
+      <li><strong>DSM isn't off-the-shelf for all of the US</strong> — deriving it from raw 3DEP point clouds is real engineering (compute + volume). Pick a city with confirmed dense, recent LiDAR; lean on Planetary Computer's pre-derived DSM where it exists.</li>
+      <li><strong>No pure-Python raster solar model</strong> — you take a GRASS (install/scripting overhead) or ArcGIS (licensing) dependency for the surface pass. Decide early.</li>
+      <li><strong>Shading is only as good as the DSM + settings</strong> — DTM-instead-of-DSM, an unbuffered AOI, a too-small shadow radius, or passing raw irradiance to PVWatts each silently discards inter-building shading (§7). Easiest mistakes to make, hardest to notice.</li>
+      <li><strong>Roof-plane extraction is the weakest link</strong> — its errors propagate straight into capacity/kWh/CO₂. No large public ground-truth for arbitrary US cities (RoofN3D is NYC-specific), so validating a new city is nontrivial. Report uncertainty; don't over-claim precision.</li>
+      <li><strong>Cloud/free-tier limits are real</strong> — hosted-layer publishing is often credit- or quota-metered; batch publishes and confirm caps before committing a platform as the final target.</li>
+      <li><strong>India ≠ "just swap the adapter"</strong> — the geometry/imagery/shading stages need a functional downgrade to the block-model path, not a repoint. Scope it as such.</li>
+    </ol>
+  </section>
+
+  <!-- ============ 15 ============ -->
+  <section>
+    <div class="h"><span class="num">15</span><h2>Reference benchmarks — compare &amp; cite, don't reinvent</h2></div>
+    <ul class="clean">
+      <li><strong>Google Project Sunroof</strong> — the closest end-to-end precedent (CNN roof scoring → RANSAC planes → TMY shading → panel placement). Your "how mine differs" section.</li>
+      <li><strong>NREL/NLR rooftop technical potential</strong> — Gagnon, Margolis, Melius, Phillips &amp; Elmore (2016), <em>NREL/TP-6A20-65298</em>: 1,118 GW / 1,432 TWh-yr, ≈39% of US electricity. Your quantitative sanity check.</li>
+      <li><strong>DeepSolar</strong> — Yu, Wang, Majumdar &amp; Rajagopal, <em>Joule</em> (2018) — the flagship "CV + solar + city-scale" precedent (detects installed panels across 366k+ images).</li>
+    </ul>
+  </section>
+
+  <!-- ============ APPENDIX ============ -->
+  <hr class="divider">
+  <section>
+    <p class="appendix-eyebrow">Appendix A</p>
+    <div class="h"><h2>The Esri deployment track</h2></div>
+    <p>The pipeline above is vendor-neutral. Esri is a first-class supported deployment target and, for a GeoAI role, the most direct signal of fit — collected here so it stays decoupled from the core.</p>
+    <ul class="clean">
+      <li><strong>Publish results:</strong> turn the GeoDataFrame into a Spatially Enabled DataFrame and push a hosted feature layer — <code>sdf.spatial.to_featurelayer(title=..., gis=gis)</code> (supports <code>overwrite=True</code> for refreshes).</li>
+      <li><strong>Interactive deliverable:</strong> ArcGIS Online Web Map → wrap in an <strong>Instant App</strong> (no-code) or <strong>Experience Builder</strong> (low-code).</li>
+      <li><strong>"Esri way" modelling:</strong> do the radiation with <strong>Raster Solar Radiation</strong> (upward hemispherical viewshed per cell, so surrounding buildings occlude the sky — note the legacy Area Solar Radiation tool is being superseded) and the segmentation with <code>arcgis.learn</code> (15+ built-in DL models on PyTorch/fastai) inside ArcGIS Pro — end-to-end ecosystem fluency.</li>
+      <li><strong>Benchmark:</strong> Esri's "Estimate solar power potential" tutorial (Glover Park, DC) — DSM + footprints → Raster Solar Radiation → slope/aspect filter → zonal stats — is the Phase-1 template and reference; plus Esri's public "Rooftop Solar Panel Suitability" Experience Builder app as a deliverable model.</li>
+      <li><strong>Free-tier caution:</strong> ArcGIS Online Public/Personal accounts are credit-metered per republish (2 GB storage). A city-scale layer fits, but repeated re-publishing burns credits — batch publishes; check <code>developers.arcgis.com/faq</code> before committing.</li>
+    </ul>
+    <p class="note">Esri-<em>application</em>-specific positioning (the interview narrative and the tailored resume copy) lives in the separate Esri project spec, not here — this document is the vendor-neutral engineering plan for the general portfolio and repo.</p>
+  </section>
+
+  <footer>
+    <hr class="divider">
+    <p class="colophon">All technical claims, datasets, APIs, and benchmark figures were verified against primary sources (Aug 2026). Companion: <code>SIH2024_BIPV_Solar_Prototype_Deck.pdf</code> (the prototype this project grows from). Sibling document: the Esri-tailored project spec.</p>
+  </footer>
+
+</div>
+</body>
+</html>
