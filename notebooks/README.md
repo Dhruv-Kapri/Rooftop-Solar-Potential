@@ -9,8 +9,9 @@ read on GitHub without running anything.
 |---|---|---|
 | [`00_pipeline_overview.ipynb`](00_pipeline_overview.ipynb) | The end-to-end map + the whole chain worked by hand on one toy roof | all (overview) |
 | [`01_footprints_and_dsm.ipynb`](01_footprints_and_dsm.ipynb) | Footprints + DSM on a tiny AOI; the **DSM-vs-DTM shading trap**, proved by subtraction | 1–2 |
+| [`02_radiation_rsun.ipynb`](02_radiation_rsun.ipynb) | Solar radiation with GRASS `r.sun`; **inter-building shading** shown shaded-vs-unshaded, integrated to annual insolation | 3 |
 
-More land as stages are built (radiation → roof planes → usable area → yield).
+More land as stages are built (roof planes → usable area → yield).
 
 **Self-contained by design.** A notebook re-does the work *inline*, on a deliberately small
 AOI, rather than importing `src/` — so it reads as genuine exploration, and the clean,
