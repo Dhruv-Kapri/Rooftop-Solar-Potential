@@ -9,6 +9,11 @@ outputs/
 # Secrets
 .env
 
+# Jupyter — committed notebooks keep their rendered outputs; ignore only the scratch state
+.ipynb_checkpoints/
+# osmnx Overpass API response cache, written when a notebook runs
+notebooks/cache/
+
 # Python
 __pycache__/
 *.py[cod]

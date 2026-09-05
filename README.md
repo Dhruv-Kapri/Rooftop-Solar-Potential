@@ -76,6 +76,15 @@ flowchart LR
 
 The geometry front-end is swappable; radiation → yield → aggregation is identical downstream.
 
+## Walkthrough notebooks
+
+The [`notebooks/`](notebooks/) directory is the **visual, plain-language way in** — each stage
+is explored on a small scale (real data, real maps, worked maths) before it's formalised into
+`src/rooftop_solar/`. Start with [`00_pipeline_overview.ipynb`](notebooks/00_pipeline_overview.ipynb)
+for the end-to-end map, then [`01_footprints_and_dsm.ipynb`](notebooks/01_footprints_and_dsm.ipynb),
+which *proves the DSM-vs-DTM shading trap by subtracting one surface from the other*. Rendered
+outputs are committed, so they read on GitHub without running anything.
+
 ## Roadmap at a glance
 
 | Phase | Scope |
