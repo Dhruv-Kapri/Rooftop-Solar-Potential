@@ -36,3 +36,16 @@ PHASE1_NEIGHBOURHOOD = "Glover Park"
 # Working CRS: a metric projected CRS is required for area/plane fitting.
 # NAD83(2011) / UTM 18N covers DC. Revisit per study area.
 WORKING_CRS = "EPSG:6347"
+
+# Phase 1 AOI — a hand-picked bounding box around the Glover Park core, in WGS84
+# lon/lat (EPSG:4326) as (west, south, east, north). Chosen decision, not an official
+# boundary: reproducible, easy to buffer, and easy to line up against the Esri
+# "Estimate solar power potential" Glover Park tutorial extent (docs/roadmap.md §12).
+# ~1.3 km (E-W) x ~1.7 km (N-S). Refine here if the benchmark needs a different frame.
+AOI_BBOX_WGS84 = (-77.0825, 38.9130, -77.0680, 38.9280)
+
+# Buffer (metres, applied in WORKING_CRS) grown around the core AOI before fetching
+# footprints/DSM, so taller buildings just OUTSIDE the frame still cast shadows into it
+# (the inter-building-shading trap — risks §8, trap 2). Keep >= the r.sun shadow search
+# distance used in radiation.py so no relevant caster is clipped away.
+AOI_BUFFER_M = 300.0

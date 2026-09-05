@@ -26,6 +26,12 @@ dependencies:
   - osmnx
   - requests
   - python-dotenv
+  # ms-buildings (footprints.py) is geoparquet on Azure Blob Storage, partitioned by
+  # quadkey directory (abfs://) — geopandas.read_parquet needs pyarrow, and reading an
+  # abfs:// URI needs adlfs (which pulls in fsspec).
+  - pyarrow
+  - fsspec
+  - adlfs
   # --- modelling ---
   - numpy
   - scipy
