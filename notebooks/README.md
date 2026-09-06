@@ -11,8 +11,11 @@ read on GitHub without running anything.
 | [`01_footprints_and_dsm.ipynb`](01_footprints_and_dsm.ipynb) | Footprints + DSM on a tiny AOI; the **DSM-vs-DTM shading trap**, proved by subtraction | 1–2 |
 | [`02_radiation_rsun.ipynb`](02_radiation_rsun.ipynb) | Solar radiation with GRASS `r.sun`; **inter-building shading** shown shaded-vs-unshaded, integrated to annual insolation | 3 |
 | [`03_roof_planes.ipynb`](03_roof_planes.ipynb) | Per-roof tilt & aspect via RANSAC single-plane fitting; the **weakest-link uncertainty** (inlier ratio, pixel count) reported honestly | 4 |
+| [`04_usable_area_and_yield.ipynb`](04_usable_area_and_yield.ipynb) | Usable roof area, then PV capacity/energy/CO2 and a per-roof suitability score — every roof in the tiny AOI scored end to end | 5–6 |
 
-More land as stages are built (roof planes → usable area → yield).
+The exploration spine (footprints → DSM → shaded radiation → tilt/aspect → usable area → yield)
+is now complete on the tiny AOI. What's left is formalising it into `src/rooftop_solar/` at full
+Glover Park scale.
 
 **Self-contained by design.** A notebook re-does the work *inline*, on a deliberately small
 AOI, rather than importing `src/` — so it reads as genuine exploration, and the clean,
