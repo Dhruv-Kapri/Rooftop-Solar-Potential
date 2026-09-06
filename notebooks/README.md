@@ -10,6 +10,7 @@ read on GitHub without running anything.
 | [`00_pipeline_overview.ipynb`](00_pipeline_overview.ipynb) | The end-to-end map + the whole chain worked by hand on one toy roof | all (overview) |
 | [`01_footprints_and_dsm.ipynb`](01_footprints_and_dsm.ipynb) | Footprints + DSM on a tiny AOI; the **DSM-vs-DTM shading trap**, proved by subtraction | 1–2 |
 | [`02_radiation_rsun.ipynb`](02_radiation_rsun.ipynb) | Solar radiation with GRASS `r.sun`; **inter-building shading** shown shaded-vs-unshaded, integrated to annual insolation | 3 |
+| [`03_roof_planes.ipynb`](03_roof_planes.ipynb) | Per-roof tilt & aspect via RANSAC single-plane fitting; the **weakest-link uncertainty** (inlier ratio, pixel count) reported honestly | 4 |
 
 More land as stages are built (roof planes → usable area → yield).
 
