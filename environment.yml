@@ -35,6 +35,10 @@ dependencies:
   # --- viz / delivery ---
   - matplotlib
   - folium
+  # --- notebooks (learning + experimentation; see notebooks/) ---
+  - jupyterlab
+  - ipykernel
+  - nbconvert
   # --- dev ---
   - ruff
   - pytest
