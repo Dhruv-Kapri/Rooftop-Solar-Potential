@@ -11,8 +11,8 @@ outputs/
 
 # Jupyter — committed notebooks keep their rendered outputs; ignore only the scratch state
 .ipynb_checkpoints/
-# osmnx Overpass API response cache, written when a notebook runs
-notebooks/cache/
+# osmnx Overpass API response cache, written when a notebook runs (path depends on cwd)
+cache/
 
 # Python
 __pycache__/
