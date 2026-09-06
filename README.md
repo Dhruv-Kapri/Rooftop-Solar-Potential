@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <img alt="status" src="https://img.shields.io/badge/status-Phase%200%20complete%20%C2%B7%20Phase%201%20next-2F7D5B">
+  <img alt="status" src="https://img.shields.io/badge/status-Phase%201%20%C2%B7%20exploration%20complete-2F7D5B">
   <img alt="focus" src="https://img.shields.io/badge/focus-geospatial%20ML-2C6C8A">
   <img alt="data" src="https://img.shields.io/badge/data-public%20%2F%20open--source-2F7D5B">
   <img alt="delivery" src="https://img.shields.io/badge/delivery-interactive%20web%20map-6B7686">
@@ -20,10 +20,11 @@ energy, and CO₂ offset** — then aggregated to neighbourhood choropleths with
 from **public data and APIs**, modelled in **open-source Python**, and delivered as an **interactive
 web map**. The Esri stack is *one supported deployment target, not a dependency*.
 
-> **Status: Phase 0 complete — Phase 1 (MVP) next.** Scoping & de-risking is done: study area +
-> LiDAR coverage confirmed, environment + GRASS + NLR API access set up, and a data-access smoke
-> test passing on all sources (`scripts/check_data_access.py`). The end-to-end pipeline code lands
-> in Phase 1 (see the [roadmap](docs/roadmap.md)).
+> **Status: Phase 1 in progress — exploration complete.** Phase 0 (scoping & de-risking) is done.
+> The full Phase 1 pipeline — footprints → DSM → shaded radiation → roof planes → usable area → PV
+> yield — is now prototyped end-to-end in the [walkthrough notebooks](notebooks/) and sanity-checked
+> against Esri's Glover Park reference. Next: formalise it into `src/rooftop_solar/` at full scale
+> (see the [roadmap](docs/roadmap.md)).
 
 ## Lineage — from a hackathon prototype to a city pipeline
 
@@ -75,6 +76,22 @@ flowchart LR
 | **Block-model / LOD-1** *(heritage + fallback)* | Extrude footprints to one height per building | Sparse-data cities (India) — the mode the SIH prototype ran on |
 
 The geometry front-end is swappable; radiation → yield → aggregation is identical downstream.
+
+## Walkthrough notebooks
+
+The [`notebooks/`](notebooks/) directory is the **visual, plain-language way in** — the whole
+Phase 1 pipeline explored end-to-end on a small scale (real data, real maps, worked maths)
+before it's formalised into `src/rooftop_solar/`. Rendered outputs are committed, so they read
+on GitHub without running anything:
+
+- [`00_pipeline_overview`](notebooks/00_pipeline_overview.ipynb) — the end-to-end map, and the whole chain worked by hand on one toy roof
+- [`01_footprints_and_dsm`](notebooks/01_footprints_and_dsm.ipynb) — footprints + DSM, and the **DSM-vs-DTM shading trap** proved by subtracting one surface from the other
+- [`02_radiation_rsun`](notebooks/02_radiation_rsun.ipynb) — solar radiation with GRASS `r.sun`, **inter-building shading** shown shaded-vs-unshaded
+- [`03_roof_planes`](notebooks/03_roof_planes.ipynb) — per-roof tilt/aspect via RANSAC, with fit-quality **uncertainty** reported honestly
+- [`04_usable_area_and_yield`](notebooks/04_usable_area_and_yield.ipynb) — usable area → PV capacity/energy/CO₂ → a per-roof **suitability score**
+- [`05_benchmark_esri`](notebooks/05_benchmark_esri.ipynb) — the full run at neighbourhood scale, **benchmarked against Esri's** Glover Park tutorial
+
+See [`notebooks/README.md`](notebooks/README.md) for the full index.
 
 ## Roadmap at a glance
 

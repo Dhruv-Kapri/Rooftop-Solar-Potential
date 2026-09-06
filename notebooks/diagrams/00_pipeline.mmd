@@ -1,0 +1,8 @@
+flowchart TD
+    B[2. DSM from LiDAR<br/>dsm.py] --> C[3. Solar radiation<br/>WITH shading<br/>radiation.py · GRASS r.sun]
+    A[1. Building footprints<br/>footprints.py] --> D[4. Roof planes:<br/>tilt + aspect<br/>roof_planes.py]
+    B --> D
+    C --> F
+    D --> E[5. Usable area<br/>usable_area.py]
+    E --> F[6. PV capacity, energy, CO2<br/>yield_pv.py · PVWatts]
+    F --> G[7. Aggregate to tracts<br/>aggregate.py]

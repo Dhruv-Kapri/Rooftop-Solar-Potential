@@ -9,6 +9,11 @@ outputs/
 # Secrets
 .env
 
+# Jupyter — committed notebooks keep their rendered outputs; ignore only the scratch state
+.ipynb_checkpoints/
+# osmnx Overpass API response cache, written when a notebook runs (path depends on cwd)
+cache/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -22,3 +27,6 @@ venv/
 .DS_Store
 .idea/
 .vscode/
+
+# Rendered diagram artifacts (source .mmd is committed; PNGs are embedded in notebooks)
+notebooks/diagrams/*.png

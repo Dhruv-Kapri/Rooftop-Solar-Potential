@@ -36,6 +36,15 @@ a per-building suitability score and a clean static map. **Explicit goal:** repr
 sanity-check against a published reference (Esri's Glover Park "Estimate solar power potential"
 tutorial is the Phase-1 template). Ship it even if rough — it proves the whole spine works.
 
+**Phase 1 finding — DSM vintage (verified):** the buffered Glover Park AOI mosaics **three
+`3dep-lidar-dsm` tiles spanning two LiDAR vintages** — one `USGS_LPC_VA_Fairfax_County_2018`
+(2018) plus two `USGS_LPC_MD_VA_Sandy_NCR_2014_LAS_2015` (2014/15) tiles. Phase 0 saw only the
+2018 tile because it checked the *core* bbox; the 300 m shading buffer (risks §8, trap 2)
+reaches into the 2014/15 tiles. Both are 2 m with the same processing, so the seam risk is low
+— but a mixed-vintage surface is a documented bias to keep in mind when interpreting kWh/CO₂
+(and to re-check if construction post-dates a tile). The `notebooks/01_footprints_and_dsm.ipynb`
+DSM-vs-DTM check visualises the surface these tiles produce.
+
 ## Phase 2 · Full — city-scale + ML + deployed app · multi-week
 
 Scale to the full District: tiling/batching for the whole point cloud, the ML segmentation model
