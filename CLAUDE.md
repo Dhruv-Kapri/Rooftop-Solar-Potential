@@ -25,8 +25,8 @@ reviewers instead.) Real pipeline code (footprints → … → aggregate) starts
 
 ## Source of truth
 
-- `docs/Rooftop_Solar_Project_Plan.pdf` — **the full engineering plan; section numbers (§N) are
-  cited throughout the docs and code.** When in doubt, this wins.
+- `docs/reference/Rooftop_Solar_Project_Plan.pdf` — **the full engineering plan; section numbers (§N)
+  are cited throughout the docs and code.** When in doubt, this wins.
 - `docs/architecture.md` — two modelling modes, provider interface, delivery.
 - `docs/data-sources.md` — every data layer, source, access notes (US v1).
 - `docs/risks.md` — honest risks + the inter-building shading traps + reference benchmarks.
