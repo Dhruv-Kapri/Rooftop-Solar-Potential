@@ -15,6 +15,14 @@ Cross-checked on **OSM** footprints (Esri-granularity segmentation): **both** in
 pass — specific yield 1186 and median per-building 14.35 MWh — reproducing notebook 05 exactly.
 That confirms the MS per-building divergence is footprint segmentation, not the model.
 
+<p align="center">
+  <img alt="Per-roof solar suitability choropleth for Glover Park (canonical MS run)" src="../assets/stage1-glover-park-suitability.png" width="70%">
+  <br>
+  <sub><em>Stage-1 output — per-roof suitability (within-AOI percentile rank of annual energy
+  density) for Glover Park, canonical MS ML Buildings run. The chunky polygons are MS's merged
+  rowhouses (771 footprints); an OSM run resolves the same blocks into ~2,885 individual roofs.</em></sub>
+</p>
+
 ## Results
 
 | Quantity | MS ML Buildings (canonical) | OSM (regression anchor) | Esri | Notebook 05 (OSM) |

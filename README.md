@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <img alt="status" src="https://img.shields.io/badge/status-Phase%201%20%C2%B7%20exploration%20complete-2F7D5B">
+  <img alt="status" src="https://img.shields.io/badge/status-Phase%201%20%C2%B7%20MVP%20complete-2F7D5B">
   <img alt="focus" src="https://img.shields.io/badge/focus-geospatial%20ML-2C6C8A">
   <img alt="data" src="https://img.shields.io/badge/data-public%20%2F%20open--source-2F7D5B">
   <img alt="delivery" src="https://img.shields.io/badge/delivery-interactive%20web%20map-6B7686">
@@ -20,11 +20,12 @@ energy, and CO₂ offset** — then aggregated to neighbourhood choropleths with
 from **public data and APIs**, modelled in **open-source Python**, and delivered as an **interactive
 web map**. The Esri stack is *one supported deployment target, not a dependency*.
 
-> **Status: Phase 1 in progress — exploration complete.** Phase 0 (scoping & de-risking) is done.
-> The full Phase 1 pipeline — footprints → DSM → shaded radiation → roof planes → usable area → PV
-> yield — is now prototyped end-to-end in the [walkthrough notebooks](notebooks/) and sanity-checked
-> against Esri's Glover Park reference. Next: formalise it into `src/rooftop_solar/` at full scale
-> (see the [roadmap](docs/roadmap.md)).
+> **Status: Phase 1 MVP complete.** The full pipeline — footprints → DSM → shaded radiation → roof
+> planes → usable area → PV yield — now runs end-to-end in [`src/rooftop_solar/`](src/rooftop_solar/)
+> for Glover Park and passes the Esri benchmark ([see the result below](#stage-1-result--glover-park-benchmarked-against-esri)).
+> The [walkthrough notebooks](notebooks/) remain the plain-language tour of how each stage works.
+> Next: Phase 2 — city scale, ML roof segmentation, census-tract aggregation, and the deployed web
+> map (see the [roadmap](docs/roadmap.md)).
 
 ## Lineage — from a hackathon prototype to a city pipeline
 
@@ -76,6 +77,24 @@ flowchart LR
 | **Block-model / LOD-1** *(heritage + fallback)* | Extrude footprints to one height per building | Sparse-data cities (India) — the mode the SIH prototype ran on |
 
 The geometry front-end is swappable; radiation → yield → aggregation is identical downstream.
+
+## Stage 1 result — Glover Park, benchmarked against Esri
+
+Phase 1 runs the whole spine in [`src/rooftop_solar/`](src/rooftop_solar/) and scores every roof in
+Washington DC's Glover Park — one command: `python scripts/run_stage1.py`.
+
+<p align="center">
+  <img alt="Per-roof solar suitability choropleth for Glover Park" src="docs/assets/stage1-glover-park-suitability.png" width="70%">
+  <br>
+  <sub><em>Per-roof suitability — the within-AOI percentile rank of each roof's annual energy density — exported alongside a GeoPackage of the full per-roof estimates (capacity, energy, CO₂, tilt/aspect, fit uncertainty).</em></sub>
+</p>
+
+It **passes** the sanity-check against Esri's "Estimate solar power potential" tutorial on the
+size-independent metric — specific yield 1162 vs Esri's 1150 (<1%) — and the OSM run reproduces the
+notebook-05 anchor (14.35 MWh/building) exactly. The full comparison, and the finding that Microsoft's
+footprints *merge* Glover Park's rowhouses (which is why per-building energy needs a footprint-aware
+reading), are written up in
+[`docs/benchmarks/stage-1-glover-park-esri.md`](docs/benchmarks/stage-1-glover-park-esri.md).
 
 ## Walkthrough notebooks
 
