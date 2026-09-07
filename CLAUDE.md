@@ -16,12 +16,15 @@ Esri.
 
 ## Status
 
-**Phase 1 MVP complete (2026-09-07); Phase 2 is next.** The full spine — footprints → DSM → shaded
-`r.sun` radiation → RANSAC roof planes → usable area → PV yield + suitability — runs end-to-end for
-Glover Park (`scripts/run_stage1.py`) and passes the ADR-0005 benchmark gate. `aggregate.py` is the
-only remaining stub. **Phase 2 is planned in `docs/plans/stage-2-overview.md`** (5 parts, starting
-with census-tract aggregation + equity). See `docs/roadmap.md` for phase boundaries/exit criteria and
-`docs/benchmarks/` for the benchmark write-up.
+**Phase 1 MVP complete (2026-09-07); Phase 2 in progress — Part 2-1 (census aggregation + equity)
+built (2026-09-07).** The full spine — footprints → DSM → shaded `r.sun` radiation → RANSAC roof
+planes → usable area → PV yield + suitability — runs end-to-end for Glover Park
+(`scripts/run_stage1.py`) and passes the ADR-0005 benchmark gate. Part 2-1 fills the last stub
+(`aggregate.py`), adds the census/equity data-access module (`tracts.py`), and rolls per-roof
+results up to census tracts with an equity overlay (`scripts/run_aggregation.py`; ADR-0006/0007/0008).
+**Phase 2 is planned in `docs/plans/stage-2-overview.md`** (5 parts; **Part 2-2 city-scale is next**).
+See `docs/roadmap.md` for phase boundaries/exit criteria and `docs/benchmarks/` for the benchmark
+write-up.
 
 ## Source of truth
 
@@ -65,10 +68,12 @@ aggregation is identical downstream. Detail: `docs/architecture.md §5`.
 | Filter usable area | `usable_area.py` |
 | PV capacity & annual energy | `yield_pv.py` (PVWatts) |
 | Aggregate to census tracts | `aggregate.py` |
+| Census / equity data access | `tracts.py` (TIGER · ACS · DOE LEAD) |
 | Paths / keys / study-area config | `config.py` |
 
-All Stage-1 modules above are implemented and tested; **`aggregate.py` is the sole remaining stub**
-(Phase 2, Part 2-1 — see `docs/plans/stage-2-part1-plan.md`).
+All modules above are implemented and tested. Part 2-1 (Phase 2) filled `aggregate.py` and added
+`tracts.py`; `pipeline.run_aggregation` now rolls per-roof results up to census tracts with an equity
+overlay (see `docs/plans/stage-2-part1-plan.md`, ADR-0006/0007/0008). **Part 2-2 (city-scale) is next.**
 
 ## Correctness invariants — the shading traps (risks §8; easy to get wrong, hard to notice)
 
