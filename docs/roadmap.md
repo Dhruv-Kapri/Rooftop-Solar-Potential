@@ -31,6 +31,9 @@ for the radiation step now — **decided: GRASS `r.sun`.**
 
 ## Phase 1 · MVP — one neighbourhood, end-to-end · 2–3 weekends  ← NEXT
 
+> **Detailed implementation plan:** [`docs/plans/stage-1-plan.md`](plans/stage-1-plan.md) — module
+> contracts, sequencing, acceptance criteria, and the decisions in [`docs/adr/`](adr/).
+
 One DC neighbourhood. Footprints + DSM + radiation (with shading) + RANSAC roof planes + PVWatts →
 a per-building suitability score and a clean static map. **Explicit goal:** reproduce and
 sanity-check against a published reference (Esri's Glover Park "Estimate solar power potential"

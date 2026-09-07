@@ -53,7 +53,7 @@ solar potential on *vertical facades*, not just roofs:
 a reproducible pipeline*, trading hand-built LOD-1 blocks for LiDAR-derived per-roof geometry and
 deep-learning roof segmentation. This version earns the resolution and the scale.
 
-Prototype deck: [`docs/SIH2024_BIPV_Solar_Prototype_Deck.pdf`](docs/SIH2024_BIPV_Solar_Prototype_Deck.pdf).
+Prototype deck: [`docs/reference/SIH2024_BIPV_Solar_Prototype_Deck.pdf`](docs/reference/SIH2024_BIPV_Solar_Prototype_Deck.pdf).
 
 ## The pipeline
 
@@ -108,14 +108,14 @@ Full detail in [`docs/roadmap.md`](docs/roadmap.md).
 
 | File | What |
 |---|---|
-| [`docs/Rooftop_Solar_Project_Plan.pdf`](docs/Rooftop_Solar_Project_Plan.pdf) | **The full engineering plan** — source of truth |
+| [`docs/reference/Rooftop_Solar_Project_Plan.pdf`](docs/reference/Rooftop_Solar_Project_Plan.pdf) | **The full engineering plan** — source of truth |
 | [`docs/architecture.md`](docs/architecture.md) | Two modelling modes, provider interface, Esri deployment track |
 | [`docs/data-sources.md`](docs/data-sources.md) | Every data layer, source, and access notes (US v1) |
 | [`docs/risks.md`](docs/risks.md) | Honest risks, the inter-building shading traps, reference benchmarks |
 | [`docs/roadmap.md`](docs/roadmap.md) | Phased roadmap |
-| [`docs/SIH2024_BIPV_Solar_Prototype_Deck.pdf`](docs/SIH2024_BIPV_Solar_Prototype_Deck.pdf) | The 2024 prototype this project grows from |
-| [`docs/Foundations_Geospatial_ML.pdf`](docs/Foundations_Geospatial_ML.pdf) | Reading list — geospatial data science & ML foundations (background) |
-| [`docs/Resources_GeoAI_Solar.pdf`](docs/Resources_GeoAI_Solar.pdf) | Reading list — curated GeoAI-for-solar resources (background) |
+| [`docs/reference/SIH2024_BIPV_Solar_Prototype_Deck.pdf`](docs/reference/SIH2024_BIPV_Solar_Prototype_Deck.pdf) | The 2024 prototype this project grows from |
+| [`docs/reference/Foundations_Geospatial_ML.pdf`](docs/reference/Foundations_Geospatial_ML.pdf) | Reading list — geospatial data science & ML foundations (background) |
+| [`docs/reference/Resources_GeoAI_Solar.pdf`](docs/reference/Resources_GeoAI_Solar.pdf) | Reading list — curated GeoAI-for-solar resources (background) |
 
 ## License & credits
 
