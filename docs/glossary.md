@@ -34,7 +34,9 @@ Project-specific terms as used in this pipeline, not textbook-general definition
   hence shadow-casting) per cell from the DSM.
 - **Shadow search distance** — how far `r.horizon`/`r.sun` look outward for a shadow-casting obstacle.
   Too short and a distant tall tower stops mattering even though it still shades the roof (risks §8,
-  trap 3).
+  trap 3). In the current pipeline this is **not an explicit `r.sun` parameter** — the effective reach
+  is bounded by the DSM/GRASS-region extent (i.e. the buffered AOI), so the **shadow buffer *is* the
+  search distance** until an explicit `maxdistance` is wired in Part 2-5.
 - **Insolation** — solar energy received per unit area over a period (e.g. kWh/m²/yr); the raster
   quantity `r.sun` produces per cell.
 - **POA (plane-of-array)** — irradiance measured or modelled in the plane of the tilted roof/panel
@@ -130,4 +132,26 @@ Project-specific terms as used in this pipeline, not textbook-general definition
   (per-household potential, high/low) × (energy burden, high/low), split at the tract-set medians. A
   **priority tract** is high-potential + high-burden — the biggest equity win from rooftop solar.
   Median-relative, like the ADR-0004 percentile, so meaningful only across many tracts — i.e.
-  city-wide (Part 2-2), not Glover Park's ~2 tracts (ADR-0007).
+  city-wide (Part 2-2), not Glover Park's ~7 tracts (ADR-0007).
+
+### Stage 2 · city-scale tiling (Part 2-2)
+
+- **Tile** — one cell of Part 2-2's fixed grid over the District. It carries a **core** cell (the area
+  it is responsible for scoring) and a **buffered** cell (core grown by `TILE_BUFFER_M`) that the
+  DSM + `r.sun` pass actually cover, so a core-edge roof is still shaded by casters just outside the
+  core — the inter-building/AOI shadow trap, one scale up (ADR-0009).
+- **Fixed grid origin** — the tile grid is anchored to a **fixed origin**, so a cell's `(row, col)` —
+  and therefore its cache key — is identical on every run, independent of how the AOI is framed. The
+  precondition for idempotent caching (ADR-0009).
+- **`floor` membership / seam conservation** — each building is assigned to exactly one tile by
+  flooring its representative point against the grid origin: `(row, col) = ⌊(rep_point − origin)/tile_size⌋`.
+  A building on a **seam** (a shared cell edge) therefore lands in exactly one cell *by construction* —
+  never dropped (as a `.within` test would) nor double-counted (as a footprint-intersect would). **Seam
+  conservation**: every District building is scored exactly once (ADR-0009).
+- **Params-stamp** — a per-tile fingerprint (radiation days, DSM source, buffer, tile size, a pipeline
+  version) recorded in the **tile manifest**. A resumed run recomputes only tiles whose stamp changed,
+  so an accuracy swap (Parts 2-4/2-5) is incremental, not from-scratch, and a stale cache is never
+  silently served (ADR-0009).
+- **GeoParquet** — the columnar, partition-friendly geospatial format Part 2-2 writes the city-scale
+  per-roof dataset in (partitioned per tile) — better suited than a single GeoPackage to a ~10⁵-building
+  dataset and incremental per-tile writes. The small per-tract output stays GeoPackage (ADR-0009).

@@ -15,6 +15,13 @@ shadow search distance** in `r.horizon`/`r.sun` (trap 3, risks §8 — currently
 than an explicit `maxdistance`). Both change per-roof numbers, so they're done together as one
 deliberate accuracy pass rather than trickled in.
 
+**Also folded in here — a third fidelity lever, deferred from Part 2-2 (Q5 grilling, 2026-09-07):**
+whether to replace the 2 m Planetary-Computer DSM with a **finer self-derived DSM from raw 3DEP EPT
+via PDAL** (Phase-0 finding, risks §1). This is *geometry-input* fidelity (upstream of radiation),
+distinct from the radiation-engine fidelity above — but it belongs to the same deliberate accuracy
+pass. Part 2-2 deliberately kept Stage-1's 2 m DSM unchanged to stay a pure orchestration part, so the
+2 m-vs-finer-DSM compute/accuracy tradeoff lands here.
+
 ## 2. Where it continues from
 
 - `radiation.surface_irradiance(dsm_path, day_range=None, shadow_search_distance_m=500.0)` — today
@@ -48,6 +55,9 @@ deliberate accuracy pass rather than trickled in.
   calculation across the 365 (or N) days, rather than recomputing horizons every run?
 - What exactly needs to change in ADR-0001 — revise it here, or hand that off as a follow-up? (The
   task for this part is to note the revision is owed, not to rewrite the ADR itself.)
+- **Finer DSM (self-derived 3DEP/PDAL) vs the 2 m PC DSM** (deferred from Part 2-2): is the resolution
+  gain worth the compute + new PDAL code, and does it change roof-plane fits / shading enough to matter?
+  Sequence it against the 365-day work — both are re-runs of the same expensive city pass.
 
 ## 5. Tentative deliverables
 
