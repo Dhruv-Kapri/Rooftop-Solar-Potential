@@ -8,11 +8,18 @@
   per-tile cache (resumable/idempotent)**; radiation = **calibrated 12-day per tile** (ADR-0001).
   **Grilled + hardened 2026-09-07** — the seam/idempotency/failure contracts in §3/§5 are the result.
 
-> **STATUS: detailed + grilled** — revised from the overview's tentative Part 2-2 after Part 2-1 was
-> built (folding in real column names, the scale-agnostic contract, cache layout, partial-tract
-> coverage), then **grilled 2026-09-07** to harden every contract a `/tdd` session needs (tile
-> membership, idempotency key, failure handling). Re-read against reality before starting, per the
-> living-plans protocol.
+> **STATUS: built + tested (2026-09-07)** — `tiling.py` + `pipeline.run_city` + `scripts/run_city.py`
+> land the tiling / per-tile cache / merge / manifest spine; unit **and** network/GRASS integration
+> tiers are green (seam conservation + idempotency verified on a real multi-tile DC run). **As-built
+> facts (measured):** DC splits into **66 tiles @ 2 km** (`GRID_ORIGIN=(315000, 4295000)`); the
+> integration smoke ran ~6 single-day tiles ×2 in ~31 min (≈4–5 min/tile, DSM-fetch + `r.sun` bound —
+> so the calibrated full-DC batch is a ~10–15 h job). **Two additions beyond this plan:** the ADR-0004
+> suitability percentile is **recomputed city-wide after merge** (`pipeline.recompute_city_suitability`
+> — per-tile would silently be *within-tile*; a gap this plan missed, settled with the user), and an
+> **empty-tile short-circuit** skips the DSM/`r.sun` work when no footprint floors into a tile's core
+> (the common case — DC is 43% of its bbox). **Deferred:** the expensive full-DC batch run (step 7) and
+> its real deliverables (populated equity map, sanity write-up, compute-cost run-log) — run when ready
+> via `scripts/run_city.py`. Original planning history below.
 
 ## 1. What Part 2-2 is
 

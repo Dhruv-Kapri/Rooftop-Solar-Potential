@@ -66,3 +66,25 @@ TIGER_TRACT_BASE = "https://www2.census.gov/geo/tiger/TIGER2020/TRACT"  # tl_202
 # time (open risk §11) — the loader owns the URL, this only pins the vintage above.
 # Per-source caches under data/ (created on first fetch).
 TRACTS_CACHE_DIR = DATA_DIR / "tracts"
+
+# --- city-scale tiling (Phase 2, Part 2-2 — ADR-0009) ---
+# Scale the Stage-1 per-roof spine over the whole District by running it tile-by-tile on a
+# regular grid, caching each tile's roofs so an expensive multi-hour run is resumable.
+#
+# Fixed grid origin (lower-left anchor) in WORKING_CRS metres. It MUST stay fixed and sit SW
+# of the whole District: cell (row, col) = floor((point - origin) / TILE_SIZE_M), so a fixed
+# origin makes the cache key stable across runs (idempotency), and an SW anchor keeps every
+# index non-negative (DC spans easting ~315875–334681, northing ~4295204–4318471 in EPSG:6347).
+GRID_ORIGIN = (315000.0, 4295000.0)
+# Tile edge length (metres, in WORKING_CRS). Provisional 2 km — ~10×12 grid over DC, ~52
+# non-empty tiles. Confirm against the real point-cloud volume/runtime before the full batch
+# (stage-2-part2-plan.md §9 step 1 / §10); the unit tests take tile_size as a parameter so
+# they don't depend on this value.
+TILE_SIZE_M = 2000.0
+# Buffer grown around each tile's core cell before fetching DSM/footprints, so tall casters
+# just outside a tile still shade its edge roofs (risks §8 traps 2–3, one scale up). ADR-0009:
+# the buffer IS the effective shadow reach (r.sun's search distance is not separately wired),
+# so this tracks AOI_BUFFER_M — retune them together, never independently.
+TILE_BUFFER_M = AOI_BUFFER_M
+# Per-tile roof cache (GeoParquet) + tile manifest live here (gitignored, created on first run).
+TILES_CACHE_DIR = DATA_DIR / "tiles"
