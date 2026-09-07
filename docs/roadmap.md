@@ -58,11 +58,17 @@ reaches into the 2014/15 tiles. Both are 2 m with the same processing, so the se
 (and to re-check if construction post-dates a tile). The `notebooks/01_footprints_and_dsm.ipynb`
 DSM-vs-DTM check visualises the surface these tiles produce.
 
-## Phase 2 · Full — city-scale + ML + deployed app · multi-week  ← NEXT
+## Phase 2 · Full — city-scale + ML + deployed app · multi-week  ← IN PROGRESS
 
 Scale to the full District: tiling/batching for the whole point cloud, the ML segmentation model
 (RoofN3D-trained) for planes + obstructions, census-tract aggregation, an equity overlay, and the
 deployed web app. The portfolio centrepiece. Facade BIPV (§10) enters here as a stretch.
+
+- **Part 2-1 — census-tract aggregation + equity overlay — complete (2026-09-07).** `aggregate.py`
+  (roll-up · equity join · quadrant classification) + `tracts.py` (TIGER/ACS/DOE LEAD) +
+  `pipeline.run_aggregation` + `scripts/run_aggregation.py`; ADR-0006/0007/0008. Conservation holds
+  on the real Glover Park run (all 771 roofs → 7 DC tracts, extensive sums preserved). Glover Park is
+  a machinery smoke, not the equity finding — that arrives at Part 2-2. **Part 2-2 (city-scale) next.**
 
 ## Phase 3 · India — re-version via modular adapters · stretch
 

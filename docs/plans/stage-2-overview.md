@@ -21,7 +21,7 @@ segmentation, at upgraded radiation fidelity.* Facade BIPV (§10) is a stretch.
 
 | Part | Name | Rocks folded in | Continuation — why it sits here | Plan |
 |---|---|---|---|---|
-| **2-1** | **Aggregation + Equity** | census aggregation · equity overlay | Continues directly from Stage 1's per-roof GeoPackage. Pure geopandas + a census join; fills the one true stub (`aggregate.py`). The `/tdd` opener. | [detailed](stage-2-part1-plan.md) |
+| **2-1** | **Aggregation + Equity** | census aggregation · equity overlay | Continues directly from Stage 1's per-roof GeoPackage. Pure geopandas + a census join; fills the one true stub (`aggregate.py`). The `/tdd` opener. | [detailed](stage-2-part1-plan.md) · **✓ built 2026-09-07** |
 | **2-2** | **City scale** | full-DC tiling/batching | Reuses the *same* spine + 2-1's aggregation, now over the whole District instead of one bbox. Compute/orchestration, no new analytics. | tentative |
 | **2-3** | **Deployed web app** | hosted interactive map | Renders 2-2's District-wide aggregated + equity data. **Reaches the end goal as a complete product** (RANSAC-baseline accuracy). | tentative |
 | **2-4** | **ML segmentation** | RoofN3D multi-plane + obstructions | Accuracy upgrade, swapped in behind the *already-wired* `roof_planes.fit_roof_planes(method="ml")` / `usable_area(obstructions=…)` seams. Re-propagated by re-running 2-2. | tentative |
@@ -60,6 +60,7 @@ it before starting the next.** A tentative plan going stale is expected and chea
 |---|---|
 | [0006](../adr/0006-equity-data-source-and-dimension.md) | Equity = **energy burden** (DOE LEAD) + median income (ACS), on **2020 tracts**; de-hosted composites (CEJST/EJScreen) optional only. |
 | [0007](../adr/0007-equity-metric-per-household-quadrant.md) | Equity metric = **per-household potential × energy burden** as a **2×2 quadrant** (priority tracts); no composite index. |
+| [0008](../adr/0008-lead-energy-burden-tract-aggregation.md) | DOE LEAD per-tract burden = **overall income-weighted ratio** Σ(energy cost×units)/Σ(income×units) over all income bands (AMI file); low-income-specific variant deferred to Part 2-2. |
 
 Also settled this session: parts sliced + ordered by continuation (this doc); roof→tract assignment =
 **centroid**; `aggregate.py` = **decomposed pure functions + a pipeline wiring entry**, scale-agnostic;
@@ -70,7 +71,27 @@ Part 2-1 runs on **Glover Park** (machinery + smoke, not the analytical payoff �
 Provider adapters (`FootprintSource / ElevationSource / ImagerySource / IrradianceSource`) stay
 deferred to Phase 3 (CLAUDE.md locked decisions; architecture.md). Stage 2 stays single-city (DC).
 
-## 7. Housekeeping noted (separate from this plan)
+## 7. Part 2-1 built — learnings to fold into Part 2-2 (living-plans checkpoint)
 
-`CLAUDE.md` line ~78 ("Modules are currently stubs (raise `NotImplementedError`)") is **stale** —
-after Stage 1 only `aggregate.py` remains a stub. Flag for a small docs fix, out of scope here.
+Re-read the tentative Part 2-2…2-5 plans against what Part 2-1 taught before starting Part 2-2:
+
+- **Real per-roof column names:** the Stage-1 GeoPackage uses `annual_energy_kwh` / `annual_co2_kg`
+  (not `energy_kwh` / `co2_*`). The aggregation reads these; Part 2-2 must too.
+- **Glover Park spans 7 DC tracts, not ~2** (the part-1 plan §7.4 guessed ~2). Still thin for a
+  meaningful median split — the smoke-not-a-finding framing holds — but the count was wrong.
+- **Partial-tract coverage makes per-household potential unreliable at Part 2-1.** The bbox AOI clips
+  edge tracts, so a tract barely inside gets a few scored roofs ÷ its full household count → an
+  understated per-household number (the real run spans 73–11,468 kWh/hh — the low end is this
+  artifact, not a finding). Part 2-2 covers **whole** tracts, so per-household becomes meaningful there
+  — a structural reason the equity payoff belongs to 2-2, beyond just "more tracts".
+- **Scale-agnostic contract confirmed:** `aggregate_to_tracts` / `attach_equity` / `classify_equity`
+  are pure and CRS/extent-agnostic; Part 2-2 reuses them untouched over all DC tracts. `tracts.py`
+  loaders already fetch the whole state (DC) and cache under `data/` — Part 2-2's job is the *roof*
+  side (tiling/batching the point cloud), not re-doing the tract side.
+- **DOE LEAD resolved (ADR-0008):** the burden is an overall income-weighted ratio; if Part 2-2 wants
+  the policy-headline *low-income* burden, restrict to the lower `AMI150` bands — a one-line change to
+  `aggregate_lead_burden`.
+- **`load_energy_burden` is DC-only** (the OpenEI URL is DC-specific). A multi-city Part 2-2/Phase-3
+  needs the LEAD URL/state parameterized.
+
+Done this session: the stale `CLAUDE.md` stub note is fixed (aggregate.py filled; tracts.py added).
