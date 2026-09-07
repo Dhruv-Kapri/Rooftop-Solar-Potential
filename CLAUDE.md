@@ -16,19 +16,12 @@ Esri.
 
 ## Status
 
-**Phase 1 MVP complete (2026-09-07); Phase 2 is next.** The full spine — footprints → DSM →
-radiation (shaded `r.sun`) → RANSAC roof planes → usable area → PV yield + suitability — runs
-end-to-end for Glover Park via `pipeline.run_stage1` / `scripts/run_stage1.py`, producing a per-roof
-GeoPackage + suitability choropleth. It **passes the revised ADR-0005 gate** (specific yield 1162 vs
-Esri 1150), and the OSM run reproduces notebook 05's per-building energy (14.35 MWh) exactly — full
-write-up in `docs/benchmarks/stage-1-glover-park-esri.md`. Two-tier tests (unit + marked
-GRASS/network integration) are green. **Carried into Phase 2:** census-tract aggregation
-(`aggregate.py` is still a stub), a hosted/interactive map, multi-plane/ML roof segmentation, the
-365-day radiation sum, and explicit `r.horizon` shadow distance (trap 3 is region-bounded today).
-
-Phase 0 (complete 2026-09-01) closed its exit criteria: study area + 3DEP coverage verified, conda
-env + GRASS installed, NLR key obtained, stdlib data-access smoke test passing. See
-`docs/roadmap.md` for phase boundaries and exit criteria.
+**Phase 1 MVP complete (2026-09-07); Phase 2 is next.** The full spine — footprints → DSM → shaded
+`r.sun` radiation → RANSAC roof planes → usable area → PV yield + suitability — runs end-to-end for
+Glover Park (`scripts/run_stage1.py`) and passes the ADR-0005 benchmark gate. `aggregate.py` is the
+only remaining stub. **Phase 2 is planned in `docs/plans/stage-2-overview.md`** (5 parts, starting
+with census-tract aggregation + equity). See `docs/roadmap.md` for phase boundaries/exit criteria and
+`docs/benchmarks/` for the benchmark write-up.
 
 ## Source of truth
 
@@ -38,6 +31,8 @@ env + GRASS installed, NLR key obtained, stdlib data-access smoke test passing. 
 - `docs/data-sources.md` — every data layer, source, access notes (US v1).
 - `docs/risks.md` — honest risks + the inter-building shading traps + reference benchmarks.
 - `docs/roadmap.md` — phased roadmap.
+- `docs/glossary.md` — project-specific domain terms (POA, specific yield, census tract, energy burden, …).
+- `docs/plans/` — per-stage implementation plans; `stage-2-overview.md` is the current work map.
 
 ## Locked decisions (don't re-litigate without the user)
 
@@ -53,12 +48,9 @@ env + GRASS installed, NLR key obtained, stdlib data-access smoke test passing. 
 
 ## Two modelling modes (one interface)
 
-Geometry front-end is swappable; radiation → yield → aggregation is identical downstream.
-
-- **LiDAR per-roof** — v1 default, high-res. Clip LiDAR per footprint, fit roof planes (RANSAC
-  baseline; ML route is Phase 2). Washington DC.
-- **Block-model / LOD-1** — heritage + fallback. Extrude footprints to one height/building. The
-  mode the SIH prototype ran on; the India (Phase 3) path where LiDAR is unavailable.
+**LiDAR per-roof** (v1 default, DC) vs **block-model / LOD-1** (heritage + India/Phase-3 fallback,
+the mode the SIH prototype ran on). The geometry front-end is swappable; radiation → yield →
+aggregation is identical downstream. Detail: `docs/architecture.md §5`.
 
 ## Pipeline → code map
 
@@ -75,7 +67,8 @@ Geometry front-end is swappable; radiation → yield → aggregation is identica
 | Aggregate to census tracts | `aggregate.py` |
 | Paths / keys / study-area config | `config.py` |
 
-Modules are currently stubs (raise `NotImplementedError`) — fill them in per phase.
+All Stage-1 modules above are implemented and tested; **`aggregate.py` is the sole remaining stub**
+(Phase 2, Part 2-1 — see `docs/plans/stage-2-part1-plan.md`).
 
 ## Correctness invariants — the shading traps (risks §8; easy to get wrong, hard to notice)
 
@@ -95,7 +88,8 @@ don't over-claim precision.
 - **Conda** (geospatial stack: GDAL/PDAL/GRASS-adjacent): `conda env create -f environment.yml`,
   then `pip install -e .` for the `rooftop_solar` package (src layout).
 - **GRASS GIS** installed separately and callable on PATH (Phase 0 exit criterion).
-- Lint/format: **ruff**. Tests: **pytest**.
+- Lint/format: **ruff**. Tests: **pytest** — the unit tier runs by default; GRASS/network tests are
+  marked `integration` and **deselected by default** (`pytest -m integration` to include).
 - **Never commit data** — `data/`, `outputs/`, and all `*.tif/*.laz/*.las/*.copc.laz` are
   gitignored. LiDAR/DSM/imagery are huge.
 - Secrets in `.env` (gitignored); copy `.env.example` to start.
