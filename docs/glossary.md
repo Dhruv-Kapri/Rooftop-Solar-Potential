@@ -98,3 +98,36 @@ Project-specific terms as used in this pipeline, not textbook-general definition
   published reference Stage 1 sanity-checks against (ADR-0005).
 - **LOD-1 / block model** — the fallback modelling mode: extrude each footprint to a single height,
   no per-roof plane fitting. Used where LiDAR is unavailable (the India/Phase-3 path), not for DC.
+
+### Stage 2 · census aggregation & equity (Part 2-1)
+
+- **GEOID** — the US Census geographic identifier; for a tract an 11-digit code (2 state + 3 county +
+  6 tract). DC tracts begin `11001…`. Must be kept a **zero-padded string** end-to-end — integer
+  coercion drops the leading `11` and silently breaks every join (ADR-0006).
+- **TIGER/Line** — the Census's boundary-geometry files; Stage 2 uses the **2020-vintage** DC tract
+  polygons as the aggregation geography (data-sources.md; ADR-0006).
+- **ACS (American Community Survey)** — the Census's rolling demographic survey; Stage 2 pulls its
+  **5-year** tract estimates for population, occupied housing units, and median household income via
+  the Census Data API (needs a free `CENSUS_API_KEY`; ADR-0006).
+- **Energy burden** — the share of household income spent on home energy; Stage 2's **headline equity
+  dimension** — a high-burden tract is where rooftop-solar bill savings matter most. Sourced from DOE
+  LEAD (ADR-0006).
+- **DOE LEAD** — the US DOE's *Low-Income Energy Affordability Data*; the tract-level energy-burden
+  source (2022 update, 2020-tract-aligned, free file download; ADR-0006).
+- **Disadvantage (this project)** — tract disadvantage is operationalized by **energy burden**
+  (headline) + **median household income** (legible secondary), *not* a composite index. The
+  de-hosted federal composites (CEJST, EPA EJScreen) are an optional, pinned, caveated overlay only —
+  never the core (ADR-0006).
+- **Extensive vs intensive (tract) quantities** — *extensive* quantities **sum** over a tract's roofs
+  (total usable area, PV capacity, energy, CO₂, building/usable-roof counts); *intensive* quantities
+  are per-unit summaries that don't scale with tract size (median suitability, % roofs usable). The
+  equity lens uses a per-household normalization of the extensive potential.
+- **Per-household potential** — a tract's total rooftop-solar potential ÷ its occupied housing units;
+  the equity-relevant normalizer (benefit accrues to *dwellings*, and energy burden is already a
+  per-household metric, so the two equity axes share a denominator). Per-capita is reported as a
+  legible secondary (ADR-0007).
+- **Equity quadrant / priority tract** — Stage 2's equity overlay classifies each tract into a 2×2 of
+  (per-household potential, high/low) × (energy burden, high/low), split at the tract-set medians. A
+  **priority tract** is high-potential + high-burden — the biggest equity win from rooftop solar.
+  Median-relative, like the ADR-0004 percentile, so meaningful only across many tracts — i.e.
+  city-wide (Part 2-2), not Glover Park's ~2 tracts (ADR-0007).
