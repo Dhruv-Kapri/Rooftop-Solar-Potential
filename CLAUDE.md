@@ -16,11 +16,18 @@ Esri.
 
 ## Status
 
-**Phase 0 complete (2026-09-01); Phase 1 is next.** Phase 0 closed all exit criteria: study area +
-3DEP coverage verified, conda env + GRASS installed, NLR key obtained, a stdlib data-access smoke
-test (`scripts/check_data_access.py`) passing on all five sources. (The styled-HTML/GitHub-Pages
-exit criterion was dropped — the descriptive `README.md`, which links the full plan PDF, serves
-reviewers instead.) Real pipeline code (footprints → … → aggregate) starts in Phase 1. See
+**Phase 1 MVP complete (2026-09-07); Phase 2 is next.** The full spine — footprints → DSM →
+radiation (shaded `r.sun`) → RANSAC roof planes → usable area → PV yield + suitability — runs
+end-to-end for Glover Park via `pipeline.run_stage1` / `scripts/run_stage1.py`, producing a per-roof
+GeoPackage + suitability choropleth. It **passes the revised ADR-0005 gate** (specific yield 1162 vs
+Esri 1150), and the OSM run reproduces notebook 05's per-building energy (14.35 MWh) exactly — full
+write-up in `docs/benchmarks/stage-1-glover-park-esri.md`. Two-tier tests (unit + marked
+GRASS/network integration) are green. **Carried into Phase 2:** census-tract aggregation
+(`aggregate.py` is still a stub), a hosted/interactive map, multi-plane/ML roof segmentation, the
+365-day radiation sum, and explicit `r.horizon` shadow distance (trap 3 is region-bounded today).
+
+Phase 0 (complete 2026-09-01) closed its exit criteria: study area + 3DEP coverage verified, conda
+env + GRASS installed, NLR key obtained, stdlib data-access smoke test passing. See
 `docs/roadmap.md` for phase boundaries and exit criteria.
 
 ## Source of truth
