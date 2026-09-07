@@ -29,12 +29,25 @@ for the radiation step now — **decided: GRASS `r.sun`.**
   finer DSM ourselves from the raw 3DEP EPT point cloud via PDAL (risks §1); (b) 2018 is ~8 years
   old — confirm no major construction in the AOI since, or note it as a documented bias.
 
-## Phase 1 · MVP — one neighbourhood, end-to-end · 2–3 weekends  ← NEXT
+## Phase 1 · MVP — one neighbourhood, end-to-end · 2–3 weekends  ✅ COMPLETE (2026-09-07)
+
+> **Detailed implementation plan:** [`docs/plans/stage-1-plan.md`](plans/stage-1-plan.md) — module
+> contracts, sequencing, acceptance criteria, and the decisions in [`docs/adr/`](adr/).
 
 One DC neighbourhood. Footprints + DSM + radiation (with shading) + RANSAC roof planes + PVWatts →
 a per-building suitability score and a clean static map. **Explicit goal:** reproduce and
 sanity-check against a published reference (Esri's Glover Park "Estimate solar power potential"
 tutorial is the Phase-1 template). Ship it even if rough — it proves the whole spine works.
+
+**Phase 1 outcome (2026-09-07):** spine delivered end-to-end (`scripts/run_stage1.py`). Benchmark
+**passes** the revised ADR-0005 gate — specific yield 1162 (MS) / 1186 (OSM) vs Esri 1150 — and the
+OSM run reproduces notebook 05 (median per-building 14.35 MWh) exactly, confirming faithful
+promotion. Key finding: MS ML Buildings *merges* Glover Park's rowhouses (771 footprints vs OSM's
+2,885), inflating *per-building* energy 3.3× while leaving specific yield / aggregates intact — so
+the gate now keys on specific yield, and median-per-building is demoted to context (ADR-0005
+revised). Full write-up: [`docs/benchmarks/stage-1-glover-park-esri.md`](benchmarks/stage-1-glover-park-esri.md).
+Deferred to Phase 2: census aggregation, hosted map, multi-plane/ML segmentation, 365-day sum,
+explicit `r.horizon` shadow distance (trap 3).
 
 **Phase 1 finding — DSM vintage (verified):** the buffered Glover Park AOI mosaics **three
 `3dep-lidar-dsm` tiles spanning two LiDAR vintages** — one `USGS_LPC_VA_Fairfax_County_2018`
@@ -45,7 +58,7 @@ reaches into the 2014/15 tiles. Both are 2 m with the same processing, so the se
 (and to re-check if construction post-dates a tile). The `notebooks/01_footprints_and_dsm.ipynb`
 DSM-vs-DTM check visualises the surface these tiles produce.
 
-## Phase 2 · Full — city-scale + ML + deployed app · multi-week
+## Phase 2 · Full — city-scale + ML + deployed app · multi-week  ← NEXT
 
 Scale to the full District: tiling/batching for the whole point cloud, the ML segmentation model
 (RoofN3D-trained) for planes + obstructions, census-tract aggregation, an equity overlay, and the

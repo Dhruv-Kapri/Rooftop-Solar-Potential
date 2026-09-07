@@ -44,8 +44,8 @@ State that accuracy hit plainly.
 - **Interactive deliverable:** a web map wrapped in a lightweight app. Framework-agnostic.
 - **Esri route:** the full ArcGIS Online / Experience Builder / `arcgis.learn` path is a first-class
   *supported* deployment — see Appendix A of the plan and the GeoAI reading-list docs in `docs/`
-  ([`Foundations_Geospatial_ML.pdf`](Foundations_Geospatial_ML.pdf),
-  [`Resources_GeoAI_Solar.pdf`](Resources_GeoAI_Solar.pdf)). It is decoupled from the core so the
+  ([`Foundations_Geospatial_ML.pdf`](reference/Foundations_Geospatial_ML.pdf),
+  [`Resources_GeoAI_Solar.pdf`](reference/Resources_GeoAI_Solar.pdf)). It is decoupled from the core so the
   pipeline is not coupled to one vendor.
 
 ## Where the ML lives (§9) — Phase 2
