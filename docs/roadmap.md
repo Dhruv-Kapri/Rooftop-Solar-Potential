@@ -68,7 +68,13 @@ deployed web app. The portfolio centrepiece. Facade BIPV (§10) enters here as a
   (roll-up · equity join · quadrant classification) + `tracts.py` (TIGER/ACS/DOE LEAD) +
   `pipeline.run_aggregation` + `scripts/run_aggregation.py`; ADR-0006/0007/0008. Conservation holds
   on the real Glover Park run (all 771 roofs → 7 DC tracts, extensive sums preserved). Glover Park is
-  a machinery smoke, not the equity finding — that arrives at Part 2-2. **Part 2-2 (city-scale) next.**
+  a machinery smoke, not the equity finding — that arrives at Part 2-2.
+- **Part 2-2 — city-scale tiling — built + tested (2026-09-07).** `tiling.py` (fixed-origin grid +
+  `floor` membership) + `pipeline.run_city` (per-tile GeoParquet cache · resumable manifest/params-stamp
+  · city-wide merge + suitability recompute) + `scripts/run_city.py`; ADR-0009. Both tiers green — seam
+  conservation + idempotency verified on a real multi-tile DC run. DC = 66 tiles @ 2 km. The **full-DC
+  batch run (~10–15 h) and its real deliverables (populated equity map, sanity write-up, run-log) are
+  deferred** — run when ready. **Part 2-3 (deployed web app) next.**
 
 ## Phase 3 · India — re-version via modular adapters · stretch
 

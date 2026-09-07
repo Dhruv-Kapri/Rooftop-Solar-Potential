@@ -16,13 +16,19 @@ Esri.
 
 ## Status
 
-**Phase 1 MVP complete (2026-09-07); Phase 2 in progress — Part 2-1 (census aggregation + equity)
-built (2026-09-07).** The full spine — footprints → DSM → shaded `r.sun` radiation → RANSAC roof
-planes → usable area → PV yield + suitability — runs end-to-end for Glover Park
+**Phase 1 MVP complete (2026-09-07); Phase 2 in progress — Parts 2-1 (aggregation + equity) and 2-2
+(city-scale tiling) built + tested (2026-09-07).** The full spine — footprints → DSM → shaded `r.sun`
+radiation → RANSAC roof planes → usable area → PV yield + suitability — runs end-to-end for Glover Park
 (`scripts/run_stage1.py`) and passes the ADR-0005 benchmark gate. Part 2-1 fills the last stub
 (`aggregate.py`), adds the census/equity data-access module (`tracts.py`), and rolls per-roof
 results up to census tracts with an equity overlay (`scripts/run_aggregation.py`; ADR-0006/0007/0008).
-**Phase 2 is planned in `docs/plans/stage-2-overview.md`** (5 parts; **Part 2-2 city-scale is next**).
+Part 2-2 scales the spine over the **whole District** by tiling: `tiling.py` (fixed-origin grid + `floor`
+membership) + `pipeline.run_city` (per-tile GeoParquet cache, resumable manifest/params-stamp, city-wide
+merge + suitability recompute; `scripts/run_city.py`; ADR-0009). Both test tiers are green (unit +
+network/GRASS integration smoke). The **expensive full-DC batch run and its real deliverables (the
+populated equity map, sanity write-up, compute-cost run-log) are deferred** — 66 tiles @ 2 km, a ~10–15 h
+job, run when ready via `scripts/run_city.py`.
+**Phase 2 is planned in `docs/plans/stage-2-overview.md`** (5 parts; **Part 2-3 web app is next**).
 See `docs/roadmap.md` for phase boundaries/exit criteria and `docs/benchmarks/` for the benchmark
 write-up.
 
@@ -69,11 +75,16 @@ aggregation is identical downstream. Detail: `docs/architecture.md §5`.
 | PV capacity & annual energy | `yield_pv.py` (PVWatts) |
 | Aggregate to census tracts | `aggregate.py` |
 | Census / equity data access | `tracts.py` (TIGER · ACS · DOE LEAD) |
+| City-scale tiling grid | `tiling.py` (fixed-origin grid · `floor` membership) |
+| City runner (tile → cache → merge) | `pipeline.run_city` (+ `scripts/run_city.py`) |
 | Paths / keys / study-area config | `config.py` |
 
 All modules above are implemented and tested. Part 2-1 (Phase 2) filled `aggregate.py` and added
-`tracts.py`; `pipeline.run_aggregation` now rolls per-roof results up to census tracts with an equity
-overlay (see `docs/plans/stage-2-part1-plan.md`, ADR-0006/0007/0008). **Part 2-2 (city-scale) is next.**
+`tracts.py`; `pipeline.run_aggregation` rolls per-roof results up to census tracts with an equity
+overlay (see `docs/plans/stage-2-part1-plan.md`, ADR-0006/0007/0008). Part 2-2 added `tiling.py` and
+`pipeline.run_city` — the same spine tiled over the whole District, idempotent/resumable per-tile
+(ADR-0009). Both tiers green; the full-DC batch + real deliverables are deferred (see Status).
+**Part 2-3 (deployed web app) is next.**
 
 ## Correctness invariants — the shading traps (risks §8; easy to get wrong, hard to notice)
 

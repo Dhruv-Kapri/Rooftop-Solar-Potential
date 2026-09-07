@@ -37,7 +37,12 @@ DSM_COLLECTION = "3dep-lidar-dsm"
 _NATIVE_RESOLUTION_M = 2.0
 
 
-def build_dsm(aoi, resolution_m: float = 2.0, source: str = "planetary-computer") -> Path:
+def build_dsm(
+    aoi,
+    resolution_m: float = 2.0,
+    source: str = "planetary-computer",
+    out_path: str | Path | None = None,
+) -> Path:
     """Build a DSM GeoTIFF for `aoi` and return its path.
 
     Args:
@@ -47,11 +52,15 @@ def build_dsm(aoi, resolution_m: float = 2.0, source: str = "planetary-computer"
             confirm it matches the source's native resolution; it does NOT trigger
             resampling.
         source: only "planetary-computer" is implemented (the pre-derived collection).
+        out_path: where to write the GeoTIFF. None (default, unchanged) writes the
+            Stage-1 path DATA_DIR/dsm/glover_park_dsm.tif; the city runner (run_city,
+            Part 2-2 / ADR-0009) passes a per-tile path so tiles don't clobber one another
+            under a single Glover-Park name (the DSM is transient — the roof parquet is the
+            resume cache).
 
     Steps: STAC search -> sign assets -> mosaic (rasterio.merge) -> reproject to
-    config.WORKING_CRS -> clip to `aoi` -> write GeoTIFF to
-    DATA_DIR/dsm/glover_park_dsm.tif. NoData is carried through unchanged from the
-    source (-9999 for this collection), never invented.
+    config.WORKING_CRS -> clip to `aoi` -> write GeoTIFF to `out_path`. NoData is carried
+    through unchanged from the source (-9999 for this collection), never invented.
     """
     if source != "planetary-computer":
         raise ValueError(f"Unknown DSM source: {source!r} (expected 'planetary-computer')")
@@ -68,7 +77,9 @@ def build_dsm(aoi, resolution_m: float = 2.0, source: str = "planetary-computer"
     )
     clipped, clipped_transform = _clip_to_aoi(dst_array, dst_transform, dst_crs, aoi, nodata)
 
-    out_path = config.DATA_DIR / "dsm" / "glover_park_dsm.tif"
+    out_path = (
+        config.DATA_DIR / "dsm" / "glover_park_dsm.tif" if out_path is None else Path(out_path)
+    )
     _write_geotiff(out_path, clipped, clipped_transform, dst_crs, nodata)
     return out_path
 

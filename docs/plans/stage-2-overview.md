@@ -22,7 +22,7 @@ segmentation, at upgraded radiation fidelity.* Facade BIPV (§10) is a stretch.
 | Part | Name | Rocks folded in | Continuation — why it sits here | Plan |
 |---|---|---|---|---|
 | **2-1** | **Aggregation + Equity** | census aggregation · equity overlay | Continues directly from Stage 1's per-roof GeoPackage. Pure geopandas + a census join; fills the one true stub (`aggregate.py`). The `/tdd` opener. | [detailed](stage-2-part1-plan.md) · **✓ built 2026-09-07** |
-| **2-2** | **City scale** | full-DC tiling/batching | Reuses the *same* spine + 2-1's aggregation, now over the whole District instead of one bbox. Compute/orchestration, no new analytics. | [detailed](stage-2-part2-plan.md) |
+| **2-2** | **City scale** | full-DC tiling/batching | Reuses the *same* spine + 2-1's aggregation, now over the whole District instead of one bbox. Compute/orchestration, no new analytics. | [detailed](stage-2-part2-plan.md) · **✓ built + tested 2026-09-07** (66 tiles @ 2 km; full-DC batch run deferred) |
 | **2-3** | **Deployed web app** | hosted interactive map | Renders 2-2's District-wide aggregated + equity data. **Reaches the end goal as a complete product** (RANSAC-baseline accuracy). | tentative |
 | **2-4** | **ML segmentation** | RoofN3D multi-plane + obstructions | Accuracy upgrade, swapped in behind the *already-wired* `roof_planes.fit_roof_planes(method="ml")` / `usable_area(obstructions=…)` seams. Re-propagated by re-running 2-2. | tentative |
 | **2-5** | **Fidelity** | 365-day radiation sum · explicit `r.horizon` (trap 3) | Radiation-engine refinements; both change per-roof numbers, done as one deliberate accuracy pass. | tentative |

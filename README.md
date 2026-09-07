@@ -20,16 +20,18 @@ energy, and CO₂ offset** — then aggregated to neighbourhood choropleths with
 from **public data and APIs**, modelled in **open-source Python**, and delivered as an **interactive
 web map**. The Esri stack is *one supported deployment target, not a dependency*.
 
-> **Status: Phase 1 MVP complete; Phase 2 in progress — Part 2-1 (census-tract aggregation + equity
-> overlay) complete.** The full per-roof pipeline — footprints → DSM → shaded radiation → roof planes
-> → usable area → PV yield — runs end-to-end in [`src/rooftop_solar/`](src/rooftop_solar/) for Glover
-> Park and passes the Esri benchmark ([see the result below](#stage-1-result--glover-park-benchmarked-against-esri)).
-> Part 2-1 then rolls those per-roof results up to **US Census tracts with an energy-burden equity
-> overlay** — `python scripts/run_aggregation.py` (ADR-0006/0007/0008). Glover Park is a *machinery
-> smoke* (7 tracts, whose per-household numbers are partial-coverage artifacts); the populated,
-> city-wide equity map is **Part 2-2**. The [walkthrough notebooks](notebooks/) remain the
-> plain-language tour. Next: Phase 2 Part 2-2 — full-DC scale, then ML roof segmentation and the
-> deployed web map (see the [roadmap](docs/roadmap.md)).
+> **Status: Phase 1 MVP complete; Phase 2 in progress — Parts 2-1 (census-tract aggregation + equity
+> overlay) and 2-2 (city-scale tiling) built + tested.** The full per-roof pipeline — footprints → DSM →
+> shaded radiation → roof planes → usable area → PV yield — runs end-to-end in
+> [`src/rooftop_solar/`](src/rooftop_solar/) for Glover Park and passes the Esri benchmark
+> ([see the result below](#stage-1-result--glover-park-benchmarked-against-esri)).
+> Part 2-1 rolls those per-roof results up to **US Census tracts with an energy-burden equity overlay**
+> — `python scripts/run_aggregation.py` (ADR-0006/0007/0008). Part 2-2 scales the same spine over the
+> **whole District** by tiling it — `python scripts/run_city.py` (ADR-0009); the code is green at both
+> test tiers, and the expensive full-DC batch that produces the *populated, city-wide* equity map is
+> deferred (a multi-hour job, run when ready). The [walkthrough notebooks](notebooks/) remain the
+> plain-language tour. Next: Phase 2 Part 2-3 — the deployed web map, then ML roof segmentation and
+> fidelity passes (see the [roadmap](docs/roadmap.md)).
 
 ## Lineage — from a hackathon prototype to a city pipeline
 
