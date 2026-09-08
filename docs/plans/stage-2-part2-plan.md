@@ -186,9 +186,11 @@ Full-DC is a documented manual batch run (like Stage-1's 12-day benchmark), not 
   `scripts/run_city.py`; ADR-0009.
 - **City-wide** per-roof **GeoParquet** + the **real** tract equity GeoPackage + choropleths + scatter
   (the actual Phase-2 payoff — the populated priority-tract map).
-- A short sanity write-up vs NREL DC rooftop technical potential (`docs/benchmarks/`), **plus a
-  compute-cost run-log** (tile count, wall-clock, per-tile cost) — Parts 2-4/2-5 budget re-runs against
-  it.
+- A short sanity write-up vs NREL DC rooftop technical potential + a **compute-cost run-log** (tile
+  count, wall-clock, per-tile cost) — Parts 2-4/2-5 budget re-runs against it. Lives in
+  [`docs/benchmarks/stage-2-part2-dc-city-scale.md`](../benchmarks/stage-2-part2-dc-city-scale.md)
+  (**scaffolded 2026-09-08** with the 1-day preview numbers; the 12-day column + headline map fill in
+  from the calibrated run).
 - Tests (both tiers) green.
 
 ## 9. Sequencing (TDD order)

@@ -1,8 +1,10 @@
 # Stage 2 · Part 2-3 plan (tentative) — Deployed web app
 
-> **STATUS: tentative** — a hypothesis written 2026-09-07, before Part 2-2 exists. Per the
-> living-plans protocol ([`stage-2-overview.md`](stage-2-overview.md) §4), **re-read and revise this
-> before starting it**, against what the earlier parts actually taught. Guesses are flagged `ASSUMPTION:`.
+> **STATUS: grounded, ready to grill (2026-09-08)** — the tentative hypothesis (written 2026-09-07)
+> now folds in Part 2-2's **real city dataset** from a full-DC run (numbers in §2a below), per the
+> living-plans protocol ([`stage-2-overview.md`](stage-2-overview.md) §4). Format and scale are no
+> longer guesses; the framework / host / tiling-toolchain choices are still open — that's the
+> `/grill-with-docs` job. Remaining guesses stay flagged `ASSUMPTION:`.
 
 - **Phase:** 2, Part 3 of 5 · **Branch:** `stage-2` · **Overview:** [stage-2-overview.md](stage-2-overview.md)
 - **Prerequisite:** Part 2-2 built.
@@ -16,17 +18,47 @@ the least in common with the rest of the pipeline: delivery/frontend, not analyt
 
 ## 2. Where it continues from
 
-- Part 2-2's district-wide per-roof dataset (ASSUMPTION there: GeoParquet) and district-wide tract
-  GeoPackage/choropleth (from Part 2-1's aggregation, reused unmodified).
+- Part 2-2's district-wide per-roof dataset (GeoParquet — **CONFIRMED**, see §2a) and district-wide
+  tract GeoPackage/choropleth (from Part 2-1's aggregation, reused unmodified).
 - The equity classification (`equity_class`, `is_priority`) from Part 2-1 (ADR-0007) — this is the
   overlay layer, not a new computation.
 - Architecture §11 (stack-neutral delivery): publish as hosted layers, wrap in a lightweight,
   framework-agnostic web map; the Esri/ArcGIS route stays a supported, decoupled option.
 
+## 2a. Grounded against Part 2-2's real dataset (2026-09-08)
+
+Part 2-2's roof side ran full-DC (a 1-day, uncalibrated pass — building counts and geometry are
+day-count-independent, so these figures also hold for the pending 12-day calibrated run):
+
+| Layer | Scale (measured) | Serving implication |
+|---|---|---|
+| **Per-roof** (`dc_roofs.parquet`) | **98,471 roofs** (57,140 usable), **18.1 MB** GeoParquet, ~676k vertices (mean **6.9/roof** — simple footprints) | Too heavy for raw client-side GeoJSON (~50–100 MB); **vector tiles are required, not optional** (§3's ASSUMPTION → a requirement). Simple geometries tile cheaply. |
+| **Tract equity** (~206 DC tracts) | Tiny (hundreds of polygons) | The **primary** choropleth — trivially served as inline GeoJSON, **no tiling needed**. |
+
+**What this settles for 2-3:**
+- **Format CONFIRMED = GeoParquet** — Part 2-2's output does *not* need to change (§6's "absorbs an
+  extra ETL step" risk is retired): the ETL is GeoParquet → (GeoJSON/FlatGeobuf) → `tippecanoe` →
+  **PMTiles/MBTiles** for the roof layer only; the tract layer stays a small GeoJSON.
+- **Two layers, two strategies** — build the small tract-equity map first (near-static; it *is* the
+  finding), add the 98k-roof vector-tile layer as a zoom-in drill-down. Directly de-risks §4's "how
+  much interactivity is worth it".
+
+**City-scale quirks observed (feed §6):**
+- **Transient Planetary Computer auth/SAS-token failures** on a long run: ~1 tile/run failed (e.g.
+  `tile 11_3`) with `ClientAuthenticationError`; **skip-and-continue** caught it and **resume retries**
+  it — so a "100% complete" dataset may need one resume pass. (Candidate 2-2 hardening: re-sign/retry
+  on auth error.)
+- **0 empty in-DC tiles** — all 66 grid tiles have buildings (dense urban), so the empty-tile
+  short-circuit rarely fires for DC.
+- **Absolute energy/capacity from the 1-day run are NOT usable** (single-day extrapolation → ~3.6 GW /
+  6 TWh/yr, ~2–4× NREL's ~1.3 GW / ~1.6 TWh/yr); the map's numbers must come from the **12-day
+  calibrated** run. Roof *counts* / geometry are exact regardless.
+
 ## 3. Likely approach (tentative)
 
-- ASSUMPTION: generate vector tiles from the district GeoParquet (per-roof + tract layers) rather than
-  serving raw vector data to the client at city scale.
+- ASSUMPTION: generate vector tiles from the district GeoParquet → **CONFIRMED necessary for the
+  per-roof layer** (98k features / 18 MB — see §2a), but **only** that layer; the ~206-tract equity
+  layer is tiny and served as inline GeoJSON, no tiling.
 - Route options to choose between (stack-neutral, per architecture §11), roughly in ascending
   effort/control:
   1. `folium` — already declared in `environment.yml` but currently unused; a quick static/served-map
