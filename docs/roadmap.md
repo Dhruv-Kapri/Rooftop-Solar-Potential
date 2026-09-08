@@ -74,7 +74,12 @@ deployed web app. The portfolio centrepiece. Facade BIPV (§10) enters here as a
   · city-wide merge + suitability recompute) + `scripts/run_city.py`; ADR-0009. Both tiers green — seam
   conservation + idempotency verified on a real multi-tile DC run. DC = 66 tiles @ 2 km. The **full-DC
   batch run (~10–15 h) and its real deliverables (populated equity map, sanity write-up, run-log) are
-  deferred** — run when ready. **Part 2-3 (deployed web app) next.**
+  deferred** — run when ready.
+- **Part 2-3 — deployed web app — built + live (2026-09-08).** A static MapLibre GL JS + PMTiles map on
+  GitHub Pages ([live](https://dhruv-kapri.github.io/Rooftop-Solar-Potential/); `web/`,
+  `scripts/build_web.py`; ADR-0010) — tract equity choropleth + 100k-roof drill-down. ETL unit-tested,
+  build + browser smokes green, PMTiles range-requests on Pages confirmed. Serves the 1-day preliminary
+  numbers until the calibrated data-swap (step 6). **Parts 2-4/2-5 (ML segmentation + fidelity) next.**
 
 ## Phase 3 · India — re-version via modular adapters · stretch
 

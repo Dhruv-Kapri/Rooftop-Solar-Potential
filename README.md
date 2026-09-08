@@ -6,7 +6,8 @@
 </p>
 
 <p align="center">
-  <img alt="status" src="https://img.shields.io/badge/status-Phase%202%20%C2%B7%20Part%202--1%20complete-2F7D5B">
+  <a href="https://dhruv-kapri.github.io/Rooftop-Solar-Potential/"><img alt="live web map" src="https://img.shields.io/badge/%E2%96%B6%20live-web%20map-2C6C8A"></a>
+  <img alt="status" src="https://img.shields.io/badge/status-Phase%202%20%C2%B7%20Part%202--3%20%C2%B7%20web%20map%20live-2F7D5B">
   <img alt="focus" src="https://img.shields.io/badge/focus-geospatial%20ML-2C6C8A">
   <img alt="data" src="https://img.shields.io/badge/data-public%20%2F%20open--source-2F7D5B">
   <img alt="delivery" src="https://img.shields.io/badge/delivery-interactive%20web%20map-6B7686">
@@ -21,7 +22,8 @@ from **public data and APIs**, modelled in **open-source Python**, and delivered
 web map**. The Esri stack is *one supported deployment target, not a dependency*.
 
 > **Status: Phase 1 MVP complete; Phase 2 in progress — Parts 2-1 (census-tract aggregation + equity
-> overlay) and 2-2 (city-scale tiling) built + tested.** The full per-roof pipeline — footprints → DSM →
+> overlay), 2-2 (city-scale tiling), and 2-3 (deployed web map —
+> [live](https://dhruv-kapri.github.io/Rooftop-Solar-Potential/)) built + tested.** The full per-roof pipeline — footprints → DSM →
 > shaded radiation → roof planes → usable area → PV yield — runs end-to-end in
 > [`src/rooftop_solar/`](src/rooftop_solar/) for Glover Park and passes the Esri benchmark
 > ([see the result below](#stage-1-result--glover-park-benchmarked-against-esri)).
@@ -30,8 +32,10 @@ web map**. The Esri stack is *one supported deployment target, not a dependency*
 > **whole District** by tiling it — `python scripts/run_city.py` (ADR-0009); the code is green at both
 > test tiers, and the expensive full-DC batch that produces the *populated, city-wide* equity map is
 > deferred (a multi-hour job, run when ready). The [walkthrough notebooks](notebooks/) remain the
-> plain-language tour. Next: Phase 2 Part 2-3 — the deployed web map, then ML roof segmentation and
-> fidelity passes (see the [roadmap](docs/roadmap.md)).
+> plain-language tour. **Part 2-3 — the deployed web map — is now live:
+> [dhruv-kapri.github.io/Rooftop-Solar-Potential](https://dhruv-kapri.github.io/Rooftop-Solar-Potential/)**
+> (static MapLibre GL JS + PMTiles on GitHub Pages; numbers preliminary pending the calibrated run).
+> Next: ML roof segmentation and fidelity passes (see the [roadmap](docs/roadmap.md)).
 
 ## Lineage — from a hackathon prototype to a city pipeline
 
@@ -83,6 +87,28 @@ flowchart LR
 | **Block-model / LOD-1** *(heritage + fallback)* | Extrude footprints to one height per building | Sparse-data cities (India) — the mode the SIH prototype ran on |
 
 The geometry front-end is swappable; radiation → yield → aggregation is identical downstream.
+
+## Live web map — Washington, DC
+
+**▶ [dhruv-kapri.github.io/Rooftop-Solar-Potential](https://dhruv-kapri.github.io/Rooftop-Solar-Potential/)**
+— every DC roof scored for suitability, rolled up to a census-tract **equity** choropleth. Served
+fully static: **MapLibre GL JS + PMTiles vector tiles on GitHub Pages**, no backend
+([ADR-0010](docs/adr/0010-web-delivery-static-maplibre-pmtiles.md)).
+
+<p align="center">
+  <a href="https://dhruv-kapri.github.io/Rooftop-Solar-Potential/"><img alt="Interactive web map: DC census tracts coloured by a solar-potential × energy-burden equity quadrant" src="web/screenshot.png" width="80%"></a>
+  <br>
+  <sub><em>The default view: each tract median-split into a 2×2 <strong>equity quadrant</strong>
+  (per-household solar potential × energy burden); <strong>priority</strong> tracts — high potential
+  <em>and</em> high burden — outlined red. A switcher recolours to per-household potential / burden;
+  zoom past level 13 for the <strong>100,064 individual rooftops</strong> coloured by suitability.</em></sub>
+</p>
+
+> **Numbers are preliminary.** Roof counts, geometry, and *relative* suitability are exact, but the
+> absolute energy/capacity figures come from an uncalibrated single-day radiation pass (≈2–4× high) and
+> will be swapped for the calibrated full-DC run. Rebuild the served tiles with
+> `python scripts/build_web.py` (preview locally with `python scripts/serve_web.py` — a Range-capable
+> static server, since PMTiles needs byte-range requests).
 
 ## Stage 1 result — Glover Park, benchmarked against Esri
 
