@@ -43,7 +43,12 @@ pass. Part 2-2 deliberately kept Stage-1's 2 m DSM unchanged to stay a pure orch
 - ASSUMPTION: validate the new sum against the existing 12-day result on a known AOI (Glover Park)
   before trusting a city-scale re-run — a delta/sanity check, not a new benchmark gate.
 - Then re-run city-scale (Part 2-2's tiling/caching, re-invoked) to propagate the fidelity upgrade
-  through to the deployed map.
+  through to the deployed map. **Propagation (from Part 2-3's §10 checkpoint, 2026-09-08):** fidelity
+  changes per-roof **numbers only, not the schema**, so this is a clean tile refresh — re-run
+  `scripts/build_web.py` + commit the new `web/assets/`, with **no `web/` or `web_build` change**
+  (ADR-0010). The map's colour breaks are computed at runtime from the committed data, so they
+  auto-adapt to the new numbers — no manual rescale. (This is the clean case, unlike Part 2-4, whose
+  possible per-plane schema change could touch the map — see that plan's §2.)
 
 ## 4. Key questions to grill when we reach this part
 
