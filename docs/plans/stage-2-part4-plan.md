@@ -24,8 +24,15 @@ part fills both without changing their call signatures.
 ## 2. Where it continues from
 
 - Part 2-2's district-wide run (the dataset this part's swap will eventually be re-run against).
-- Part 2-3's deployed map (the consumer that should keep working once the schema changes, per its own
-  downstream-checkpoint note).
+- Part 2-3's deployed map — the consumer of the per-roof output. **Propagation (from Part 2-3's §10
+  checkpoint, 2026-09-08):** an accuracy re-run reaches the live map by re-running
+  `scripts/build_web.py` against the refreshed `outputs/` and committing the new `web/assets/`
+  (`roofs.pmtiles` + `tracts.geojson`) — the `web/` app code is **not** rebuilt (ADR-0010). But this
+  "no app rebuild" guarantee holds **only if 2-4's output stays a per-building roof shape** carrying the
+  exact fields `web_build.roofs_to_web` + the map consume (`usable` + `suitability` / `capacity_kw` /
+  `annual_energy_kwh`; Part 2-3 §5). A true **per-plane** output (the schema change flagged in §3) would
+  additionally require updating `web_build.roofs_to_web` and `web/main.js` (roof layer + popups) — fold
+  that into the multi-plane schema decision, don't discover it at tile-build time.
 - The existing seam contracts: `fit_roof_planes(footprints, dsm_path, method="ransac")` and
   `usable_area(roof_planes, obstructions=None)` — **no new architecture is proposed here**; this part
   is scoped to filling those two seams only.
@@ -65,8 +72,10 @@ part fills both without changing their call signatures.
 
 - A trained (or fine-tuned) segmentation model, with its training/validation approach documented.
 - `roof_planes.fit_roof_planes(method="ml")` implemented; `usable_area(obstructions=…)` implemented.
-- A documented schema change for multi-plane output, propagated through `yield_pv.py` / `aggregate.py`
-  / the map as needed.
+- A documented schema change for multi-plane output, propagated through `yield_pv.py` / `aggregate.py`,
+  and — **only if the per-building roof shape changes** — through `web_build.roofs_to_web` +
+  `web/main.js`. The live map is then refreshed by re-running `scripts/build_web.py` + committing
+  `web/assets/` (no `web/` rebuild otherwise; Part 2-3 §10).
 - A Part 2-2 re-run (full or incremental, per its caching) with the ML path, and an accuracy
   comparison against the RANSAC baseline.
 

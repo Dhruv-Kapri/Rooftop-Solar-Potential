@@ -164,7 +164,8 @@ real frontend in the repo).
   `tippecanoe` added to the dev-setup docs as a system dep.
 - A **live public URL** (project site) with the tract equity map + the roof drill-down + the switcher.
 - ETL unit tests + the build/browser smokes.
-- A short note (in the results write-up) on the host + the PMTiles-on-Pages range-request confirmation.
+- A short note on the host + the PMTiles-on-Pages range-request confirmation →
+  [`docs/benchmarks/stage-2-part3-web-delivery.md`](../benchmarks/stage-2-part3-web-delivery.md) (done).
 
 ## 9. Risks / dependencies
 
