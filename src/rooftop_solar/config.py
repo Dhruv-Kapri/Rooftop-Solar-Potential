@@ -88,3 +88,9 @@ TILE_SIZE_M = 2000.0
 TILE_BUFFER_M = AOI_BUFFER_M
 # Per-tile roof cache (GeoParquet) + tile manifest live here (gitignored, created on first run).
 TILES_CACHE_DIR = DATA_DIR / "tiles"
+
+# City-run deliverables land in a run-labelled subdir of OUTPUTS_DIR (outputs/<N>day, e.g.
+# outputs/1day preview, outputs/12day calibrated) so a run never dumps into OUTPUTS_DIR root
+# alongside the Stage-1 Glover Park files. The 12-day mid-month sample (ADR-0001) is the
+# calibrated production run — what the default `build_web` reads.
+CALIBRATED_CITY_OUTPUTS_DIR = OUTPUTS_DIR / "12day"

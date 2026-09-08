@@ -13,8 +13,10 @@ budget re-runs against (stage-2-part2-plan.md §6.5/§8).
     python scripts/run_city.py --no-resume            # force a full recompute
 
 This is a BATCH JOB, not CI: the calibrated full-DC run is many tiles × a 12-day r.sun pass.
-It writes the city per-roof GeoParquet (outputs/dc_roofs.parquet) and — unless --no-aggregate —
-the tract equity GeoPackage + choropleths (the actual Phase-2 payoff).
+Deliverables land in a run-labelled subdir — outputs/12day (calibrated default) or outputs/<N>day
+for an N-day sample — so a run never dumps into outputs/ root beside the Stage-1 Glover Park files
+(override with --output-dir). It writes the city per-roof GeoParquet (dc_roofs.parquet) and —
+unless --no-aggregate — the tract equity GeoPackage + choropleths (the actual Phase-2 payoff).
 """
 
 from __future__ import annotations
@@ -34,6 +36,12 @@ def _parse_day_range(value: str | None) -> list[int] | None:
     if value is None or value == "calibrated":
         return None
     return [int(d) for d in value.split(",")]
+
+
+def _run_label(day_range: list[int] | None) -> str:
+    """Run-labelled output subdir: `12day` for the calibrated default (ADR-0001), else `{N}day`."""
+    n = 12 if day_range is None else len(day_range)
+    return f"{n}day"
 
 
 def _report_runlog(tiles_dir, city: gpd.GeoDataFrame, wall_clock_s: float) -> None:
@@ -78,24 +86,32 @@ def main() -> None:
     args = parser.parse_args()
 
     tiles_dir = Path(args.tiles_dir) if args.tiles_dir is not None else config.TILES_CACHE_DIR
+    day_range = _parse_day_range(args.day_range)
+    # Default deliverables to a run-labelled subdir (outputs/<N>day), never outputs/ root.
+    output_dir = (
+        Path(args.output_dir)
+        if args.output_dir is not None
+        else config.OUTPUTS_DIR / _run_label(day_range)
+    )
 
     started = time.perf_counter()
     city = pipeline.run_city(
         tile_size_m=args.tile_size_m,
         buffer_m=args.buffer_m,
-        day_range=_parse_day_range(args.day_range),
+        day_range=day_range,
         tiles_dir=tiles_dir,
-        output_dir=args.output_dir,
+        output_dir=output_dir,
         resume=not args.no_resume,
     )
     wall_clock_s = time.perf_counter() - started
     _report_runlog(tiles_dir, city, wall_clock_s)
+    print(f"  deliverables dir     : {output_dir}")
 
     if not args.no_aggregate:
         print("\n=== aggregating city roofs to census tracts (reused Part 2-1) ===")
         pipeline.run_aggregation(
             buildings=city,
-            output_dir=args.output_dir,
+            output_dir=output_dir,
             area_name="Washington, DC",
             file_prefix="dc",
         )

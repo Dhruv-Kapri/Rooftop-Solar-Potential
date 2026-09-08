@@ -4,10 +4,10 @@
 Thin wrapper over ``web_build.build_web``: reads ``dc_tracts.gpkg`` (the aggregation tract
 layer) + ``dc_roofs.parquet`` (the city per-roof layer) from an input dir and writes
 ``web/assets/{tracts.geojson, roofs.pmtiles, scatter.png}`` — the inline tract layer, the
-100k-roof vector tiles, and the about-panel chart (plan §4). Point ``--input`` at
-``outputs/1day/`` for a dev build or ``outputs/`` for the calibrated 12-day run.
+100k-roof vector tiles, and the about-panel chart (plan §4). Defaults ``--input`` to the calibrated
+run (``outputs/12day/``); point it at ``outputs/1day/`` for a dev build.
 
-    python scripts/build_web.py                       # outputs/  -> web/assets/
+    python scripts/build_web.py                       # outputs/12day/ -> web/assets/
     python scripts/build_web.py --input outputs/1day   # dev build off the 1-day pass
     python scripts/build_web.py --output /tmp/assets    # write elsewhere
 
@@ -26,7 +26,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "--input", default=None,
-        help="dir holding dc_tracts.gpkg + dc_roofs.parquet (default: outputs/)",
+        help="dir holding dc_tracts.gpkg + dc_roofs.parquet (default: outputs/12day/ calibrated)",
     )
     parser.add_argument(
         "--output", default=None, help="web assets output dir (default: web/assets/)"
