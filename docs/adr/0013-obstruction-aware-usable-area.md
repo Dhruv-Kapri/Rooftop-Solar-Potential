@@ -36,6 +36,17 @@ unchanged and now applied **per plane**.
 - Revises ADR-0003's `× 0.70`: the utilization fraction is no longer a single flat number but
   (measured obstructions) × (setback factor). Stage-1 outputs computed under the flat 0.70 remain valid as
   the ADR-0003 baseline.
+- **Interaction with multi-plane RANSAC — found during the Part 2-4 build (2026-09-08); deferred to
+  step-7 tuning (plan §8/§10).** Obstruction detection only sees pixels that stay *outliers* of a fitted
+  plane. A superstructure large and planar enough to win **≥ `MIN_PLANE_PX` inlier pixels** (≈32 m² at the
+  2 m DSM) is instead fit as its **own plane** by the sequential multi-plane RANSAC (ADR-0011) and, if
+  usably oriented, is counted as usable roof rather than subtracted — the opposite of the intent for
+  exactly the *largest* obstructions. Small/irregular clutter is still correctly subtracted (the unit
+  tests cover that path). `MIN_PLANE_PX` is therefore the tunable knob sitting at the facet-vs-obstruction
+  seam: it is explicit/inspectable (`roof_planes.py`), reported, and calibrated on the ~20-roof spot-check
+  (whose hand-labelled *obstruction presence* is positioned to reveal escapes). A principled follow-up, if
+  the spot-check shows it matters: reclassify a plane lying entirely > τ above and roughly parallel to a
+  larger plane beneath it as that plane's obstruction (deferred — new logic + its own test, not built).
 
 ## Alternatives considered
 - **Keep the flat `× 0.70`** — rejected: it is the biggest fudge factor and the clearest accuracy win to

@@ -81,6 +81,83 @@ def test_flat_roof_has_near_zero_tilt():
     assert fit["tilt_deg"] < 1.0
 
 
+def test_multiplane_single_planar_roof_returns_one_plane():
+    # A single clean tilted plane has nothing left to peel off after the first fit --
+    # sequential RANSAC must stop at len==1, matching fit_roof_plane's tilt/aspect.
+    X, z = synthetic_roof(pitch_deg=20.0, faces="south")
+
+    planes = roof_planes.fit_planes_multi(X, z)
+
+    assert len(planes) == 1
+    assert abs(planes[0]["tilt_deg"] - 20.0) < 1.0
+    assert abs(planes[0]["aspect_deg"] - _FACING_AZIMUTH["south"]) < 1.0
+    assert planes[0]["n_px"] == len(z)
+
+
+def _synthetic_gable(
+    pitch_deg: float, n_side: int = 20, n_east: int = 20
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    """Build a symmetric gable roof: two facets of known pitch meeting at a ridge.
+
+    The south half (smaller `north` index) rises toward the ridge -- physically faces
+    south (rises north, per `synthetic_roof`'s convention); the north half falls away
+    from the ridge as `north` increases further -- physically faces north. `n_side` is
+    the pixel run of *each* facet (so the roof is `2*n_side` px in the north direction).
+    """
+    east_idx, north_idx = np.meshgrid(np.arange(n_east), np.arange(2 * n_side), indexing="ij")
+    east = east_idx.ravel().astype(np.float64)
+    north = north_idx.ravel().astype(np.float64)
+    slope = float(np.tan(np.radians(pitch_deg)))
+    # A tent: rises from both edges to the ridge at north == n_side - 0.5.
+    south_of_ridge = north < n_side
+    z = np.where(south_of_ridge, slope * north, slope * (2 * n_side - 1 - north))
+    X = np.column_stack([east, north])
+    return X, z
+
+
+def test_multiplane_recovers_two_facets():
+    # A gable roof: two known-pitch facets, one facing south, one facing north, meeting
+    # at a ridge. Sequential RANSAC should peel off each facet as its own plane.
+    pitch_deg = 20.0
+    X, z = _synthetic_gable(pitch_deg)
+
+    planes = roof_planes.fit_planes_multi(X, z)
+
+    assert len(planes) == 2
+    for plane in planes:
+        assert abs(plane["tilt_deg"] - pitch_deg) < 2.0
+    aspects = [plane["aspect_deg"] for plane in planes]
+    # one facet faces south (~180), the other faces north (~0/360) -- order unspecified.
+    assert any(abs(a - 180.0) < 3.0 for a in aspects)
+    assert any(min(abs(a - 0.0), abs(a - 360.0)) < 3.0 for a in aspects)
+    # disjoint membership covering (almost) every pixel of this perfect synthetic roof.
+    idx0, idx1 = set(planes[0]["inlier_idx"]), set(planes[1]["inlier_idx"])
+    assert idx0.isdisjoint(idx1)
+    assert len(idx0 | idx1) >= 0.95 * len(z)
+
+
+def test_multiplane_drops_below_min_plane_px():
+    # A clean 400-pixel roof plane plus 7 stray points whose elevation is wildly
+    # inconsistent with any plane through the roof. After the roof is peeled off, only
+    # 7 points remain -- strictly fewer than MIN_PLANE_PX (8), so no fit on them can
+    # ever be recorded as a second plane, however RANSAC's internal sampling falls.
+    X_roof, z_roof = synthetic_roof(pitch_deg=20.0, faces="south")
+    n_stray = 7
+    assert n_stray < roof_planes.MIN_PLANE_PX
+    stray_east = np.arange(n_stray, dtype=np.float64)
+    stray_north = np.full(n_stray, 1000.0)  # far outside the roof's coordinate range
+    X_stray = np.column_stack([stray_east, stray_north])
+    z_stray = np.zeros(n_stray)  # the roof's plane would predict ~364 m here
+
+    X = np.vstack([X_roof, X_stray])
+    z = np.concatenate([z_roof, z_stray])
+
+    planes = roof_planes.fit_planes_multi(X, z)
+
+    assert len(planes) == 1
+    assert planes[0]["n_px"] == len(z_roof)
+
+
 def test_too_few_pixels_are_flagged_not_fitted():
     # Below MIN_PX pixels, no plane is trustworthy: return NaN geometry, flagged low-confidence
     # (ADR-0002) rather than a bogus tilt/aspect from a handful of points.

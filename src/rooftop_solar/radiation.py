@@ -27,6 +27,7 @@ import geopandas as gpd
 import numpy as np
 import numpy.typing as npt
 import rasterio
+import rasterio.transform
 from rasterio.features import geometry_mask
 from rasterio.windows import Window
 from rasterio.windows import from_bounds as window_from_bounds
@@ -71,9 +72,7 @@ def annual_insolation(
     return annual_kwh
 
 
-def zonal_insolation(
-    footprints: gpd.GeoDataFrame, insol_path: str | Path
-) -> gpd.GeoDataFrame:
+def zonal_insolation(footprints: gpd.GeoDataFrame, insol_path: str | Path) -> gpd.GeoDataFrame:
     """Attach each footprint's mean shaded insolation from the raster at `insol_path`.
 
     `footprints` must share the raster's CRS (both the metric working CRS in the pipeline).
@@ -120,6 +119,49 @@ def zonal_insolation(
         means.append(float(np.mean(vals)) if vals.size else np.nan)
 
     out = footprints.copy()
+    out[POA_COLUMN] = means
+    return out
+
+
+def plane_poa(planes_gdf: gpd.GeoDataFrame, insol_path: str | Path) -> gpd.GeoDataFrame:
+    """Attach each per-plane row's mean insolation, sampled over that plane's own pixels.
+
+    ADR-0012's per-plane POA, the companion to :func:`zonal_insolation` (which stays,
+    unchanged, footprint-wide, for the `"ransac"` path). Consumes the per-plane schema
+    `roof_planes.fit_roof_planes(method="multiplane")` produces: for each row, reads the
+    insolation raster at `insol_path` at exactly that plane's `inlier_xy` pixel-centre
+    coordinates and averages, excluding nodata and any point that falls outside the
+    raster. Because `inlier_xy` holds *exact* DSM pixel centres and the insolation
+    raster shares the DSM's own grid (`surface_irradiance` guarantees the same
+    transform/shape), the (easting, northing) -> (row, col) lookup via the raster's
+    inverse transform is exact — no resampling, no interpolation, no double-counting. A
+    plane with empty membership (the unfittable-footprint placeholder row) gets NaN,
+    matching `zonal_insolation`'s "no valid pixel" convention. Adds :data:`POA_COLUMN`
+    and returns a copy; every other column is untouched.
+    """
+    with rasterio.open(insol_path) as src:
+        raster = src.read(1).astype("float64")
+        nodata = src.nodata
+        transform = src.transform
+    if nodata is not None:
+        raster[raster == nodata] = np.nan
+    n_rows, n_cols = raster.shape
+
+    means: list[float] = []
+    for xy in planes_gdf["inlier_xy"]:
+        xy = np.asarray(xy, dtype=np.float64)
+        if xy.shape[0] == 0:
+            means.append(np.nan)
+            continue
+        rows, cols = rasterio.transform.rowcol(transform, xy[:, 0], xy[:, 1])
+        rows = np.asarray(rows)
+        cols = np.asarray(cols)
+        in_bounds = (rows >= 0) & (rows < n_rows) & (cols >= 0) & (cols < n_cols)
+        vals = raster[rows[in_bounds], cols[in_bounds]]
+        vals = vals[~np.isnan(vals)]
+        means.append(float(np.mean(vals)) if vals.size else np.nan)
+
+    out = planes_gdf.copy()
     out[POA_COLUMN] = means
     return out
 
@@ -315,9 +357,9 @@ def surface_irradiance(
 
     out_dir = Path(tempfile.mkdtemp(prefix="rooftop_solar_insolation_"))
     out_path = out_dir / "annual_insolation_kwh_m2.tif"
-    out_array = np.where(
-        np.isnan(annual_kwh_m2), INSOLATION_NODATA, annual_kwh_m2
-    ).astype(np.float32)
+    out_array = np.where(np.isnan(annual_kwh_m2), INSOLATION_NODATA, annual_kwh_m2).astype(
+        np.float32
+    )
     profile = {
         "driver": "GTiff",
         "height": height,

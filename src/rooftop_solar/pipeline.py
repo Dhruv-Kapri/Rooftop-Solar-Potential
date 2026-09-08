@@ -59,6 +59,7 @@ def run_stage1(
     buffered: BaseGeometry | None = None,
     footprints_source: str = "ms-buildings",
     day_range: list[int] | None = None,
+    method: str = "multiplane",
     output_dir: str | Path | None = None,
     write_outputs: bool = True,
 ) -> gpd.GeoDataFrame:
@@ -70,11 +71,17 @@ def run_stage1(
         footprints_source: "ms-buildings" (canonical) or "osm" (documented fallback).
         day_range: r.sun days. None = the calibrated 12 mid-month days (ADR-0001); a short
             list is a fast, non-calibrated smoke path (see radiation.surface_irradiance).
+        method: geometry front-end — "multiplane" (Part 2-4 production; per-facet + obstruction
+            -aware, ADR-0011/0012/0013) or "ransac" (Phase-1 single-plane baseline, kept for the
+            validation comparison, plan §6). See :func:`_score_roofs`.
         output_dir: where the GeoPackage + choropleth go (default config.OUTPUTS_DIR).
         write_outputs: if False, compute the result but write no files.
 
-    The returned GeoDataFrame (working CRS) carries geometry + tilt/aspect + uncertainty
-    (ADR-0002) + usable area + capacity/energy/CO₂ + within-AOI suitability (ADR-0004).
+    The returned GeoDataFrame (working CRS) carries geometry + tilt/aspect + usable area +
+    capacity/energy/CO₂ + within-AOI suitability (ADR-0004). The "multiplane" default adds
+    ``n_planes``/``low_confidence`` and is one row per building (facets collapsed, ADR-0011);
+    "ransac" is one row per footprint with the ``inlier_ratio``/``n_px`` uncertainty columns
+    (ADR-0002).
     """
     if core is None:
         core = aoi.core_aoi_wgs84()
@@ -89,7 +96,7 @@ def run_stage1(
     fp_core = select_by_membership(fp, lambda pts: pts.within(core_working))
 
     # DSM + shaded r.sun over the buffered frame -> roof planes -> usable -> yield (traps 1-2).
-    result = _score_roofs(fp_core, buffered, day_range=day_range)
+    result = _score_roofs(fp_core, buffered, day_range=day_range, method=method)
 
     if write_outputs:
         out_dir = Path(output_dir) if output_dir is not None else config.OUTPUTS_DIR
@@ -105,23 +112,47 @@ def _score_roofs(
     *,
     day_range: list[int] | None,
     dsm_out_path: str | Path | None = None,
+    method: str = "multiplane",
 ) -> gpd.GeoDataFrame:
     """The shared per-AOI scoring spine both scale paths run **identically** (ADR-0009).
 
     DSM + shaded `r.sun` over the BUFFERED frame (so casters just outside still shade edge
-    roofs — traps 1-2) -> roof planes -> zonal insolation -> usable area -> PV yield. Stage-1
-    (`run_stage1`) passes its WGS84 buffered bbox and the default DSM path; the city runner
-    (`run_city`) passes a tile's buffered extent and a per-tile DSM `out_path` (transient, so
-    tiles don't clobber one another). Keeping this one function is what guarantees the
-    neighbourhood and the city produce identical downstream results for the same roof — the
-    "radiation -> yield is identical downstream" architecture invariant.
+    roofs — traps 1-2) -> roof planes -> per-roof insolation -> usable area -> PV yield.
+    Stage-1 (`run_stage1`) passes its WGS84 buffered bbox and the default DSM path; the city
+    runner (`run_city`) passes a tile's buffered extent and a per-tile DSM `out_path`
+    (transient, so tiles don't clobber one another). Keeping this one function is what
+    guarantees the neighbourhood and the city produce identical downstream results for the
+    same roof — the "radiation -> yield is identical downstream" architecture invariant.
+
+    `method` selects the geometry front-end and its downstream chain (both end in the same
+    per-building schema — the "swappable geometry front-end" invariant, architecture §5):
+
+    - ``"multiplane"`` (default, Part 2-4 production — ADR-0011/0012/0013): multi-facet
+      RANSAC -> **per-plane** POA (`radiation.plane_poa`, over each facet's own pixels,
+      not the diluted footprint mean) -> obstruction-aware per-plane usable area
+      (`detect_obstructions` + `usable_area(obstructions=…)`, replacing the flat 0.70) ->
+      per-plane yield summed into one row per building (`collapse_to_buildings`).
+    - ``"ransac"`` (Phase-1 single-plane baseline, kept for the Part 2-4 validation
+      comparison — plan §6): one plane/footprint -> footprint-mean POA
+      (`zonal_insolation`) -> flat-fraction usable area -> per-footprint yield.
     """
     dsm_path = dsm.build_dsm(buffered_wgs84, out_path=dsm_out_path)
     insol_path = radiation.surface_irradiance(dsm_path, day_range=day_range)
-    planes = roof_planes.fit_roof_planes(fp_core, dsm_path)
-    planes = radiation.zonal_insolation(planes, insol_path)
-    usable = usable_area.usable_area(planes)
-    return yield_pv.estimate_yield(usable)
+    if method == "ransac":
+        planes = roof_planes.fit_roof_planes(fp_core, dsm_path, method="ransac")
+        planes = radiation.zonal_insolation(planes, insol_path)
+        usable = usable_area.usable_area(planes)
+        return yield_pv.estimate_yield(usable)
+    if method == "multiplane":
+        planes = roof_planes.fit_roof_planes(fp_core, dsm_path, method="multiplane")
+        planes = radiation.plane_poa(planes, insol_path)
+        obstructions = usable_area.detect_obstructions(planes, dsm_path)
+        usable = usable_area.usable_area(planes, obstructions=obstructions)
+        return yield_pv.collapse_to_buildings(yield_pv.plane_yields(usable))
+    raise NotImplementedError(
+        f"_score_roofs(method={method!r}) — only 'multiplane' (production) and 'ransac' "
+        "(baseline) are wired into the pipeline."
+    )
 
 
 def select_by_membership(
@@ -455,7 +486,9 @@ def render_potential_burden_scatter(
 
 # Bump to force a full city recompute (e.g. a Part 2-4/2-5 accuracy swap) even when every
 # other param is unchanged — folded into params_stamp so it invalidates every cached tile.
-PIPELINE_VERSION = "2-2.0"
+# 2-4.0: the multi-plane + obstruction-aware geometry swap (ADR-0011/0012/0013) — every tile's
+# result changes, so every 2-2.0 cache entry must be recomputed.
+PIPELINE_VERSION = "2-4.0"
 
 
 def params_stamp(
@@ -697,7 +730,11 @@ def _score_tile(
     fp_core = select_by_membership(fp, tiling.tile_membership(tile, tile_size_m, origin))
     if len(fp_core) == 0:
         return _empty_roofs()
-    return _score_roofs(fp_core, buffered_wgs84, day_range=day_range, dsm_out_path=dsm_out_path)
+    # The city always runs the Part 2-4 multiplane production path (plan §3); explicit here so
+    # the choice is visible at the call site, not left to _score_roofs's default.
+    return _score_roofs(
+        fp_core, buffered_wgs84, day_range=day_range, dsm_out_path=dsm_out_path, method="multiplane"
+    )
 
 
 def _empty_roofs() -> gpd.GeoDataFrame:

@@ -25,10 +25,17 @@ from sklearn.linear_model import RANSACRegressor
 # Below this many DSM pixels, a plane fit isn't trustworthy — don't attempt one.
 MIN_PX = 6
 
+# Part 2-4 multi-plane constants (ADR-0011; explicit/inspectable/tunable, spec §"Constants").
+# Cap on facets fit per roof — most real roofs (gable/hip/complex) have well under this.
+MAX_PLANES = 4
+# A fitted plane with fewer inliers than this isn't a real facet — could be noise/clutter
+# getting a lucky fit on the leftover points; stop rather than record it.
+MIN_PLANE_PX = 8
+# RANSAC inlier band for the multi-plane fit — reuses the single-plane fit_roof_plane value.
+RESIDUAL_THRESHOLD_M = 0.5
 
-def fit_roof_plane(
-    X: npt.NDArray[np.float64], z: npt.NDArray[np.float64]
-) -> dict[str, object]:
+
+def fit_roof_plane(X: npt.NDArray[np.float64], z: npt.NDArray[np.float64]) -> dict[str, object]:
     """Fit one RANSAC plane z = a*x + b*y + c to a roof's point cloud.
 
     `X` is (n, 2) easting/northing; `z` is (n,) surface elevation. Returns the plane
@@ -60,6 +67,55 @@ def fit_roof_plane(
         "n_px": n_px,
         "low_confidence": bool(inlier_ratio < 0.5 or n_px < 20),
     }
+
+
+def fit_planes_multi(
+    X: npt.NDArray[np.float64], z: npt.NDArray[np.float64]
+) -> list[dict[str, object]]:
+    """Sequential RANSAC: peel off up to `MAX_PLANES` roof facets from one point cloud.
+
+    Fits a single robust plane (:func:`fit_roof_plane`'s formulas, reused directly) to
+    whatever points remain, removes its inliers, and refits on the rest — up to
+    `MAX_PLANES` times. Stops early when either too few points remain to trust a fit
+    (`MIN_PX`, mirrors `fit_roof_plane`'s own guard) or the best fit on what's left
+    doesn't win enough inliers to count as a real facet rather than noise
+    (`MIN_PLANE_PX`). This is how a gable/hip/complex roof's multiple facets get
+    separated: the dominant facet is peeled off first, then the next-largest, etc.
+
+    Each returned plane is a dict: ``coef`` — `(a, b, c)` of the fitted `z = a*x + b*y +
+    c` (`X`'s units — the working CRS in the pipeline); ``inlier_idx`` — this plane's
+    inlier indices, as **global** positions into the original `X`/`z` (not the
+    remaining-points subset); ``n_px``; ``tilt_deg``; ``aspect_deg``. Sorted by `n_px`
+    descending, so index 0 is always the dominant (largest) facet. Returns `[]` if
+    `len(z) < MIN_PX` to begin with, or the very first fit can't clear `MIN_PLANE_PX`.
+    """
+    remaining = np.arange(len(z))
+    planes: list[dict[str, object]] = []
+    for _ in range(MAX_PLANES):
+        if len(remaining) < MIN_PX:
+            break
+        ransac = RANSACRegressor(residual_threshold=RESIDUAL_THRESHOLD_M, random_state=0)
+        ransac.fit(X[remaining], z[remaining])
+        mask = ransac.inlier_mask_
+        inliers = remaining[mask]
+        if len(inliers) < MIN_PLANE_PX:
+            break
+        a, b = (float(v) for v in ransac.estimator_.coef_)
+        c = float(ransac.estimator_.intercept_)
+        tilt_deg = float(np.degrees(np.arctan(np.hypot(a, b))))
+        aspect_deg = float(np.degrees(np.arctan2(-a, -b)) % 360.0)
+        planes.append(
+            {
+                "coef": (a, b, c),
+                "inlier_idx": inliers,
+                "n_px": int(len(inliers)),
+                "tilt_deg": tilt_deg,
+                "aspect_deg": aspect_deg,
+            }
+        )
+        remaining = remaining[~mask]
+    planes.sort(key=lambda p: p["n_px"], reverse=True)
+    return planes
 
 
 def roof_points(
@@ -103,29 +159,102 @@ def fit_roof_planes(
     Footprint area is NOT computed here — that is a downstream stage's job
     (usable_area.py).
 
+    "multiplane" (Part 2-4, ADR-0011) instead fits **up to `MAX_PLANES` facets per
+    footprint** (sequential RANSAC, :func:`fit_planes_multi`) and returns **one row per
+    (building, plane)** — a different schema (see below), because a single roof can now
+    span several rows. `"ransac"`'s one-row-per-footprint output is unchanged (a
+    regression test pins this byte-for-byte).
+
+    The "multiplane" schema, columns: ``geometry`` (the ORIGINAL footprint, repeated
+    across a building's plane rows), ``building_id`` (positional index into
+    `footprints`), ``plane_id`` (0-based within building; 0 = the dominant/largest-
+    inlier-count plane), ``n_planes`` (repeated per building), ``tilt_deg``,
+    ``aspect_deg``, ``inlier_ratio`` (this plane's inliers / the building's *total*
+    pixel count — how much of the roof this one plane explains), ``n_px`` (this plane's
+    inlier count), ``coef`` (`(a, b, c)` of `z = a*x + b*y + c`, for obstruction
+    residuals downstream), ``inlier_xy`` ((n_px, 2) easting/northing pixel centres —
+    this plane's membership, consumed by `radiation.plane_poa`), ``low_confidence``
+    (per building, repeated: True if the building's overall inlier fraction < 0.5 or its
+    total pixel count < 20 — the same threshold `fit_roof_plane` uses at n_px<20).
+
+    An **unfittable** footprint (too few DSM pixel centres, or not even one facet clears
+    `MIN_PLANE_PX`) still gets exactly **one** row — never dropped (ADR-0002's "flag,
+    don't drop" carried into Part 2-4): `plane_id=0`, `n_planes=1`, NaN tilt/aspect/
+    inlier_ratio, `n_px` = the building's raw pixel count, `coef=None`, `inlier_xy` an
+    empty `(0, 2)` array, `low_confidence=True`.
+
     Args:
-        method: "ransac" is the only baseline implemented in Phase 1 — a single robust
-            plane per footprint. "ml" (Phase 2 RoofN3D-trained obstruction segmentation
-            + multi-plane fitting) and "block" (the LOD-1 fallback: one height/building,
-            no per-roof pitch) are later-phase stage contracts, not yet built.
+        method: "ransac" is the Phase 1 baseline — a single robust plane per footprint,
+            kept for comparison. "multiplane" (Part 2-4) is the production path: multiple
+            facets per footprint, per-plane rows. "ml" (RoofN3D-trained inference demo,
+            ADR-0011) and "block" (the LOD-1 fallback: one height/building, no per-roof
+            pitch) are other stage contracts, not built here.
     """
-    if method != "ransac":
+    if method == "ransac":
+        fits = [fit_roof_plane(*roof_points(geom, dsm_path)) for geom in footprints.geometry]
+        records = [
+            {
+                "geometry": geom,
+                "tilt_deg": fit["tilt_deg"],
+                "aspect_deg": fit["aspect_deg"],
+                "inlier_ratio": fit["inlier_ratio"],
+                "n_px": fit["n_px"],
+                "low_confidence": fit["low_confidence"],
+            }
+            for geom, fit in zip(footprints.geometry, fits, strict=True)
+        ]
+        return gpd.GeoDataFrame(records, crs=footprints.crs)
+
+    if method != "multiplane":
         raise NotImplementedError(
-            f"fit_roof_planes(method={method!r}) is not implemented — only the Phase 1 "
-            "'ransac' single-plane baseline is. 'ml' is Phase 2 (RoofN3D-trained "
-            "segmentation); 'block' is the LOD-1 fallback path."
+            f"fit_roof_planes(method={method!r}) is not implemented — only 'ransac' "
+            "(Phase 1 baseline) and 'multiplane' (Part 2-4 production path) are. 'ml' is "
+            "the ADR-0011 inference demo; 'block' is the LOD-1 fallback path."
         )
 
-    fits = [fit_roof_plane(*roof_points(geom, dsm_path)) for geom in footprints.geometry]
-    records = [
-        {
-            "geometry": geom,
-            "tilt_deg": fit["tilt_deg"],
-            "aspect_deg": fit["aspect_deg"],
-            "inlier_ratio": fit["inlier_ratio"],
-            "n_px": fit["n_px"],
-            "low_confidence": fit["low_confidence"],
-        }
-        for geom, fit in zip(footprints.geometry, fits, strict=True)
-    ]
+    records = []
+    for building_id, geom in enumerate(footprints.geometry):
+        X, z = roof_points(geom, dsm_path)
+        total_px = int(len(z))
+        planes = fit_planes_multi(X, z)
+
+        if not planes:
+            # Unfittable: too few pixels, or no facet cleared MIN_PLANE_PX. One
+            # placeholder row, never dropped (mirrors the ransac tiny-footprint case).
+            records.append(
+                {
+                    "geometry": geom,
+                    "building_id": building_id,
+                    "plane_id": 0,
+                    "n_planes": 1,
+                    "tilt_deg": np.nan,
+                    "aspect_deg": np.nan,
+                    "inlier_ratio": np.nan,
+                    "n_px": total_px,
+                    "coef": None,
+                    "inlier_xy": np.empty((0, 2), dtype=np.float64),
+                    "low_confidence": True,
+                }
+            )
+            continue
+
+        n_planes = len(planes)
+        total_inliers = sum(plane["n_px"] for plane in planes)
+        low_confidence = bool(total_inliers / total_px < 0.5 or total_px < 20)
+        for plane_id, plane in enumerate(planes):
+            records.append(
+                {
+                    "geometry": geom,
+                    "building_id": building_id,
+                    "plane_id": plane_id,
+                    "n_planes": n_planes,
+                    "tilt_deg": plane["tilt_deg"],
+                    "aspect_deg": plane["aspect_deg"],
+                    "inlier_ratio": plane["n_px"] / total_px,
+                    "n_px": plane["n_px"],
+                    "coef": plane["coef"],
+                    "inlier_xy": X[plane["inlier_idx"]],
+                    "low_confidence": low_confidence,
+                }
+            )
     return gpd.GeoDataFrame(records, crs=footprints.crs)
