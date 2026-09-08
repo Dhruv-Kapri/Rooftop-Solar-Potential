@@ -136,6 +136,11 @@ Together these are the plan's "accuracy comparison vs the RANSAC baseline" — d
    `PIPELINE_VERSION`; Stage-1 integration smoke updated to the collapsed schema (integration, GRASS-gated).
 6. City re-run (Part 2-2's caching re-invoked) → `build_web` + commit `web/assets/` (no app rebuild).
 7. Validation: DSM self-consistency + the spot-check harness + your ~20 labels.
+   - **⊙ partial (2026-09-08):** the DSM self-consistency **functions** are built + unit-tested
+     (`validation.py`: `reconstruct_residuals`, `self_consistency`, `compare_self_consistency`;
+     `fit_planes_multi` gained a `max_planes` param for the single-plane baseline). The **actual
+     validation run** on a real sample AOI + **step 7b** (the spot-check harness + your ~20 labels)
+     remain — the run consumes the fresh step-6 dataset.
 8. The ML demo: `method="ml"` adapter (integration) + the comparison notebook (best-effort).
 
 **Delegation note:** steps 1–4 (deterministic, clear contracts) are strong Sonnet-subagent TDD tasks,

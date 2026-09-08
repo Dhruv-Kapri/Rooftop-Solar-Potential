@@ -70,17 +70,20 @@ def fit_roof_plane(X: npt.NDArray[np.float64], z: npt.NDArray[np.float64]) -> di
 
 
 def fit_planes_multi(
-    X: npt.NDArray[np.float64], z: npt.NDArray[np.float64]
+    X: npt.NDArray[np.float64], z: npt.NDArray[np.float64], max_planes: int = MAX_PLANES
 ) -> list[dict[str, object]]:
-    """Sequential RANSAC: peel off up to `MAX_PLANES` roof facets from one point cloud.
+    """Sequential RANSAC: peel off up to `max_planes` roof facets from one point cloud.
 
     Fits a single robust plane (:func:`fit_roof_plane`'s formulas, reused directly) to
     whatever points remain, removes its inliers, and refits on the rest — up to
-    `MAX_PLANES` times. Stops early when either too few points remain to trust a fit
-    (`MIN_PX`, mirrors `fit_roof_plane`'s own guard) or the best fit on what's left
-    doesn't win enough inliers to count as a real facet rather than noise
-    (`MIN_PLANE_PX`). This is how a gable/hip/complex roof's multiple facets get
-    separated: the dominant facet is peeled off first, then the next-largest, etc.
+    `max_planes` times (default :data:`MAX_PLANES`). Stops early when either too few
+    points remain to trust a fit (`MIN_PX`, mirrors `fit_roof_plane`'s own guard) or the
+    best fit on what's left doesn't win enough inliers to count as a real facet rather
+    than noise (`MIN_PLANE_PX`). This is how a gable/hip/complex roof's multiple facets
+    get separated: the dominant facet is peeled off first, then the next-largest, etc.
+    Passing `max_planes=1` caps the fit at a single (dominant) facet — the single-plane
+    RANSAC baseline `validation.compare_self_consistency` compares multiplane against,
+    fit through this exact code path rather than a separate one.
 
     Each returned plane is a dict: ``coef`` — `(a, b, c)` of the fitted `z = a*x + b*y +
     c` (`X`'s units — the working CRS in the pipeline); ``inlier_idx`` — this plane's
@@ -91,7 +94,7 @@ def fit_planes_multi(
     """
     remaining = np.arange(len(z))
     planes: list[dict[str, object]] = []
-    for _ in range(MAX_PLANES):
+    for _ in range(max_planes):
         if len(remaining) < MIN_PX:
             break
         ransac = RANSACRegressor(residual_threshold=RESIDUAL_THRESHOLD_M, random_state=0)
