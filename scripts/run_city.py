@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import time
+from pathlib import Path
 
 import geopandas as gpd
 
@@ -76,7 +77,7 @@ def main() -> None:
     parser.add_argument("--no-aggregate", action="store_true", help="skip the tract equity map")
     args = parser.parse_args()
 
-    tiles_dir = args.tiles_dir if args.tiles_dir is not None else config.TILES_CACHE_DIR
+    tiles_dir = Path(args.tiles_dir) if args.tiles_dir is not None else config.TILES_CACHE_DIR
 
     started = time.perf_counter()
     city = pipeline.run_city(
@@ -92,8 +93,13 @@ def main() -> None:
 
     if not args.no_aggregate:
         print("\n=== aggregating city roofs to census tracts (reused Part 2-1) ===")
-        pipeline.run_aggregation(buildings=city, output_dir=args.output_dir)
-        print("  wrote tract equity GeoPackage + choropleths.")
+        pipeline.run_aggregation(
+            buildings=city,
+            output_dir=args.output_dir,
+            area_name="Washington, DC",
+            file_prefix="dc",
+        )
+        print("  wrote tract equity GeoPackage + choropleths (dc_*).")
 
 
 if __name__ == "__main__":
