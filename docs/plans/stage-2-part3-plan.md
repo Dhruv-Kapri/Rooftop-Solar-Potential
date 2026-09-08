@@ -1,10 +1,13 @@
 # Stage 2 · Part 2-3 plan (tentative) — Deployed web app
 
-> **STATUS: settled — `/tdd`-ready (2026-09-08)** — grilled to a full decision set via
-> `/grill-with-docs` and recorded in **[ADR-0010](../adr/0010-web-delivery-static-maplibre-pmtiles.md)**,
-> grounded on Part 2-2's real city dataset (§2a). The stack (static MapLibre GL JS + PMTiles on GitHub
-> Pages), the `build_web` property contract (§5), and the honest testing story (§6) are locked — **no
-> open `ASSUMPTION:`s remain**. The one pending input is the data swap-in to the calibrated 12-day run.
+> **STATUS: BUILT + LIVE (2026-09-08)** — steps 1–5 implemented, tested, and deployed:
+> `web_build.py` ETL (unit-tested), `scripts/build_web.py` + `scripts/serve_web.py`, the buildless
+> `web/` MapLibre + PMTiles map, the Pages deploy workflow, and the Playwright browser smoke (green).
+> Live at <https://dhruv-kapri.github.io/Rooftop-Solar-Potential/>; **PMTiles range-requests on GitHub
+> Pages CONFIRMED** (HTTP 206 — the §9 build-time unknown is resolved, no Cloudflare fallback needed).
+> Recorded in **[ADR-0010](../adr/0010-web-delivery-static-maplibre-pmtiles.md)**. **One item remains:
+> the calibrated data swap-in (step 6)** — the site serves the 1-day preliminary numbers until the
+> deferred full-DC 12-day run lands, then `build_web` is re-run and `web/assets/` re-committed.
 
 - **Phase:** 2, Part 3 of 5 · **Branch:** `stage-2` · **Overview:** [stage-2-overview.md](stage-2-overview.md)
 - **Prerequisite:** Part 2-2 built.
@@ -95,8 +98,10 @@ scripts/build_web.py    # ETL: outputs/dc_*.{parquet,gpkg} -> web/assets/*  (--i
   `outputs/`.
 - **Deploy** — a GitHub Actions Pages workflow uploads the committed `web/` and deploys it. **No tiling
   in CI** (the source dataset is gitignored + needs the hours-long GRASS pipeline) — CI only publishes.
-- **Local preview** — `python -m http.server --directory web` (range-request capable) — the web app's
-  dev-local, and what the Playwright smoke drives.
+- **Local preview** — `python scripts/serve_web.py` — a **Range-capable** static server. (Correction:
+  stock `python -m http.server` does *not* serve PMTiles' byte-range requests, so the roof layer breaks
+  under it — GitHub Pages' Fastly CDN is fine. Verified 2026-09-08.) The Playwright smoke drives its own
+  in-process Range server.
 
 ## 5. Property contract (the `build_web` ↔ map boundary — what §6's ETL tests assert)
 
@@ -165,8 +170,9 @@ real frontend in the repo).
 
 - **Committed PMTiles churn** — a ~5–15 MB artifact in history per pipeline re-run; Git LFS / a
   `gh-pages` orphan branch is the escalation if it bloats (ADR-0010).
-- **PMTiles range requests on GitHub Pages** — the one build-time unknown; supported via Pages' Fastly
-  CDN, but confirm with a smoke; **Cloudflare Pages** is the drop-in fallback.
+- **PMTiles range requests on GitHub Pages** — **CONFIRMED (2026-09-08):** the deployed `.pmtiles`
+  returns HTTP 206 with `accept-ranges: bytes` on Pages' Fastly CDN (checked by curl + a live Playwright
+  render). The **Cloudflare Pages** fallback is no longer needed.
 - **Basemap free-tier** — CARTO Positron is attribution-only with a generous free tier; a self-contained
   minimal background is the zero-dependency fallback.
 - **Repo must be public** for free Pages (portfolio-appropriate) — confirm before wiring Pages.

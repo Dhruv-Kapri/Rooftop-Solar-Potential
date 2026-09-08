@@ -28,7 +28,14 @@ merge + suitability recompute; `scripts/run_city.py`; ADR-0009). Both test tiers
 network/GRASS integration smoke). The **expensive full-DC batch run and its real deliverables (the
 populated equity map, sanity write-up, compute-cost run-log) are deferred** — 66 tiles @ 2 km, a ~10–15 h
 job, run when ready via `scripts/run_city.py`.
-**Phase 2 is planned in `docs/plans/stage-2-overview.md`** (5 parts; **Part 2-3 web app is next**).
+**Part 2-3 — the deployed web map — is built and live** at
+<https://dhruv-kapri.github.io/Rooftop-Solar-Potential/>: a static MapLibre GL JS + PMTiles map on
+GitHub Pages (`web/`, `scripts/build_web.py`; ADR-0010), ETL unit-tested with build + browser smokes
+green, PMTiles range-requests on Pages confirmed. It currently serves the **1-day (preliminary)
+numbers** — roof geometry/counts/suitability are exact, absolute energy/capacity are ~2–4× high
+pending the calibrated full-DC swap (Part 2-3 step 6).
+**Phase 2 is planned in `docs/plans/stage-2-overview.md`** (5 parts; **Parts 2-4/2-5 — ML roof
+segmentation + fidelity — are next**).
 See `docs/roadmap.md` for phase boundaries/exit criteria and `docs/benchmarks/` for the benchmark
 write-up.
 
@@ -77,6 +84,7 @@ aggregation is identical downstream. Detail: `docs/architecture.md §5`.
 | Census / equity data access | `tracts.py` (TIGER · ACS · DOE LEAD) |
 | City-scale tiling grid | `tiling.py` (fixed-origin grid · `floor` membership) |
 | City runner (tile → cache → merge) | `pipeline.run_city` (+ `scripts/run_city.py`) |
+| Web-map ETL (GeoJSON + PMTiles) | `web_build.py` (+ `scripts/build_web.py`; `scripts/serve_web.py` preview) |
 | Paths / keys / study-area config | `config.py` |
 
 All modules above are implemented and tested. Part 2-1 (Phase 2) filled `aggregate.py` and added
@@ -84,7 +92,11 @@ All modules above are implemented and tested. Part 2-1 (Phase 2) filled `aggrega
 overlay (see `docs/plans/stage-2-part1-plan.md`, ADR-0006/0007/0008). Part 2-2 added `tiling.py` and
 `pipeline.run_city` — the same spine tiled over the whole District, idempotent/resumable per-tile
 (ADR-0009). Both tiers green; the full-DC batch + real deliverables are deferred (see Status).
-**Part 2-3 (deployed web app) is next.**
+Part 2-3 added `web_build.py` + `scripts/build_web.py` (the static web-map ETL: tracts → GeoJSON,
+usable roofs → PMTiles via `tippecanoe`) and the buildless `web/` MapLibre map, deployed live on
+GitHub Pages (ADR-0010; ETL unit-tested, build + browser smokes green). The one open item is the
+calibrated data-swap (step 6), which waits on the deferred full-DC batch. **Parts 2-4/2-5 (ML
+segmentation + fidelity) are next.**
 
 ## Correctness invariants — the shading traps (risks §8; easy to get wrong, hard to notice)
 
