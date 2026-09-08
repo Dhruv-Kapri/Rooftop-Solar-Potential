@@ -155,3 +155,43 @@ Project-specific terms as used in this pipeline, not textbook-general definition
 - **GeoParquet** — the columnar, partition-friendly geospatial format Part 2-2 writes the city-scale
   per-roof dataset in (partitioned per tile) — better suited than a single GeoPackage to a ~10⁵-building
   dataset and incremental per-tile writes. The small per-tract output stays GeoPackage (ADR-0009).
+
+### Stage 2 · roof-geometry refinement (Part 2-4)
+
+- **Multi-plane (sequential) RANSAC** — Part 2-4's upgrade to ADR-0002's single-plane fit: fit the best
+  RANSAC plane on a roof's DSM pixels, remove its inliers, refit on the remainder, repeat (≤ ~4 planes,
+  dropping planes below a min area/inlier count). Recovers gable/hip/complex roofs the single-plane
+  baseline averaged into one tilt/aspect. Classical, training-free (ADR-0011). Exposed as
+  `fit_roof_planes(method="multiplane")`; `"ransac"` is kept for the baseline comparison.
+- **Pixel–plane membership** — which DSM pixels are inliers of which fitted plane; a byproduct of
+  sequential RANSAC. It is what makes per-plane POA and DSM-residual obstruction detection possible
+  (ADR-0011/0012/0013).
+- **Dominant plane** — the largest usable plane on a roof; its tilt/aspect/roof_class are what the
+  collapsed per-building row reports (ADR-0011).
+- **Per-building collapse** — Part 2-4 fits multiple planes internally but emits **one row per
+  building** (extensive quantities summed over usable planes), so the downstream contract (aggregate,
+  web_build, the map) is unchanged — no schema change, no map rebuild (ADR-0011; Part 2-3 §10).
+- **Per-plane POA** — insolation taken as the `r.sun` zonal mean over each **usable** plane's pixels,
+  not over the whole footprint. The footprint mean dilutes sun-facing planes with north-face/obstruction
+  pixels; per-plane POA removes that dilution — the biggest honest energy-accuracy gain, nearly free
+  given pixel–plane membership (ADR-0012). Energy is driven by this insolation, not by tilt/aspect
+  (which only feed the usable/not gate).
+- **Rooftop obstruction / superstructure** — a chimney, vent, HVAC unit, or bulkhead that eats usable
+  panel area. Detected as a **DSM residual**: pixels sitting more than a threshold (≈0.5–1.0 m) above
+  the fitted plane (the RANSAC outliers-above). Classical — no training or labels (ADR-0013).
+- **Obstruction-aware usable area** — Part 2-4 replaces ADR-0003's flat `× 0.70` utilization fraction
+  with **measured** obstruction subtraction plus a smaller principled setback factor (~0.85–0.90,
+  edge/access only): `usable = (plane_area − obstruction_area) × setback_factor` (ADR-0013).
+- **DSM self-consistency** — Part 2-4's ground-truth-free accuracy proxy: reconstruct the DSM from the
+  fitted planes and measure the per-roof residual (RMSE / % pixels within tolerance), multi-plane vs
+  single-plane. Multi-plane should reconstruct complex roofs with materially lower residual (ADR-0011).
+- **Spot-check (hand-labelled sample)** — ~20 DC roofs, stratified across archetypes (flat/gable/hip/
+  complex) over Glover Park + a downtown block, hand-labelled for **major-plane count** and
+  **obstruction presence**, compared against the algorithm (plane-count agreement ±1 vs single-plane;
+  obstruction hit/false-positive). An indicative sanity check, not a statistical accuracy claim — the
+  honest stand-in for the DC ground truth that doesn't exist (risks §14.4).
+- **ML demo (`method="ml"`)** — a bounded, **inference-only** demonstration: an existing NYC-trained
+  RoofN3D point-cloud segmenter run on a handful of DC roofs behind the pre-wired
+  `fit_roof_planes(method="ml")` seam, plus a comparison notebook. Framed as a NYC-trained *prior*
+  applied to DC (domain gap noted), **not** a validated pipeline swap — the shipped accuracy path is the
+  classical `"multiplane"` (ADR-0011).
