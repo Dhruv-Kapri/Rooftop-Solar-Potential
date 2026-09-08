@@ -73,9 +73,94 @@ def footprints(dsm_path: Path) -> gpd.GeoDataFrame:  # noqa: ARG001 -- fixture o
     """Two footprints over the synthetic ramp: one large, one below MIN_PX pixels."""
     big = box(320_060.0, 4_307_060.0, 320_140.0, 4_307_140.0)  # 80x80 m -> 1600 px @ 2 m
     tiny = box(320_010.0, 4_307_010.0, 320_011.0, 4_307_011.0)  # 1x1 m -> at most 1 px
-    return gpd.GeoDataFrame(
-        {"id": ["big", "tiny"]}, geometry=[big, tiny], crs=config.WORKING_CRS
-    )
+    return gpd.GeoDataFrame({"id": ["big", "tiny"]}, geometry=[big, tiny], crs=config.WORKING_CRS)
+
+
+@pytest.fixture
+def gable_dsm_path(tmp_path: Path) -> Path:
+    """Write a synthetic gable-ridge DSM: two facets of known pitch meeting at a ridge.
+
+    Elevation is a "tent" over the northing (row) axis, peaking along a central
+    east-west ridge row and falling away at PITCH_DEG on both sides -- independent,
+    geometry-derived two-facet ground truth (the raster equivalent of
+    `test_roof_planes.py`'s `_synthetic_gable`), on the same grid as `dsm_path`. The
+    side closer to the north edge (smaller row index) falls toward the north as you
+    move away from the ridge -- physically faces north; the side closer to the south
+    edge rises toward the ridge going north -- physically faces south.
+    """
+    transform = from_origin(ORIGIN_EASTING, ORIGIN_NORTHING, PIXEL_M, PIXEL_M)
+    ridge_row = GRID_SIZE_PX // 2
+    row_idx = np.arange(GRID_SIZE_PX).reshape(-1, 1)
+    slope = np.tan(np.radians(PITCH_DEG))
+    row_elev = BASE_ELEV_M + slope * PIXEL_M * (ridge_row - np.abs(row_idx - ridge_row))
+    band = np.broadcast_to(row_elev, (GRID_SIZE_PX, GRID_SIZE_PX)).astype(np.float32)
+
+    path = tmp_path / "synthetic_gable_dsm.tif"
+    profile = {
+        "driver": "GTiff",
+        "height": GRID_SIZE_PX,
+        "width": GRID_SIZE_PX,
+        "count": 1,
+        "dtype": band.dtype,
+        "crs": config.WORKING_CRS,
+        "transform": transform,
+        "nodata": NODATA,
+    }
+    with rasterio.open(path, "w", **profile) as dst:
+        dst.write(band, 1)
+    return path
+
+
+def test_multiplane_two_facet_footprint_yields_two_rows(gable_dsm_path, footprints):
+    # The "big" footprint straddles the gable ridge -- multiplane must recover both
+    # facets as two rows sharing one building_id, dominant (larger) facet first.
+    roofs = roof_planes.fit_roof_planes(footprints, gable_dsm_path, method="multiplane")
+    big_rows = roofs[roofs["building_id"] == 0].sort_values("plane_id")
+
+    assert len(big_rows) == 2
+    assert list(big_rows["plane_id"]) == [0, 1]
+    assert (big_rows["n_planes"] == 2).all()
+    assert big_rows.iloc[0]["n_px"] >= big_rows.iloc[1]["n_px"]
+    for _, row in big_rows.iterrows():
+        assert row["inlier_xy"].shape == (row["n_px"], 2)
+    dominant = big_rows.iloc[0]
+    assert abs(dominant["tilt_deg"] - PITCH_DEG) < 3.0
+
+
+def test_multiplane_unfittable_footprint_one_low_conf_row(gable_dsm_path, footprints):
+    # The "tiny" footprint (< MIN_PX pixel centres) still gets exactly one placeholder
+    # row -- mirrors the ransac path's "flag, don't drop" behaviour (ADR-0002).
+    roofs = roof_planes.fit_roof_planes(footprints, gable_dsm_path, method="multiplane")
+    tiny_rows = roofs[roofs["building_id"] == 1]
+
+    assert len(tiny_rows) == 1
+    row = tiny_rows.iloc[0]
+    assert row["plane_id"] == 0
+    assert row["n_planes"] == 1
+    assert np.isnan(row["tilt_deg"])
+    assert np.isnan(row["aspect_deg"])
+    assert row["coef"] is None
+    assert row["inlier_xy"].shape == (0, 2)
+    assert row["low_confidence"]
+
+
+def test_multiplane_output_contract_columns_and_crs(gable_dsm_path, footprints):
+    roofs = roof_planes.fit_roof_planes(footprints, gable_dsm_path, method="multiplane")
+
+    assert set(roofs.columns) == {
+        "geometry",
+        "building_id",
+        "plane_id",
+        "n_planes",
+        "tilt_deg",
+        "aspect_deg",
+        "inlier_ratio",
+        "n_px",
+        "coef",
+        "inlier_xy",
+        "low_confidence",
+    }
+    assert roofs.crs == footprints.crs
 
 
 def test_large_footprint_recovers_known_pitch_and_south_aspect(dsm_path, footprints):
@@ -114,6 +199,22 @@ def test_output_contract_columns_rowcount_and_crs(dsm_path, footprints):
     assert roofs.crs == footprints.crs
     # The ORIGINAL footprint geometry is carried through, not the DSM clip.
     assert list(roofs.geometry) == list(footprints.geometry)
+
+
+def test_multiplane_ransac_regression(dsm_path, footprints):
+    # The Part 2-4 multiplane work must not perturb the existing "ransac" baseline path
+    # at all: same 6-column schema, same row-per-footprint shape, byte-for-byte.
+    roofs = roof_planes.fit_roof_planes(footprints, dsm_path, method="ransac")
+
+    assert set(roofs.columns) == {
+        "geometry",
+        "tilt_deg",
+        "aspect_deg",
+        "inlier_ratio",
+        "n_px",
+        "low_confidence",
+    }
+    assert len(roofs) == len(footprints)
 
 
 def test_unimplemented_method_raises(dsm_path, footprints):

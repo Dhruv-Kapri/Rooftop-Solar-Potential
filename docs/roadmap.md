@@ -60,9 +60,10 @@ DSM-vs-DTM check visualises the surface these tiles produce.
 
 ## Phase 2 · Full — city-scale + ML + deployed app · multi-week  ← IN PROGRESS
 
-Scale to the full District: tiling/batching for the whole point cloud, the ML segmentation model
-(RoofN3D-trained) for planes + obstructions, census-tract aggregation, an equity overlay, and the
-deployed web app. The portfolio centrepiece. Facade BIPV (§10) enters here as a stretch.
+Scale to the full District: tiling/batching for the whole point cloud, classical multi-plane +
+obstruction roof-geometry refinement (ML demoted to a bounded inference-only demo — ADR-0011),
+census-tract aggregation, an equity overlay, and the deployed web app. The portfolio centrepiece. Facade
+BIPV (§10) enters here as a stretch.
 
 - **Part 2-1 — census-tract aggregation + equity overlay — complete (2026-09-07).** `aggregate.py`
   (roll-up · equity join · quadrant classification) + `tracts.py` (TIGER/ACS/DOE LEAD) +
@@ -79,7 +80,16 @@ deployed web app. The portfolio centrepiece. Facade BIPV (§10) enters here as a
   GitHub Pages ([live](https://dhruv-kapri.github.io/Rooftop-Solar-Potential/); `web/`,
   `scripts/build_web.py`; ADR-0010) — tract equity choropleth + 100k-roof drill-down. ETL unit-tested,
   build + browser smokes green, PMTiles range-requests on Pages confirmed. Serves the 1-day preliminary
-  numbers until the calibrated data-swap (step 6). **Parts 2-4/2-5 (ML segmentation + fidelity) next.**
+  numbers until the calibrated data-swap (step 6).
+- **Part 2-4 — roof-geometry refinement (classical multi-plane + obstructions) — classical core built +
+  wired (2026-09-08).** Reframed from "ML segmentation" to a classical, training-free upgrade
+  (ADR-0011/0012/0013): multi-plane sequential RANSAC + per-plane POA + obstruction-aware usable area +
+  per-building collapse, across `roof_planes.py` / `radiation.py` / `usable_area.py` / `yield_pv.py`, wired
+  into `pipeline._score_roofs` (`method="multiplane"` default; `PIPELINE_VERSION` `2-2.0`→`2-4.0`). Steps
+  1–5 done via `/tdd` (unit-tested, 133 green; `"ransac"` kept as the baseline). **Remaining:** the city
+  re-run + `build_web` (step 6), validation — DSM self-consistency + the ~20-roof spot-check (step 7), and
+  the **bounded inference-only ML demo** (step 8; `method="ml"`). **Part 2-4 steps 6–8 + Part 2-5
+  (fidelity) next.**
 
 ## Phase 3 · India — re-version via modular adapters · stretch
 

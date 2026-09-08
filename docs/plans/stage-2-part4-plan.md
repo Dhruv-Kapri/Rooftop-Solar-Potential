@@ -1,7 +1,17 @@
 # Stage 2 · Part 2-4 plan — roof-geometry refinement (classical multi-plane + obstructions; ML demo)
 
-> **STATUS: settled — `/tdd`-ready (2026-09-08)** — grilled to a full decision set (grill 2026-09-08,
-> grounded on two fact-finds: the per-roof contract map + the ML-model landscape) and recorded in
+> **STATUS: classical core built — steps 1–5 done via `/tdd` (2026-09-08); steps 6–8 remaining.**
+> The classical, training-free geometry upgrade (ADR-0011/0012/0013) is built, unit-tested (TDD, +23
+> tests; 110→133 green, ruff clean) and wired into the pipeline (`method="multiplane"` is the production
+> default; `PIPELINE_VERSION` bumped `2-2.0`→`2-4.0` to invalidate the tile cache; `ransac` kept as the
+> §6 baseline). **Remaining:** step 6 (city re-run + `build_web`), step 7 (validation: DSM
+> self-consistency + the ~20-roof spot-check + your labels), step 8 (the ML demo). One build finding is
+> **deferred-and-recorded**: a large planar obstruction (≥ `MIN_PLANE_PX` inlier px) is fit as its own
+> plane and escapes obstruction subtraction — the facet-vs-obstruction knob to tune on the spot-check
+> (ADR-0013 Consequences, risks §14 item 7).
+>
+> Grilled to a full decision set (grill 2026-09-08, grounded on two fact-finds: the per-roof contract map
+> + the ML-model landscape) and recorded in
 > **[ADR-0011](../adr/0011-part2-4-classical-multiplane-ml-demo.md)**,
 > **[ADR-0012](../adr/0012-per-plane-poa.md)**, **[ADR-0013](../adr/0013-obstruction-aware-usable-area.md)**.
 > The reframe from "RoofN3D-trained ML segmentation" to a **classical, training-free** geometry upgrade
@@ -114,12 +124,16 @@ Together these are the plan's "accuracy comparison vs the RANSAC baseline" — d
 
 ## 8. Sequencing (TDD order)
 
-1. Lift the `roof_planes.py:112` guard; add `method="multiplane"` — sequential RANSAC + `n_planes` +
-   pixel membership (unit).
-2. Per-plane zonal POA — move/ split the `radiation` zonal aggregation to consume membership (unit).
-3. `detect_obstructions` + the obstruction-aware `usable_area` formula (unit).
-4. Per-plane yield → per-building collapse + `suitability` recompute; downstream regression (unit).
-5. Wire `pipeline` (+ `run_city`) to the `"multiplane"` path end-to-end (integration smoke).
+1. **✓** Lift the `roof_planes.py:112` guard; add `method="multiplane"` — sequential RANSAC + `n_planes` +
+   pixel membership (unit). *(`fit_planes_multi`; per-plane schema, ADR-0002 uncertainty carried.)*
+2. **✓** Per-plane zonal POA (`radiation.plane_poa`) consuming membership; the `zonal_insolation` reorder
+   was already in place, so no structural move was needed (unit).
+3. **✓** `detect_obstructions` (`obstruction_pixels` + composer) + the obstruction-aware `usable_area`
+   formula (per-plane cutoffs reuse `is_usable`/`classify_roof`) (unit).
+4. **✓** Per-plane yield (`plane_yields`) → per-building collapse (`collapse_to_buildings`) + `suitability`
+   recompute; downstream regression against `aggregate`/`web_build` (unit).
+5. **✓** Wire `pipeline._score_roofs` (+ `run_stage1`/`run_city`) to the `"multiplane"` path; bump
+   `PIPELINE_VERSION`; Stage-1 integration smoke updated to the collapsed schema (integration, GRASS-gated).
 6. City re-run (Part 2-2's caching re-invoked) → `build_web` + commit `web/assets/` (no app rebuild).
 7. Validation: DSM self-consistency + the spot-check harness + your ~20 labels.
 8. The ML demo: `method="ml"` adapter (integration) + the comparison notebook (best-effort).

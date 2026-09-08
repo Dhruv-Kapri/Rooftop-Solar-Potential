@@ -34,8 +34,19 @@ GitHub Pages (`web/`, `scripts/build_web.py`; ADR-0010), ETL unit-tested with bu
 green, PMTiles range-requests on Pages confirmed. It serves the **calibrated 12-day** numbers
 (specific yield ~1,124 kWh/kWp, validated); absolute capacity/energy still overstate vs NREL — a
 usable-area/footprint over-estimate, the Part 2-4 target.
-**Phase 2 is planned in `docs/plans/stage-2-overview.md`** (5 parts; **Parts 2-4/2-5 — ML roof
-segmentation + fidelity — are next**).
+**Part 2-4 — roof-geometry refinement (classical multi-plane + obstructions) — classical core built +
+wired (2026-09-08).** Reframed from "ML segmentation" to a classical, training-free upgrade
+(ADR-0011/0012/0013): multi-plane sequential RANSAC (`fit_roof_planes(method="multiplane")`), per-plane
+POA (`radiation.plane_poa`), obstruction-aware usable area (`detect_obstructions` +
+`usable_area(obstructions=…)`), per-plane yield → per-building collapse (`yield_pv.collapse_to_buildings`).
+Steps 1–5 done via `/tdd` (unit-tested, 133 green; `method="multiplane"` is the production default,
+`PIPELINE_VERSION` `2-2.0`→`2-4.0`; `"ransac"` kept as the §6 baseline). **Remaining:** step 6 (city
+re-run + `build_web`), step 7 (validation: DSM self-consistency + the ~20-roof spot-check), step 8 (the ML
+**demo** — `method="ml"`, bounded inference-only, no longer the production path). A build finding is
+**deferred-and-recorded**: a large planar obstruction (≥ `MIN_PLANE_PX` px) is fit as its own plane and
+escapes subtraction — the facet-vs-obstruction knob to tune on the spot-check (ADR-0013, risks §14 item 7).
+**Phase 2 is planned in `docs/plans/stage-2-overview.md`** (5 parts; **Part 2-4 steps 6–8 + Part 2-5
+(fidelity) are next**).
 See `docs/roadmap.md` for phase boundaries/exit criteria and `docs/benchmarks/` for the benchmark
 write-up.
 
@@ -95,8 +106,13 @@ overlay (see `docs/plans/stage-2-part1-plan.md`, ADR-0006/0007/0008). Part 2-2 a
 Part 2-3 added `web_build.py` + `scripts/build_web.py` (the static web-map ETL: tracts → GeoJSON,
 usable roofs → PMTiles via `tippecanoe`) and the buildless `web/` MapLibre map, deployed live on
 GitHub Pages (ADR-0010; ETL unit-tested, build + browser smokes green). The one open item is the
-calibrated data-swap (step 6), which waits on the deferred full-DC batch. **Parts 2-4/2-5 (ML
-segmentation + fidelity) are next.**
+calibrated data-swap (step 6), which waits on the deferred full-DC batch. Part 2-4 (roof-geometry
+refinement, ADR-0011/0012/0013) then upgraded `roof_planes.py` (multi-plane `fit_planes_multi` /
+`fit_roof_planes(method="multiplane")`), `radiation.py` (`plane_poa`), `usable_area.py`
+(`detect_obstructions` + obstruction-aware `usable_area`), `yield_pv.py` (`plane_yields` +
+`collapse_to_buildings`), and wired `pipeline._score_roofs` to the multiplane chain — classical core
+built + unit-tested (steps 1–5); the city re-run, validation, and ML demo (steps 6–8) remain (see
+Status). **Part 2-4 steps 6–8 + Part 2-5 (fidelity) are next.**
 
 ## Correctness invariants — the shading traps (risks §8; easy to get wrong, hard to notice)
 
