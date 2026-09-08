@@ -31,9 +31,9 @@ job, run when ready via `scripts/run_city.py`.
 **Part 2-3 — the deployed web map — is built and live** at
 <https://dhruv-kapri.github.io/Rooftop-Solar-Potential/>: a static MapLibre GL JS + PMTiles map on
 GitHub Pages (`web/`, `scripts/build_web.py`; ADR-0010), ETL unit-tested with build + browser smokes
-green, PMTiles range-requests on Pages confirmed. It currently serves the **1-day (preliminary)
-numbers** — roof geometry/counts/suitability are exact, absolute energy/capacity are ~2–4× high
-pending the calibrated full-DC swap (Part 2-3 step 6).
+green, PMTiles range-requests on Pages confirmed. It serves the **calibrated 12-day** numbers
+(specific yield ~1,124 kWh/kWp, validated); absolute capacity/energy still overstate vs NREL — a
+usable-area/footprint over-estimate, the Part 2-4 target.
 **Phase 2 is planned in `docs/plans/stage-2-overview.md`** (5 parts; **Parts 2-4/2-5 — ML roof
 segmentation + fidelity — are next**).
 See `docs/roadmap.md` for phase boundaries/exit criteria and `docs/benchmarks/` for the benchmark

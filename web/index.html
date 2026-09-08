@@ -35,10 +35,12 @@
   <aside id="about" class="about" hidden>
     <button id="about-close" class="about-close" aria-label="Close">&times;</button>
     <h2>About this map</h2>
-    <p class="warn"><strong>Preliminary numbers.</strong> Roof <em>counts, geometry and relative
-      suitability are exact</em>, but the absolute <em>energy</em> and <em>capacity</em> figures come
-      from an uncalibrated single-day radiation pass and read roughly 2&ndash;4&times; high. A
-      calibrated 12-day run will replace them; treat kWh/kW as indicative only for now.</p>
+    <p class="warn"><strong>Calibrated radiation; capacity still approximate.</strong> These are the
+      calibrated 12-day figures &mdash; the fleet <em>specific yield</em> (~1,124 kWh/kWp) matches an
+      independently validated benchmark. But absolute <em>capacity</em> (and total energy) still runs
+      high versus published estimates: usable area is derated by a flat factor and merged building
+      footprints inflate it. An obstruction-aware fix is the next accuracy pass. Treat per-roof kW/kWh
+      as indicative; the relative suitability and the equity ranking are the sound parts.</p>
     <img src="./assets/scatter.png" alt="Scatter of per-household solar potential vs. energy burden, by tract" />
     <p>Each tract is placed in a 2&times;2 quadrant by median-splitting <strong>per-household solar
       potential</strong> against <strong>energy burden</strong>. <strong>Priority</strong> tracts

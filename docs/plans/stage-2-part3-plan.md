@@ -5,9 +5,10 @@
 > `web/` MapLibre + PMTiles map, the Pages deploy workflow, and the Playwright browser smoke (green).
 > Live at <https://dhruv-kapri.github.io/Rooftop-Solar-Potential/>; **PMTiles range-requests on GitHub
 > Pages CONFIRMED** (HTTP 206 — the §9 build-time unknown is resolved, no Cloudflare fallback needed).
-> Recorded in **[ADR-0010](../adr/0010-web-delivery-static-maplibre-pmtiles.md)**. **One item remains:
-> the calibrated data swap-in (step 6)** — the site serves the 1-day preliminary numbers until the
-> deferred full-DC 12-day run lands, then `build_web` is re-run and `web/assets/` re-committed.
+> Recorded in **[ADR-0010](../adr/0010-web-delivery-static-maplibre-pmtiles.md)**. **Step 6 done
+> (2026-09-08):** the calibrated 12-day run landed and `web/assets/` was rebuilt from `outputs/12day/`
+> and re-committed — the live map now serves the calibrated data (specific yield ~1,124 kWh/kWp,
+> validated). **Part 2-3 is complete** (the only open follow-up is the merge-time CI cleanup).
 
 - **Phase:** 2, Part 3 of 5 · **Branch:** `stage-2` · **Overview:** [stage-2-overview.md](stage-2-overview.md)
 - **Prerequisite:** Part 2-2 built.
