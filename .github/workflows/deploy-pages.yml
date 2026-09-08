@@ -7,7 +7,9 @@ name: Deploy web map to Pages
 
 on:
   push:
-    branches: [main]
+    # stage-2 is TEMPORARY — for previewing Pages from the feature branch before merge.
+    # Drop it back to [main] once stage-2 is merged (see the follow-up chore commit).
+    branches: [main, stage-2]
     paths:
       - "web/**"
       - ".github/workflows/deploy-pages.yml"
