@@ -57,3 +57,6 @@ dependencies:
       - -e .
       # pmtiles: read PMTiles headers/metadata to validate the Part 2-3 web build (test-only).
       - pmtiles
+      # playwright: drive the Part 2-3 web-map browser smoke (test-only). Run
+      # `playwright install chromium` once after install to fetch the headless browser.
+      - playwright

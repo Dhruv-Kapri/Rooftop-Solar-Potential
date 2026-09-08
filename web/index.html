@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DC Rooftop Solar Potential</title>
+  <meta name="description" content="Every rooftop in Washington, DC scored for solar suitability, with a census-tract equity overlay." />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div id="map"></div>
+
+  <section id="panel" aria-label="Map controls">
+    <header>
+      <h1>DC Rooftop Solar Potential</h1>
+      <p class="sub">Every roof scored for solar suitability, rolled up to census tracts with an equity lens.</p>
+    </header>
+
+    <div class="control">
+      <div class="control-label">Tract layer</div>
+      <div id="switcher" class="switcher" role="group" aria-label="Choose tract layer">
+        <button data-layer="equity" class="active">Equity quadrant</button>
+        <button data-layer="potential">Potential / household</button>
+        <button data-layer="burden">Energy burden</button>
+      </div>
+    </div>
+
+    <div id="legend" class="legend" aria-live="polite"></div>
+
+    <p class="hint">Zoom past level 13 to see individual rooftops. Click a tract or roof for details.</p>
+    <button id="about-toggle" class="about-toggle">About &amp; caveats</button>
+  </section>
+
+  <aside id="about" class="about" hidden>
+    <button id="about-close" class="about-close" aria-label="Close">&times;</button>
+    <h2>About this map</h2>
+    <p class="warn"><strong>Preliminary numbers.</strong> Roof <em>counts, geometry and relative
+      suitability are exact</em>, but the absolute <em>energy</em> and <em>capacity</em> figures come
+      from an uncalibrated single-day radiation pass and read roughly 2&ndash;4&times; high. A
+      calibrated 12-day run will replace them; treat kWh/kW as indicative only for now.</p>
+    <img src="./assets/scatter.png" alt="Scatter of per-household solar potential vs. energy burden, by tract" />
+    <p>Each tract is placed in a 2&times;2 quadrant by median-splitting <strong>per-household solar
+      potential</strong> against <strong>energy burden</strong>. <strong>Priority</strong> tracts
+      (outlined red) are high potential <em>and</em> high burden &mdash; where rooftop solar does the
+      most equity good.</p>
+    <p class="src">Roofs: Microsoft Building Footprints + USGS 3DEP LiDAR, shaded <code>r.sun</code>
+      radiation, RANSAC roof planes, PVWatts yield. Tracts: US Census TIGER/ACS + DOE LEAD. Built
+      with open-source Python; served static via MapLibre GL JS + PMTiles.</p>
+  </aside>
+
+  <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pmtiles@3.2.1/dist/pmtiles.js"></script>
+  <script src="./main.js"></script>
+</body>
+</html>

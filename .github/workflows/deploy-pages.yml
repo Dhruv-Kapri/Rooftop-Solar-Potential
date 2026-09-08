@@ -1,0 +1,39 @@
+name: Deploy web map to Pages
+
+# Publishes the committed web/ (MapLibre map + GeoJSON + PMTiles) to GitHub Pages.
+# NO tiling in CI (the source dataset is gitignored + needs the hours-long GRASS pipeline) —
+# CI only uploads what is already committed. Rebuild tiles locally with scripts/build_web.py,
+# commit web/assets/, and this publishes them (plan §4, ADR-0010).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - ".github/workflows/deploy-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; let a newer push supersede an in-flight run.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -108,6 +108,11 @@ don't over-claim precision.
   Part 2-3 web build (`scripts/build_web.py`) tiles roofs into PMTiles with it; the `pmtiles` pip
   reader (in `environment.yml`) validates the output in the build smoke. Only needed to (re)build
   the web map's `roofs.pmtiles`, not for the analytics pipeline.
+- **Web map (Part 2-3):** `scripts/build_web.py` writes `web/assets/`; preview locally with
+  `python scripts/serve_web.py` — a **Range-capable** static server, because stock
+  `python -m http.server` does *not* serve the PMTiles' byte-range requests (the roof layer breaks
+  under it; GitHub Pages' CDN is fine). The browser smoke (`tests/test_web_smoke.py`) needs
+  Playwright + `playwright install chromium`.
 - Lint/format: **ruff**. Tests: **pytest** — the unit tier runs by default; GRASS/network tests are
   marked `integration` and **deselected by default** (`pytest -m integration` to include).
 - **Never commit data** — `data/`, `outputs/`, and all `*.tif/*.laz/*.las/*.copc.laz` are
