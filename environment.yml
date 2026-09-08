@@ -6,6 +6,10 @@
 # NOTE: GRASS GIS (r.sun) is a SEPARATE system install and must be callable on PATH
 # (risks §14.2). It can be added here via `grass` on conda-forge, but it is heavy —
 # a system/package-manager install is usually cleaner. Confirm `grass --version` works.
+#
+# NOTE: tippecanoe (Part 2-3 web vector-tile build) is likewise a SEPARATE system install
+# (e.g. `brew install tippecanoe`) and must be callable on PATH. Only needed to (re)build the
+# web map's roofs.pmtiles via scripts/build_web.py; confirm `tippecanoe --version` works.
 name: rooftop-solar
 channels:
   - conda-forge
@@ -51,3 +55,5 @@ dependencies:
   - pip
   - pip:
       - -e .
+      # pmtiles: read PMTiles headers/metadata to validate the Part 2-3 web build (test-only).
+      - pmtiles

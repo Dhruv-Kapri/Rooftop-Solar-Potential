@@ -104,6 +104,10 @@ don't over-claim precision.
 - **Conda** (geospatial stack: GDAL/PDAL/GRASS-adjacent): `conda env create -f environment.yml`,
   then `pip install -e .` for the `rooftop_solar` package (src layout).
 - **GRASS GIS** installed separately and callable on PATH (Phase 0 exit criterion).
+- **tippecanoe** installed separately (e.g. `brew install tippecanoe`) and callable on PATH — the
+  Part 2-3 web build (`scripts/build_web.py`) tiles roofs into PMTiles with it; the `pmtiles` pip
+  reader (in `environment.yml`) validates the output in the build smoke. Only needed to (re)build
+  the web map's `roofs.pmtiles`, not for the analytics pipeline.
 - Lint/format: **ruff**. Tests: **pytest** — the unit tier runs by default; GRASS/network tests are
   marked `integration` and **deselected by default** (`pytest -m integration` to include).
 - **Never commit data** — `data/`, `outputs/`, and all `*.tif/*.laz/*.las/*.copc.laz` are
