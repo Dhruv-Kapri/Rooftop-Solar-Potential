@@ -271,6 +271,8 @@ def run_aggregation(
     energy_burden: pd.DataFrame | None = None,
     state_fips: str = config.DC_STATE_FIPS,
     output_dir: str | Path | None = None,
+    area_name: str = "Glover Park",
+    file_prefix: str = "glover_park",
     write_outputs: bool = True,
 ) -> gpd.GeoDataFrame:
     """Roll the per-roof Stage-1 result up to census tracts + equity overlay (plan §4).
@@ -287,6 +289,10 @@ def run_aggregation(
             DOE LEAD burden-methodology question — plan §11).
         state_fips: state FIPS for the network loaders (default DC).
         output_dir: where the tract GeoPackage + choropleths go (default config.OUTPUTS_DIR).
+        area_name / file_prefix: label the deliverables for the study area — the map titles
+            (``area_name``) and the output filenames (``<file_prefix>_tracts.gpkg`` etc.). Default
+            to Glover Park (Part 2-1); the city runner passes DC values so a whole-District run
+            doesn't write Glover-Park-named files (Part 2-2).
         write_outputs: if False, compute the result but write no files.
 
     Returns the per-tract GeoDataFrame (working CRS): tract geometry + extensive sums +
@@ -306,31 +312,39 @@ def run_aggregation(
 
     if write_outputs:
         out_dir = Path(output_dir) if output_dir is not None else config.OUTPUTS_DIR
-        write_tract_geopackage(result, out_dir / TRACT_GEOPACKAGE_NAME)
+        write_tract_geopackage(result, out_dir / f"{file_prefix}_tracts.gpkg")
         render_tract_choropleth(
             result,
-            out_dir / POTENTIAL_CHOROPLETH_NAME,
+            out_dir / f"{file_prefix}_tract_potential.png",
             column="potential_per_household",
-            title="Glover Park — rooftop solar potential per household (kWh/yr)",
+            title=f"{area_name} — rooftop solar potential per household (kWh/yr)",
         )
         render_tract_choropleth(
             result,
-            out_dir / EQUITY_CHOROPLETH_NAME,
+            out_dir / f"{file_prefix}_tract_equity.png",
             column="equity_class",
             categorical=True,
-            title="Glover Park — equity quadrant (per-household potential × energy burden)",
+            title=f"{area_name} — equity quadrant (per-household potential × energy burden)",
         )
-        render_potential_burden_scatter(result, out_dir / EQUITY_SCATTER_NAME)
+        render_potential_burden_scatter(
+            result, out_dir / f"{file_prefix}_tract_scatter.png", area_name=area_name
+        )
 
     return result
 
 
 def _load_buildings(buildings: gpd.GeoDataFrame | str | Path | None) -> gpd.GeoDataFrame:
-    """Resolve the per-roof input: pass a GeoDataFrame through, else read the GeoPackage
-    (layer ``roofs``), defaulting to the Stage-1 output. Result is in ``config.WORKING_CRS``."""
+    """Resolve the per-roof input to a GeoDataFrame in ``config.WORKING_CRS``.
+
+    Pass a GeoDataFrame straight through; otherwise read from a path — **GeoParquet** for
+    Part 2-2's city output (``run_city``; ADR-0009) or a **GeoPackage** (layer ``roofs``) for
+    the Part 2-1 Stage-1 output, chosen by extension. Defaults to the Stage-1 GeoPackage. This
+    is what lets ``run_aggregation`` compose with either scale path's saved output."""
     if isinstance(buildings, gpd.GeoDataFrame):
         return buildings
     path = Path(buildings) if buildings is not None else config.OUTPUTS_DIR / GEOPACKAGE_NAME
+    if path.suffix == ".parquet":
+        return gpd.read_parquet(path)
     return gpd.read_file(path, layer="roofs")
 
 
@@ -388,7 +402,9 @@ def render_tract_choropleth(
     return path
 
 
-def render_potential_burden_scatter(tracts_gdf: gpd.GeoDataFrame, path: str | Path) -> Path:
+def render_potential_burden_scatter(
+    tracts_gdf: gpd.GeoDataFrame, path: str | Path, *, area_name: str = "Glover Park"
+) -> Path:
     """Render the potential-vs-burden scatter that supports the quadrant map (ADR-0007).
 
     Plots each classifiable tract at (per-household potential, energy burden), draws the two
@@ -425,7 +441,7 @@ def render_potential_burden_scatter(tracts_gdf: gpd.GeoDataFrame, path: str | Pa
 
     ax.set_xlabel("per-household potential (kWh/household/yr)")
     ax.set_ylabel("energy burden (fraction of income)")
-    ax.set_title("Glover Park — potential vs energy burden (median quadrant split)")
+    ax.set_title(f"{area_name} — potential vs energy burden (median quadrant split)")
     ax.legend(loc="best", fontsize=8)
     fig.savefig(path, dpi=150, bbox_inches="tight")
     plt.close(fig)

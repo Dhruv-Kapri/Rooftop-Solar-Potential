@@ -100,6 +100,29 @@ def test_run_aggregation_composes_conserves_and_writes(tmp_path):
     assert (tmp_path / pipeline.EQUITY_SCATTER_NAME).exists()
 
 
+def test_run_aggregation_names_outputs_by_prefix(tmp_path):
+    # A city run aggregates ALL of DC, so its deliverables must NOT carry the Glover-Park name
+    # (Part 2-2). The area name/file prefix are parameters; the city path passes DC values.
+    pipeline.run_aggregation(
+        buildings=_buildings(),
+        tracts_gdf=_tracts(),
+        acs=_acs(),
+        energy_burden=_energy_burden(),
+        output_dir=tmp_path,
+        area_name="Washington, DC",
+        file_prefix="dc",
+    )
+
+    for name in (
+        "dc_tracts.gpkg",
+        "dc_tract_potential.png",
+        "dc_tract_equity.png",
+        "dc_tract_scatter.png",
+    ):
+        assert (tmp_path / name).exists()
+    assert not list(tmp_path.glob("glover_park_*"))  # no Glover-Park name leaks through
+
+
 def test_run_aggregation_write_outputs_false_writes_nothing(tmp_path):
     result = pipeline.run_aggregation(
         buildings=_buildings(),

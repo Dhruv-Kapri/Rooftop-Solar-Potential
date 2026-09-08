@@ -6,6 +6,10 @@ outputs/
 *.las
 *.copc.laz
 
+# Run logs (batch-run stdout, e.g. city_run*.log) — transient artifacts, not source. The
+# real compute-cost run-log is written into docs/benchmarks from a cold run, not committed here.
+*.log
+
 # Secrets
 .env
 
