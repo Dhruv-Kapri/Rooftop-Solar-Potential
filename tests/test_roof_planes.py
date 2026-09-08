@@ -136,6 +136,21 @@ def test_multiplane_recovers_two_facets():
     assert len(idx0 | idx1) >= 0.95 * len(z)
 
 
+def test_fit_planes_multi_max_planes_caps():
+    # The same gable that yields 2 facets by default must yield exactly 1 -- the
+    # dominant facet -- when capped at max_planes=1 (Part 2-4 step 7a: this is the
+    # single-plane baseline compare_self_consistency will fit for its RANSAC comparator).
+    pitch_deg = 20.0
+    X, z = _synthetic_gable(pitch_deg)
+
+    capped = roof_planes.fit_planes_multi(X, z, max_planes=1)
+    uncapped = roof_planes.fit_planes_multi(X, z)
+
+    assert len(capped) == 1
+    assert len(uncapped) == 2
+    assert capped[0]["n_px"] == uncapped[0]["n_px"]
+
+
 def test_multiplane_drops_below_min_plane_px():
     # A clean 400-pixel roof plane plus 7 stray points whose elevation is wildly
     # inconsistent with any plane through the roof. After the roof is peeled off, only

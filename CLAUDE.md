@@ -96,6 +96,7 @@ aggregation is identical downstream. Detail: `docs/architecture.md §5`.
 | City-scale tiling grid | `tiling.py` (fixed-origin grid · `floor` membership) |
 | City runner (tile → cache → merge) | `pipeline.run_city` (+ `scripts/run_city.py`) |
 | Web-map ETL (GeoJSON + PMTiles) | `web_build.py` (+ `scripts/build_web.py`; `scripts/serve_web.py` preview) |
+| Validation (ground-truth-free) | `validation.py` (Part 2-4 step 7a: DSM self-consistency, multiplane vs ransac) |
 | Paths / keys / study-area config | `config.py` |
 
 All modules above are implemented and tested. Part 2-1 (Phase 2) filled `aggregate.py` and added
