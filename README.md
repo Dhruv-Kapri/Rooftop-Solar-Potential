@@ -34,7 +34,7 @@ web map**. The Esri stack is *one supported deployment target, not a dependency*
 > deferred (a multi-hour job, run when ready). The [walkthrough notebooks](notebooks/) remain the
 > plain-language tour. **Part 2-3 — the deployed web map — is now live:
 > [dhruv-kapri.github.io/Rooftop-Solar-Potential](https://dhruv-kapri.github.io/Rooftop-Solar-Potential/)**
-> (static MapLibre GL JS + PMTiles on GitHub Pages; numbers preliminary pending the calibrated run).
+> (static MapLibre GL JS + PMTiles on GitHub Pages, serving the calibrated 12-day data).
 > Next: ML roof segmentation and fidelity passes (see the [roadmap](docs/roadmap.md)).
 
 ## Lineage — from a hackathon prototype to a city pipeline
@@ -104,11 +104,12 @@ fully static: **MapLibre GL JS + PMTiles vector tiles on GitHub Pages**, no back
   zoom past level 13 for the <strong>100,064 individual rooftops</strong> coloured by suitability.</em></sub>
 </p>
 
-> **Numbers are preliminary.** Roof counts, geometry, and *relative* suitability are exact, but the
-> absolute energy/capacity figures come from an uncalibrated single-day radiation pass (≈2–4× high) and
-> will be swapped for the calibrated full-DC run. Rebuild the served tiles with
-> `python scripts/build_web.py` (preview locally with `python scripts/serve_web.py` — a Range-capable
-> static server, since PMTiles needs byte-range requests).
+> **Calibrated radiation; capacity still approximate.** The map serves the calibrated 12-day run — the
+> fleet specific yield (~1,124 kWh/kWp) matches Stage-1's Esri-validated benchmark. Absolute
+> capacity/energy still run high vs published estimates (a flat usable-area derate + merged footprints;
+> the obstruction-aware fix is Part 2-4). Rebuild the served tiles with `python scripts/build_web.py`
+> (preview locally with `python scripts/serve_web.py` — a Range-capable static server, since PMTiles
+> needs byte-range requests).
 
 ## Stage 1 result — Glover Park, benchmarked against Esri
 

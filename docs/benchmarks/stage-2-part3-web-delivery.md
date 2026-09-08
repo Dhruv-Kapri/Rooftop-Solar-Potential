@@ -42,17 +42,18 @@ console errors**. So the **Cloudflare Pages fallback is not needed**.
 | Asset | Shape | Serving |
 |---|---|---|
 | `tracts.geojson` | 206 DC tracts, EPSG:4326, 5 map fields (`GEOID`, `equity_class`, `is_priority`, `potential_per_household`, `energy_burden`) | inline GeoJSON, **1.72 MB** — no tiling (small) |
-| `roofs.pmtiles` | **57,648** usable roofs (of 100,064), 3 fields (`suitability`, `capacity_kw`, `annual_energy_kwh`) | PMTiles vector tiles, **13.49 MB**, layer `roofs`, zoom **13–16** (MVT) |
+| `roofs.pmtiles` | **57,641** usable roofs (of 100,064), 3 fields (`suitability`, `capacity_kw`, `annual_energy_kwh`) | PMTiles vector tiles, **13.6 MB**, layer `roofs`, zoom **13–16** (MVT) |
 | `scatter.png` | potential-vs-burden quadrant chart | about-panel image |
 
 ## Caveats & refresh
 
-- **Preliminary numbers.** The committed tiles are from the **1-day** uncalibrated run — roof
-  counts/geometry/relative suitability are exact, absolute energy/capacity read ~2–4× high. The
-  calibrated 12-day swap is Part 2-3 **step 6**: re-run `scripts/build_web.py` against the calibrated
-  `outputs/` and commit the refreshed `web/assets/` — **no `web/` app rebuild** (the map reads whatever
-  tiles are committed; Part 2-3 §10). The map's colour breaks are computed at runtime from the data, so
-  they auto-adapt.
+- **Calibrated (12-day) numbers; capacity still approximate.** The committed tiles are from the
+  calibrated 12-day run (`outputs/12day/`, swapped in 2026-09-08 — Part 2-3 step 6); the fleet specific
+  yield (~1,124 kWh/kWp) matches Stage-1's Esri-validated benchmark. Absolute capacity/energy still run
+  ~2.5× high vs NREL — a flat usable-area derate + merged footprints — the obstruction-aware fix is Part
+  2-4. A future re-run refreshes the map by re-running `scripts/build_web.py` (default input
+  `outputs/12day/`) + committing `web/assets/` — **no `web/` app rebuild** (Part 2-3 §10); the colour
+  breaks auto-adapt from the data.
 - **Committed-tile churn** (~13.5 MB per rebuild in history; plan §9) — escalate to Git LFS / a
   `gh-pages` orphan branch if it grows.
 
