@@ -38,6 +38,11 @@ OBSTRUCTION_TAU_M = 0.75
 # subtracted, only a smaller, principled setback factor (edge setback/panel access) remains.
 SETBACK_FACTOR = 0.85
 
+# Flat roofs are covered by tilted arrays with inter-row spacing, not flush-mount packing: the
+# ground-coverage ratio (~0.4-0.55 at DC's latitude) replaces flush-mount packing. It stacks on
+# top of the edge-setback (ADR-0013 spirit).
+FLAT_ROOF_GCR = 0.50
+
 
 def classify_roof(tilt_deg: float, aspect_deg: float) -> str:
     """Label one roof 'flat', 'pitched_sun_facing', or 'pitched_north_facing'.
@@ -191,9 +196,11 @@ def usable_area(
     Instead of the flat 0.70, a qualifying plane's usable area is its **measured**
     obstruction-free area (``plane_area_m2 - obstruction_area_m2``, clamped at 0 so a plane
     whose detected obstruction exceeds its own assigned area never goes negative) times the
-    smaller, principled :data:`SETBACK_FACTOR`. ``plane_area_m2`` and ``obstruction_area_m2``
-    are carried onto the output alongside ``roof_class``, ``usable`` and ``usable_area_m2``,
-    still one row per plane.
+    smaller, principled :data:`SETBACK_FACTOR`. A plane classified ``roof_class == "flat"``
+    additionally gets :data:`FLAT_ROOF_GCR` applied on top — flat roofs use tilted racks with
+    inter-row spacing, so their real panel-coverage is well below the edge-setback alone.
+    ``plane_area_m2`` and ``obstruction_area_m2`` are carried onto the output alongside
+    ``roof_class``, ``usable`` and ``usable_area_m2``, still one row per plane.
     """
     if obstructions is None:
         roofs = roof_planes.copy()
@@ -226,5 +233,8 @@ def usable_area(
         )
     ]
     net_area = np.maximum(0.0, planes["plane_area_m2"] - planes["obstruction_area_m2"])
-    planes["usable_area_m2"] = np.where(planes["usable"], net_area * SETBACK_FACTOR, 0.0)
+    packing_factor = np.where(
+        planes["roof_class"] == "flat", SETBACK_FACTOR * FLAT_ROOF_GCR, SETBACK_FACTOR
+    )
+    planes["usable_area_m2"] = np.where(planes["usable"], net_area * packing_factor, 0.0)
     return planes
