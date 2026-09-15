@@ -153,3 +153,19 @@ don't over-claim precision.
 Follow the user's global CLAUDE.md: ask before assuming, simplest solution that fits, don't touch
 unrelated code (surface smells separately), flag uncertainty. Cite plan §-numbers when a decision
 traces to the plan.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live as GitHub issues on `Dhruv-Kapri/Rooftop-Solar-Potential` (via the `gh` CLI).
+See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage labels (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`,
+`wontfix`), used as-is. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
