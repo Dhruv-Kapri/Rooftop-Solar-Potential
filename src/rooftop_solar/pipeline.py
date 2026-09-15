@@ -488,7 +488,9 @@ def render_potential_burden_scatter(
 # other param is unchanged — folded into params_stamp so it invalidates every cached tile.
 # 2-4.0: the multi-plane + obstruction-aware geometry swap (ADR-0011/0012/0013) — every tile's
 # result changes, so every 2-2.0 cache entry must be recomputed.
-PIPELINE_VERSION = "2-4.0"
+# 2-4.1: flat-roof GCR calibration (FLAT_ROOF_GCR in usable_area) — flat planes now derate for
+# tilted-array inter-row spacing, changing every tile's usable area, so 2-4.0 caches are stale.
+PIPELINE_VERSION = "2-4.1"
 
 
 def params_stamp(

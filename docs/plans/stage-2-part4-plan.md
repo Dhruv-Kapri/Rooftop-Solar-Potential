@@ -135,6 +135,15 @@ Together these are the plan's "accuracy comparison vs the RANSAC baseline" — d
 5. **✓** Wire `pipeline._score_roofs` (+ `run_stage1`/`run_city`) to the `"multiplane"` path; bump
    `PIPELINE_VERSION`; Stage-1 integration smoke updated to the collapsed schema (integration, GRASS-gated).
 6. City re-run (Part 2-2's caching re-invoked) → `build_web` + commit `web/assets/` (no app rebuild).
+   - **⊙ deferred (2026-09-15):** added a **flat-roof GCR** calibration (`FLAT_ROOF_GCR = 0.50` in
+     `usable_area.py`, multiplane path only) — flat roofs are 84% of usable capacity and were modelled at
+     0.85 packing with no tilted-array inter-row spacing. `PIPELINE_VERSION` bumped `2-4.0`→`2-4.1`.
+     Analytically (no re-run) this pulls the city over-estimate from **2.9× → ~1.7× NREL** (3.83→~2.23 GW).
+     Power-density was *not* touched (200 W/m² is right for modern modules; cutting it would break the
+     calibrated specific yield). **The full 10–15 h city re-run is deferred and bundled with step 7b's
+     obstruction/setback-knob tuning** — run the expensive batch ONCE with both calibrations, not twice.
+     Code + version bump are committed to the working tree; `outputs/12day/` + `web/assets/` still hold the
+     pre-GCR numbers until that batch runs. See risks note on r.sun caching below.
 7. Validation: DSM self-consistency + the spot-check harness + your ~20 labels.
    - **⊙ partial (2026-09-08):** the DSM self-consistency **functions** are built + unit-tested
      (`validation.py`: `reconstruct_residuals`, `self_consistency`, `compare_self_consistency`;
@@ -166,6 +175,14 @@ closer to hand.
 - **Compute** — largely dissolves for the classical core: the re-run is Part 2-2's cost ≈ unchanged (the
   `r.sun` pass dominates, not plane-fitting). Only the **ML demo** wants a GPU, and it's inference-only on
   the M1. (The 12-day-timing figure just confirms the re-run cost; it's not a blocker.)
+- **r.sun is NOT cached, so a full city re-run is a ~10–15 h batch, not minutes** (corrected 2026-09-15).
+  The per-tile cache holds only the DSM + the collapsed roofs.parquet; `radiation.surface_irradiance`
+  (r.sun) re-runs on every tile recompute, and a `PIPELINE_VERSION` bump invalidates *whole* tiles. So a
+  change purely downstream of r.sun (GCR here; Part 2-5's yield tweaks) still pays the full r.sun cost.
+  **Design smell (surface separately):** caching the r.sun raster per tile, keyed on DSM + r.sun params
+  (not downstream `pipeline_version`), would make 2-4/2-5 downstream-only re-runs cost minutes — matching
+  stage-2-overview §3's "incremental, not from scratch" intent. NB: the old log's "846s / 12.8s-per-tile"
+  is a resume/merge figure, not from-scratch compute cost.
 - **ML demo may not run cleanly** (unofficial, unmaintained code) — hence best-effort with fallbacks (§5).
 - **Validation is honest, not conclusive** — no DC ground truth (risks §14.4); the spot-check is
   indicative. Said plainly, not papered over (Q2 / ADR-0011).

@@ -293,6 +293,34 @@ def test_usable_area_multiplane_path_clamps_negative_net_area():
     assert out["usable_area_m2"].tolist() == [0.0]
 
 
+def test_usable_area_multiplane_path_flat_roof_applies_gcr():
+    # Two-plane building: plane0 is flat (tilt < 10), plane1 is pitched sun-facing. Both
+    # qualify and have no obstructions, isolating the FLAT_ROOF_GCR stacking behaviour.
+    planes = gpd.GeoDataFrame(
+        {
+            "building_id": [0, 0],
+            "plane_id": [0, 1],
+            "tilt_deg": [5.0, 20.0],
+            "aspect_deg": [180.0, 180.0],
+            "poa_clear_sky_kwh_m2": [1400.0, 1400.0],
+        },
+        geometry=[box(0.0, 0.0, 10.0, 10.0), box(50.0, 0.0, 60.0, 10.0)],
+        crs=config.WORKING_CRS,
+    )
+    obstructions = _obstructions_gdf([100.0, 100.0], [0.0, 0.0])
+
+    out = usable_area.usable_area(planes, obstructions=obstructions)
+
+    assert out["roof_class"].tolist() == ["flat", "pitched_sun_facing"]
+    np.testing.assert_allclose(
+        out["usable_area_m2"].to_numpy(),
+        [
+            100.0 * usable_area.SETBACK_FACTOR * usable_area.FLAT_ROOF_GCR,
+            100.0 * usable_area.SETBACK_FACTOR,
+        ],
+    )
+
+
 def test_usable_area_composer_qualifies_and_derates():
     # One roof per branch: qualifying south, steep, low-insolation, north-facing, flat.
     roofs = _roofs_gdf(
