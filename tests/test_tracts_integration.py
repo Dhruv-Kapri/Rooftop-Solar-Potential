@@ -65,7 +65,7 @@ def test_run_aggregation_end_to_end_glover_park(tmp_path):
     roofs, assert conservation end-to-end (§7.1) and that the deliverables are written."""
     import geopandas as gpd
 
-    roofs_path = config.OUTPUTS_DIR / pipeline.GEOPACKAGE_NAME
+    roofs_path = config.outputs_area_dir("glover_park") / pipeline.GEOPACKAGE_NAME
     if not roofs_path.exists():
         pytest.skip("Stage-1 output missing; run scripts/run_stage1.py first")
 

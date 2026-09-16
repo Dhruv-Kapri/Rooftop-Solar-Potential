@@ -8,6 +8,7 @@ power potential" Glover Park tutorial; totals reported but not gated).
 
     python scripts/run_stage1.py                 # canonical run (MS footprints, 12-day)
     python scripts/run_stage1.py --source osm    # documented fallback footprint source
+                                                  # (lands under outputs/glover_park/osm/)
     python scripts/run_stage1.py --quick         # single-day radiation: fast, NOT calibrated
 
 The full 12-day Glover Park run is the documented manual benchmark (stage-1-plan.md §9), not
@@ -20,7 +21,7 @@ import argparse
 
 import geopandas as gpd
 
-from rooftop_solar import pipeline
+from rooftop_solar import config, pipeline
 
 # Esri "Estimate solar power potential" (Glover Park tutorial) reference values — the
 # intensive quantities ADR-0005 gates on. Totals are method-dependent and not gated.
@@ -95,10 +96,17 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    if args.output_dir is not None:
+        output_dir = args.output_dir
+    elif args.source == "osm":
+        output_dir = config.outputs_area_dir("glover_park") / "osm"
+    else:
+        output_dir = None
+
     result = pipeline.run_stage1(
         footprints_source=args.source,
         day_range=[172] if args.quick else None,
-        output_dir=args.output_dir,
+        output_dir=output_dir,
     )
     _report(result)
 

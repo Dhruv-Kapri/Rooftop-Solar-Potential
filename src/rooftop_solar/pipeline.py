@@ -627,7 +627,7 @@ def _tile_key(tile: tiling.Tile) -> str:
 # ADR-0009: sequential + per-tile cache, resumable/idempotent).               #
 # --------------------------------------------------------------------------- #
 
-CITY_ROOFS_PARQUET_NAME = "dc_roofs.parquet"
+CITY_ROOFS_PARQUET_NAME = "roofs.parquet"
 MANIFEST_NAME = "manifest.json"
 
 
@@ -659,7 +659,8 @@ def run_city(
         footprints_source / day_range / dsm_source: passed to the per-tile spine; together with
             the grid params they form the params-stamp that invalidates the cache.
         tiles_dir: per-tile parquet cache + manifest (default `config.TILES_CACHE_DIR`).
-        output_dir: where the city per-roof GeoParquet goes (default `config.OUTPUTS_DIR`).
+        output_dir: where the city per-roof GeoParquet goes (default
+            `config.CALIBRATED_CITY_OUTPUTS_DIR`, `outputs/dc/12day/`).
         resume: skip tiles already recorded done under the current params-stamp (idempotent
             re-run); False recomputes every tile.
         write_outputs: if False, compute but write no city parquet.
@@ -713,7 +714,9 @@ def run_city(
     city = recompute_city_suitability(merge_tile_roofs(tile_frames))
 
     if write_outputs:
-        out_dir = Path(output_dir) if output_dir is not None else config.OUTPUTS_DIR
+        out_dir = (
+            Path(output_dir) if output_dir is not None else config.CALIBRATED_CITY_OUTPUTS_DIR
+        )
         _write_parquet(city, out_dir / CITY_ROOFS_PARQUET_NAME)
     return city
 

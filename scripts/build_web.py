@@ -1,15 +1,15 @@
 #!/usr/bin/env python
-"""Part 2-3 CLI — build the web-map assets from the pipeline's ``dc_*`` deliverables.
+"""Part 2-3 CLI — build the web-map assets from the pipeline's deliverables.
 
-Thin wrapper over ``web_build.build_web``: reads ``dc_tracts.gpkg`` (the aggregation tract
-layer) + ``dc_roofs.parquet`` (the city per-roof layer) from an input dir and writes
+Thin wrapper over ``web_build.build_web``: reads ``tracts.gpkg`` (the aggregation tract
+layer) + ``roofs.parquet`` (the city per-roof layer) from an input dir and writes
 ``web/assets/{tracts.geojson, roofs.pmtiles, scatter.png}`` — the inline tract layer, the
 100k-roof vector tiles, and the about-panel chart (plan §4). Defaults ``--input`` to the calibrated
-run (``outputs/12day/``); point it at ``outputs/1day/`` for a dev build.
+run (``outputs/dc/12day/``); point it at ``outputs/dc/1day/`` for a dev build.
 
-    python scripts/build_web.py                       # outputs/12day/ -> web/assets/
-    python scripts/build_web.py --input outputs/1day   # dev build off the 1-day pass
-    python scripts/build_web.py --output /tmp/assets    # write elsewhere
+    python scripts/build_web.py                          # outputs/dc/12day/ -> web/assets/
+    python scripts/build_web.py --input outputs/dc/1day   # dev build off the 1-day pass
+    python scripts/build_web.py --output /tmp/assets       # write elsewhere
 
 Requires ``tippecanoe`` on PATH (a system dep, ADR-0010).
 """
@@ -26,7 +26,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "--input", default=None,
-        help="dir holding dc_tracts.gpkg + dc_roofs.parquet (default: outputs/12day/ calibrated)",
+        help="dir holding tracts.gpkg + roofs.parquet (default: outputs/dc/12day/ calibrated)",
     )
     parser.add_argument(
         "--output", default=None, help="web assets output dir (default: web/assets/)"
