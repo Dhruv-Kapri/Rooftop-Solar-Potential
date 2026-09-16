@@ -88,13 +88,13 @@ def _tracts_gdf() -> gpd.GeoDataFrame:
 
 
 def test_build_web_wires_geojson_pmtiles_and_scatter(tmp_path):
-    # `build_web` reads the pipeline's `dc_*` deliverables from an input dir and emits the three
+    # `build_web` reads the pipeline's deliverables from an input dir and emits the three
     # web assets to an output dir — the whole ETL wired together (plan §4).
     in_dir = tmp_path / "in"
     in_dir.mkdir()
-    _tracts_gdf().to_file(in_dir / "dc_tracts.gpkg", driver="GPKG", layer="tracts")
-    _roofs_gdf().to_parquet(in_dir / "dc_roofs.parquet")
-    (in_dir / "dc_tract_scatter.png").write_bytes(b"\x89PNG\r\n\x1a\n synthetic")
+    _tracts_gdf().to_file(in_dir / "tracts.gpkg", driver="GPKG", layer="tracts")
+    _roofs_gdf().to_parquet(in_dir / "roofs.parquet")
+    (in_dir / "tract_scatter.png").write_bytes(b"\x89PNG\r\n\x1a\n synthetic")
 
     out_dir = tmp_path / "assets"
     outputs = web_build.build_web(input_dir=in_dir, output_dir=out_dir)

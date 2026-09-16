@@ -120,17 +120,18 @@ def build_web(
     *,
     input_dir: str | Path | None = None,
     output_dir: str | Path | None = None,
-    tracts_name: str = "dc_tracts.gpkg",
-    roofs_name: str = "dc_roofs.parquet",
-    scatter_name: str = "dc_tract_scatter.png",
+    tracts_name: str = "tracts.gpkg",
+    roofs_name: str = "roofs.parquet",
+    scatter_name: str = "tract_scatter.png",
 ) -> dict[str, Path]:
-    """Build the three web assets from the pipeline's `dc_*` deliverables (plan §4).
+    """Build the three web assets from the pipeline's deliverables (plan §4).
 
-    Reads the aggregation tract GeoPackage (layer ``tracts``) + the city roof GeoParquet from
-    ``input_dir`` and writes ``tracts.geojson`` (inline layer), ``roofs.pmtiles`` (vector tiles)
-    and ``scatter.png`` (the about-panel chart, copied) into ``output_dir``. Defaults ``input_dir``
-    to the calibrated run (``outputs/12day/``, ``config.CALIBRATED_CITY_OUTPUTS_DIR``); point it at
-    ``outputs/1day/`` for a dev build (plan §4/§7).
+    Reads the aggregation tract GeoPackage (``tracts.gpkg``, layer ``tracts``) + the city roof
+    GeoParquet (``roofs.parquet``) from ``input_dir`` and writes ``tracts.geojson`` (inline layer),
+    ``roofs.pmtiles`` (vector tiles) and ``scatter.png`` (the about-panel chart, copied) into
+    ``output_dir``. Defaults ``input_dir`` to the calibrated run (``outputs/dc/12day/``,
+    ``config.CALIBRATED_CITY_OUTPUTS_DIR``); point it at ``outputs/dc/1day/`` for a dev build
+    (plan §4/§7).
 
     Returns the written paths keyed by role (``tracts`` / ``roofs`` / ``scatter``).
     """

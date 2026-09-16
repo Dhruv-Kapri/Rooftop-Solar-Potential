@@ -43,7 +43,7 @@ def _tracts_gdf():
             "is_priority": [True, False],
             "potential_per_household": [10.0, 16.0],
             "energy_burden": [0.03, 0.05],
-            # Extra columns present on the real dc_tracts.gpkg that must be dropped.
+            # Extra columns present on the real tracts.gpkg that must be dropped.
             "n_buildings": [12, 8],
             "median_income": [50000.0, 40000.0],
             "population": [200.0, 100.0],
@@ -140,7 +140,7 @@ def _roofs_gdf():
             "suitability": [80.0, 0.0, 60.0],
             "capacity_kw": [4.0, 0.0, 3.0],
             "annual_energy_kwh": [1200.0, 0.0, 900.0],
-            # Extra columns present on the real dc_roofs.parquet that must be dropped.
+            # Extra columns present on the real roofs.parquet that must be dropped.
             "tilt_deg": [20.0, 5.0, 25.0],
             "poa_real_kwh_m2": [1400.0, 900.0, 1300.0],
         },

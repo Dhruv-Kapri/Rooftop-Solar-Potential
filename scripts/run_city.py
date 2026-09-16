@@ -13,10 +13,11 @@ budget re-runs against (stage-2-part2-plan.md §6.5/§8).
     python scripts/run_city.py --no-resume            # force a full recompute
 
 This is a BATCH JOB, not CI: the calibrated full-DC run is many tiles × a 12-day r.sun pass.
-Deliverables land in a run-labelled subdir — outputs/12day (calibrated default) or outputs/<N>day
-for an N-day sample — so a run never dumps into outputs/ root beside the Stage-1 Glover Park files
-(override with --output-dir). It writes the city per-roof GeoParquet (dc_roofs.parquet) and —
-unless --no-aggregate — the tract equity GeoPackage + choropleths (the actual Phase-2 payoff).
+Deliverables land in a run-labelled subdir — outputs/dc/12day (calibrated default) or
+outputs/dc/<N>day for an N-day sample — so a run never dumps into outputs/ root beside the
+Stage-1 Glover Park files (override with --output-dir). It writes the city per-roof GeoParquet
+(roofs.parquet) and — unless --no-aggregate — the tract equity GeoPackage + choropleths (the
+actual Phase-2 payoff).
 """
 
 from __future__ import annotations
@@ -39,9 +40,11 @@ def _parse_day_range(value: str | None) -> list[int] | None:
 
 
 def _run_label(day_range: list[int] | None) -> str:
-    """Run-labelled output subdir: `12day` for the calibrated default (ADR-0001), else `{N}day`."""
-    n = 12 if day_range is None else len(day_range)
-    return f"{n}day"
+    """Run-labelled output subdir: `config.CALIBRATED_CITY_LABEL` ("12day") for the calibrated
+    default (ADR-0001), else `{N}day`."""
+    if day_range is None:
+        return config.CALIBRATED_CITY_LABEL
+    return f"{len(day_range)}day"
 
 
 def _report_runlog(tiles_dir, city: gpd.GeoDataFrame, wall_clock_s: float) -> None:
@@ -87,11 +90,11 @@ def main() -> None:
 
     tiles_dir = Path(args.tiles_dir) if args.tiles_dir is not None else config.TILES_CACHE_DIR
     day_range = _parse_day_range(args.day_range)
-    # Default deliverables to a run-labelled subdir (outputs/<N>day), never outputs/ root.
+    # Default deliverables to a run-labelled subdir (outputs/dc/<N>day), never outputs/ root.
     output_dir = (
         Path(args.output_dir)
         if args.output_dir is not None
-        else config.OUTPUTS_DIR / _run_label(day_range)
+        else config.outputs_run_dir("dc", _run_label(day_range))
     )
 
     started = time.perf_counter()
@@ -114,7 +117,7 @@ def main() -> None:
             output_dir=output_dir,
             area_name="Washington, DC",
         )
-        print("  wrote tract equity GeoPackage + choropleths (dc_*).")
+        print("  wrote tract equity GeoPackage + choropleths (tracts.gpkg + tract_*.png).")
 
 
 if __name__ == "__main__":
