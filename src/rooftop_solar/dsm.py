@@ -27,7 +27,7 @@ from rasterio.warp import Resampling, calculate_default_transform, reproject
 from shapely.geometry import mapping
 from shapely.ops import transform as shp_transform
 
-from rooftop_solar import config
+from rooftop_solar import cache, config
 
 PC_STAC_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
 DSM_COLLECTION = "3dep-lidar-dsm"
@@ -42,6 +42,7 @@ def build_dsm(
     resolution_m: float = 2.0,
     source: str = "planetary-computer",
     out_path: str | Path | None = None,
+    cache_key: str | None = None,
 ) -> Path:
     """Build a DSM GeoTIFF for `aoi` and return its path.
 
@@ -57,6 +58,10 @@ def build_dsm(
             Part 2-2 / ADR-0009) passes a per-tile path so tiles don't clobber one another
             under a single Glover-Park name (the DSM is transient — the roof parquet is the
             resume cache).
+        cache_key: when provided, a `<out_path>.key` sidecar records this key; a later call
+            with a matching key reuses the on-disk DSM and skips both the rebuild and the
+            network fetch (tile-1 of the tiered cache, ADR-0014). `None` (default) preserves
+            today's always-rebuild behavior for the single-AOI Stage-1 path.
 
     Steps: STAC search -> sign assets -> mosaic (rasterio.merge) -> reproject to
     config.WORKING_CRS -> clip to `aoi` -> write GeoTIFF to `out_path`. NoData is carried
@@ -70,6 +75,12 @@ def build_dsm(
             f"{_NATIVE_RESOLUTION_M} m — this module does not resample."
         )
 
+    out_path = (
+        config.DATA_DIR / "dsm" / "glover_park_dsm.tif" if out_path is None else Path(out_path)
+    )
+    if cache_key is not None and cache.sidecar_matches(out_path, cache_key):
+        return out_path
+
     hrefs = _search_dsm_hrefs(aoi)
     mosaic, mosaic_transform, src_crs, nodata = _mosaic(hrefs, aoi)
     dst_array, dst_transform, dst_crs = _reproject_to_working_crs(
@@ -77,10 +88,9 @@ def build_dsm(
     )
     clipped, clipped_transform = _clip_to_aoi(dst_array, dst_transform, dst_crs, aoi, nodata)
 
-    out_path = (
-        config.DATA_DIR / "dsm" / "glover_park_dsm.tif" if out_path is None else Path(out_path)
-    )
     _write_geotiff(out_path, clipped, clipped_transform, dst_crs, nodata)
+    if cache_key is not None:
+        cache.write_key_sidecar(out_path, cache_key)
     return out_path
 
 
