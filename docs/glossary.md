@@ -155,6 +155,15 @@ Project-specific terms as used in this pipeline, not textbook-general definition
 - **GeoParquet** — the columnar, partition-friendly geospatial format Part 2-2 writes the city-scale
   per-roof dataset in (partitioned per tile) — better suited than a single GeoPackage to a ~10⁵-building
   dataset and incremental per-tile writes. The small per-tract output stays GeoPackage (ADR-0009).
+- **Cache tier** — one of the three self-validating layers of the per-tile cache (DSM, radiation,
+  scoring); a downstream tier chains the key of the one above so invalidation cascades downward
+  only (ADR-0014).
+- **Component version** — a per-tier version constant (`DSM_VERSION`/`RADIATION_VERSION`/
+  `SCORING_VERSION`) bumped when that tier's behavior changes, replacing ADR-0009's single
+  pipeline-version stamp so a change re-runs only the affected tier and below (ADR-0014).
+- **Artifact validity key / sidecar** — the chained fingerprint of a cached artifact's real inputs,
+  written as a small `.key` file next to the artifact; the artifact is reused only when it exists
+  and its sidecar matches the current key (ADR-0014).
 
 ### Stage 2 · roof-geometry refinement (Part 2-4)
 
