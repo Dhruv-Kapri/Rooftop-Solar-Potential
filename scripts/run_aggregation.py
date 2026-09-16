@@ -64,7 +64,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "--buildings", default=None,
-        help="per-roof input GeoPackage (default: the Stage-1 outputs/glover_park_roofs.gpkg)",
+        help="per-roof input GeoPackage (default: the Stage-1 outputs/glover_park/roofs.gpkg)",
     )
     parser.add_argument("--output-dir", default=None, help="where to write GeoPackage + PNGs")
     args = parser.parse_args()
