@@ -20,3 +20,4 @@ in the order the decision was made; do not renumber or reuse a number. ADRs 0001
 | [0011](0011-part2-4-classical-multiplane-ml-demo.md) | Part 2-4 = classical multi-plane RANSAC + DSM-residual obstructions; ML demoted to a bounded, inference-only demo |
 | [0012](0012-per-plane-poa.md) | Per-plane POA — insolation selected per usable plane via pixel–plane membership |
 | [0013](0013-obstruction-aware-usable-area.md) | Obstruction-aware usable area from DSM residuals — replaces the flat × 0.70 utilization fraction |
+| [0014](0014-tiered-per-tile-cache-component-versions.md) | Tiered per-tile cache (DSM/radiation/scoring) with chained component-version validity keys + sidecars; supersedes 0009's single stamp |

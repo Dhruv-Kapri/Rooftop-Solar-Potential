@@ -503,6 +503,103 @@ def render_potential_burden_scatter(
 PIPELINE_VERSION = "2-4.1"
 
 
+# --------------------------------------------------------------------------- #
+# Tiered cache — chained component-version keys (Part 2-4/2-5, ADR-0014,      #
+# supersedes ADR-0009's single params-stamp rule).                           #
+# --------------------------------------------------------------------------- #
+#
+# `params_stamp`/`PIPELINE_VERSION`/`TileManifest` above stay wired into `run_city` unchanged
+# until #12 rewires it — the two invalidation schemes coexist during the migration. #12 makes
+# `scoring_key` the `TileManifest` stamp in place of `params_stamp`.
+#
+# Each tier's validity key chains the tier above it, so bumping one version invalidates that
+# tier and everything downstream, never upstream. Bump the version whose behavior changed:
+#   DSM_VERSION       — the DSM build (dsm.build_dsm) changes
+#   RADIATION_VERSION — the r.sun radiation model changes (e.g. Part 2-5 shadow/horizon wiring)
+#   SCORING_VERSION   — anything downstream of r.sun (roof planes / usable area / yield)
+# SCORING_VERSION carries forward the retired single-stamp generation "2-4.1" (the GCR baseline).
+DSM_VERSION = "1"
+RADIATION_VERSION = "1"
+SCORING_VERSION = "2-4.1"
+
+
+def dsm_key(
+    *,
+    origin: tuple[float, float],
+    tile_size_m: float,
+    buffer_m: float,
+    row: int,
+    col: int,
+    resolution_m: float,
+    dsm_source: str,
+    version: str = DSM_VERSION,
+) -> str:
+    """Validity key for a tile's cached DSM raster (the root of the chain, ADR-0014).
+
+    Fingerprints everything that changes the DSM: the grid geometry + tile identity, the
+    resolution, which DSM build produced it, and DSM_VERSION. Stable JSON (`sort_keys=True`,
+    `origin` -> list) so identical inputs -> identical string. Opaque, not human-readable.
+    """
+    payload = {
+        "origin": list(origin),
+        "tile_size_m": tile_size_m,
+        "buffer_m": buffer_m,
+        "row": row,
+        "col": col,
+        "resolution_m": resolution_m,
+        "dsm_source": dsm_source,
+        "dsm_version": version,
+    }
+    return json.dumps(payload, sort_keys=True)
+
+
+def radiation_key(
+    *,
+    dsm_key: str,
+    day_range: list[int] | None,
+    version: str = RADIATION_VERSION,
+    horizon_params: object = None,
+) -> str:
+    """Validity key for a tile's cached r.sun insolation raster (chains `dsm_key`, ADR-0014).
+
+    Chaining on the parent `dsm_key` string makes a DSM change cascade automatically. Adds the
+    radiation day range (sorted; None passed through — the calibrated 12-day default, ADR-0001)
+    and RADIATION_VERSION. `horizon_params` is a RESERVED slot for the shadow/horizon parameters
+    Part 2-5 will wire (risks §8 trap 3): it defaults to None and is already in the payload, so
+    adding real params later is a non-breaking key change, not a schema break.
+    """
+    payload = {
+        "dsm_key": dsm_key,
+        "day_range": sorted(day_range) if day_range is not None else None,
+        "radiation_version": version,
+        "horizon_params": horizon_params,
+    }
+    return json.dumps(payload, sort_keys=True)
+
+
+def scoring_key(
+    *,
+    radiation_key: str,
+    footprints_source: str,
+    method: str,
+    version: str = SCORING_VERSION,
+) -> str:
+    """Validity key for a tile's scored roofs — the tile-manifest stamp (chains `radiation_key`).
+
+    Chains the parent `radiation_key` (so DSM/radiation changes cascade), then adds what only
+    affects scoring: the footprints source, the geometry method ("multiplane"/"ransac"), and
+    SCORING_VERSION (which carries the retired "2-4.1" GCR generation). #12 makes this the
+    `TileManifest` stamp in place of `params_stamp`.
+    """
+    payload = {
+        "radiation_key": radiation_key,
+        "footprints_source": footprints_source,
+        "method": method,
+        "scoring_version": version,
+    }
+    return json.dumps(payload, sort_keys=True)
+
+
 def params_stamp(
     *,
     day_range: list[int] | None,
