@@ -113,7 +113,6 @@ def main() -> None:
             buildings=city,
             output_dir=output_dir,
             area_name="Washington, DC",
-            file_prefix="dc",
         )
         print("  wrote tract equity GeoPackage + choropleths (dc_*).")
 

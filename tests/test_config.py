@@ -52,3 +52,22 @@ def test_tile_size_is_a_positive_metric_length():
 
 def test_tiles_cache_dir_under_data_dir():
     assert config.TILES_CACHE_DIR.parent == config.DATA_DIR
+
+
+# --- output-path helpers (outputs-dir reorg, spec #3 / ticket #6) ---
+
+
+def test_outputs_area_dir_is_a_subdir_of_outputs():
+    assert config.outputs_area_dir("glover_park") == config.OUTPUTS_DIR / "glover_park"
+
+
+def test_outputs_run_dir_nests_label_under_area():
+    assert config.outputs_run_dir("dc", "12day") == config.OUTPUTS_DIR / "dc" / "12day"
+
+
+def test_calibrated_city_label_is_12day():
+    assert config.CALIBRATED_CITY_LABEL == "12day"
+
+
+def test_calibrated_city_outputs_dir_resolves_via_helper():
+    assert config.CALIBRATED_CITY_OUTPUTS_DIR == config.outputs_run_dir("dc", "12day")

@@ -43,14 +43,14 @@ from rooftop_solar import (
     yield_pv,
 )
 
-GEOPACKAGE_NAME = "glover_park_roofs.gpkg"
-CHOROPLETH_NAME = "glover_park_suitability.png"
+GEOPACKAGE_NAME = "roofs.gpkg"
+CHOROPLETH_NAME = "suitability.png"
 
 # Part 2-1 tract-aggregation deliverables (stage-2-part1-plan.md §9).
-TRACT_GEOPACKAGE_NAME = "glover_park_tracts.gpkg"
-POTENTIAL_CHOROPLETH_NAME = "glover_park_tract_potential.png"
-EQUITY_CHOROPLETH_NAME = "glover_park_tract_equity.png"
-EQUITY_SCATTER_NAME = "glover_park_tract_scatter.png"
+TRACT_GEOPACKAGE_NAME = "tracts.gpkg"
+POTENTIAL_CHOROPLETH_NAME = "tract_potential.png"
+EQUITY_CHOROPLETH_NAME = "tract_equity.png"
+EQUITY_SCATTER_NAME = "tract_scatter.png"
 
 
 def run_stage1(
@@ -74,7 +74,8 @@ def run_stage1(
         method: geometry front-end — "multiplane" (Part 2-4 production; per-facet + obstruction
             -aware, ADR-0011/0012/0013) or "ransac" (Phase-1 single-plane baseline, kept for the
             validation comparison, plan §6). See :func:`_score_roofs`.
-        output_dir: where the GeoPackage + choropleth go (default config.OUTPUTS_DIR).
+        output_dir: where the GeoPackage + choropleth go (default
+            ``config.outputs_area_dir("glover_park")``, i.e. outputs/glover_park/).
         write_outputs: if False, compute the result but write no files.
 
     The returned GeoDataFrame (working CRS) carries geometry + tilt/aspect + usable area +
@@ -99,7 +100,9 @@ def run_stage1(
     result = _score_roofs(fp_core, buffered, day_range=day_range, method=method)
 
     if write_outputs:
-        out_dir = Path(output_dir) if output_dir is not None else config.OUTPUTS_DIR
+        out_dir = (
+            Path(output_dir) if output_dir is not None else config.outputs_area_dir("glover_park")
+        )
         write_geopackage(result, out_dir / GEOPACKAGE_NAME)
         render_choropleth(result, out_dir / CHOROPLETH_NAME)
 
@@ -303,7 +306,6 @@ def run_aggregation(
     state_fips: str = config.DC_STATE_FIPS,
     output_dir: str | Path | None = None,
     area_name: str = "Glover Park",
-    file_prefix: str = "glover_park",
     write_outputs: bool = True,
 ) -> gpd.GeoDataFrame:
     """Roll the per-roof Stage-1 result up to census tracts + equity overlay (plan §4).
@@ -313,17 +315,19 @@ def run_aggregation(
 
     Args:
         buildings: the per-roof input — a GeoDataFrame, a path to a GeoPackage (layer
-            ``roofs``), or None to default to the Stage-1 output (``config.OUTPUTS_DIR /
-            GEOPACKAGE_NAME``). Must be in ``config.WORKING_CRS``.
+            ``roofs``), or None to default to the Stage-1 output
+            (``config.outputs_area_dir("glover_park") / GEOPACKAGE_NAME``). Must be in
+            ``config.WORKING_CRS``.
         tracts_gdf / acs / energy_burden: the census spine. Each defaults to a network fetch
             via ``tracts.py`` when None; inject them to run offline (and to decouple from the
             DOE LEAD burden-methodology question — plan §11).
         state_fips: state FIPS for the network loaders (default DC).
-        output_dir: where the tract GeoPackage + choropleths go (default config.OUTPUTS_DIR).
-        area_name / file_prefix: label the deliverables for the study area — the map titles
-            (``area_name``) and the output filenames (``<file_prefix>_tracts.gpkg`` etc.). Default
-            to Glover Park (Part 2-1); the city runner passes DC values so a whole-District run
-            doesn't write Glover-Park-named files (Part 2-2).
+        output_dir: where the tract GeoPackage + choropleths go (default
+            ``config.outputs_area_dir("glover_park")``, i.e. outputs/glover_park/).
+        area_name: labels the deliverables for the study area — the map titles. Default to
+            Glover Park (Part 2-1); the city runner passes a DC value. The output filenames are
+            fixed (``TRACT_GEOPACKAGE_NAME`` etc.) — the caller's ``output_dir`` is what keeps a
+            whole-District run from colliding with the Glover Park deliverables (Part 2-2).
         write_outputs: if False, compute the result but write no files.
 
     Returns the per-tract GeoDataFrame (working CRS): tract geometry + extensive sums +
@@ -342,23 +346,25 @@ def run_aggregation(
     result = aggregate.classify_equity(result)
 
     if write_outputs:
-        out_dir = Path(output_dir) if output_dir is not None else config.OUTPUTS_DIR
-        write_tract_geopackage(result, out_dir / f"{file_prefix}_tracts.gpkg")
+        out_dir = (
+            Path(output_dir) if output_dir is not None else config.outputs_area_dir("glover_park")
+        )
+        write_tract_geopackage(result, out_dir / TRACT_GEOPACKAGE_NAME)
         render_tract_choropleth(
             result,
-            out_dir / f"{file_prefix}_tract_potential.png",
+            out_dir / POTENTIAL_CHOROPLETH_NAME,
             column="potential_per_household",
             title=f"{area_name} — rooftop solar potential per household (kWh/yr)",
         )
         render_tract_choropleth(
             result,
-            out_dir / f"{file_prefix}_tract_equity.png",
+            out_dir / EQUITY_CHOROPLETH_NAME,
             column="equity_class",
             categorical=True,
             title=f"{area_name} — equity quadrant (per-household potential × energy burden)",
         )
         render_potential_burden_scatter(
-            result, out_dir / f"{file_prefix}_tract_scatter.png", area_name=area_name
+            result, out_dir / EQUITY_SCATTER_NAME, area_name=area_name
         )
 
     return result
@@ -373,7 +379,11 @@ def _load_buildings(buildings: gpd.GeoDataFrame | str | Path | None) -> gpd.GeoD
     is what lets ``run_aggregation`` compose with either scale path's saved output."""
     if isinstance(buildings, gpd.GeoDataFrame):
         return buildings
-    path = Path(buildings) if buildings is not None else config.OUTPUTS_DIR / GEOPACKAGE_NAME
+    path = (
+        Path(buildings)
+        if buildings is not None
+        else config.outputs_area_dir("glover_park") / GEOPACKAGE_NAME
+    )
     if path.suffix == ".parquet":
         return gpd.read_parquet(path)
     return gpd.read_file(path, layer="roofs")

@@ -25,6 +25,17 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = REPO_ROOT / "data"
 OUTPUTS_DIR = REPO_ROOT / "outputs"
 
+
+def outputs_area_dir(area: str) -> Path:
+    """Output dir for a study area, e.g. outputs/glover_park (single source of truth)."""
+    return OUTPUTS_DIR / area
+
+
+def outputs_run_dir(area: str, label: str) -> Path:
+    """Output dir for a labelled run within a study area, e.g. outputs/dc/12day."""
+    return OUTPUTS_DIR / area / label
+
+
 # --- secrets (see .env.example) ---
 NLR_API_KEY = os.getenv("NLR_API_KEY")
 NLR_API_EMAIL = os.getenv("NLR_API_EMAIL")
@@ -89,8 +100,10 @@ TILE_BUFFER_M = AOI_BUFFER_M
 # Per-tile roof cache (GeoParquet) + tile manifest live here (gitignored, created on first run).
 TILES_CACHE_DIR = DATA_DIR / "tiles"
 
-# City-run deliverables land in a run-labelled subdir of OUTPUTS_DIR (outputs/<N>day, e.g.
-# outputs/1day preview, outputs/12day calibrated) so a run never dumps into OUTPUTS_DIR root
-# alongside the Stage-1 Glover Park files. The 12-day mid-month sample (ADR-0001) is the
-# calibrated production run — what the default `build_web` reads.
-CALIBRATED_CITY_OUTPUTS_DIR = OUTPUTS_DIR / "12day"
+# City-run deliverables land in outputs/<area>/<label> (e.g. outputs/dc/1day preview,
+# outputs/dc/12day calibrated) so a run never dumps into OUTPUTS_DIR root alongside the
+# Stage-1 Glover Park files. `outputs_run_dir` is the single source of truth for that layout.
+# The 12-day mid-month sample (ADR-0001) is the calibrated production run — what the default
+# `build_web` reads.
+CALIBRATED_CITY_LABEL = "12day"
+CALIBRATED_CITY_OUTPUTS_DIR = outputs_run_dir("dc", CALIBRATED_CITY_LABEL)
