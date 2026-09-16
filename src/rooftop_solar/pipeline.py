@@ -115,6 +115,9 @@ def _score_roofs(
     *,
     day_range: list[int] | None,
     dsm_out_path: str | Path | None = None,
+    dsm_cache_key: str | None = None,
+    insol_out_path: str | Path | None = None,
+    radiation_cache_key: str | None = None,
     method: str = "multiplane",
 ) -> gpd.GeoDataFrame:
     """The shared per-AOI scoring spine both scale paths run **identically** (ADR-0009).
@@ -138,9 +141,18 @@ def _score_roofs(
     - ``"ransac"`` (Phase-1 single-plane baseline, kept for the Part 2-4 validation
       comparison — plan §6): one plane/footprint -> footprint-mean POA
       (`zonal_insolation`) -> flat-fraction usable area -> per-footprint yield.
+
+    `dsm_cache_key` / `radiation_cache_key` are the tiered-cache validity keys (ADR-0014) for
+    the DSM and insolation rasters at `dsm_out_path` / `insol_out_path` respectively — passed
+    straight through to `dsm.build_dsm` / `radiation.surface_irradiance`, which reuse the cached
+    raster when its sidecar matches instead of re-fetching/re-running `r.sun`. `run_stage1`
+    passes none of these four cache args (all default `None`), so Stage-1 stays uncached and
+    unchanged; only `run_city` (via `_score_tile`) supplies them.
     """
-    dsm_path = dsm.build_dsm(buffered_wgs84, out_path=dsm_out_path)
-    insol_path = radiation.surface_irradiance(dsm_path, day_range=day_range)
+    dsm_path = dsm.build_dsm(buffered_wgs84, out_path=dsm_out_path, cache_key=dsm_cache_key)
+    insol_path = radiation.surface_irradiance(
+        dsm_path, day_range=day_range, out_path=insol_out_path, cache_key=radiation_cache_key
+    )
     if method == "ransac":
         planes = roof_planes.fit_roof_planes(fp_core, dsm_path, method="ransac")
         planes = radiation.zonal_insolation(planes, insol_path)
@@ -490,27 +502,14 @@ def render_potential_burden_scatter(
 
 
 # --------------------------------------------------------------------------- #
-# City-scale idempotency — params stamp + tile manifest (Phase 2, Part 2-2,   #
-# ADR-0009: "idempotency = a tile manifest + a params stamp")                #
-# --------------------------------------------------------------------------- #
-
-# Bump to force a full city recompute (e.g. a Part 2-4/2-5 accuracy swap) even when every
-# other param is unchanged — folded into params_stamp so it invalidates every cached tile.
-# 2-4.0: the multi-plane + obstruction-aware geometry swap (ADR-0011/0012/0013) — every tile's
-# result changes, so every 2-2.0 cache entry must be recomputed.
-# 2-4.1: flat-roof GCR calibration (FLAT_ROOF_GCR in usable_area) — flat planes now derate for
-# tilted-array inter-row spacing, changing every tile's usable area, so 2-4.0 caches are stale.
-PIPELINE_VERSION = "2-4.1"
-
-
-# --------------------------------------------------------------------------- #
-# Tiered cache — chained component-version keys (Part 2-4/2-5, ADR-0014,      #
-# supersedes ADR-0009's single params-stamp rule).                           #
+# City-scale idempotency — tile manifest + tiered chained component-version   #
+# keys (Phase 2, Part 2-2/2-4, ADR-0009 + ADR-0014).                          #
 # --------------------------------------------------------------------------- #
 #
-# `params_stamp`/`PIPELINE_VERSION`/`TileManifest` above stay wired into `run_city` unchanged
-# until #12 rewires it — the two invalidation schemes coexist during the migration. #12 makes
-# `scoring_key` the `TileManifest` stamp in place of `params_stamp`.
+# `scoring_key` IS the `TileManifest` stamp (the old single-stamp scheme is retired). Each
+# tile's manifest entry is keyed on its own `scoring_key`, chained from that tile's `dsm_key` ->
+# `radiation_key` -> `scoring_key`, so a downstream-only (e.g. scoring-tier) version bump
+# invalidates just that tier's cached tiles instead of forcing a full city recompute.
 #
 # Each tier's validity key chains the tier above it, so bumping one version invalidates that
 # tier and everything downstream, never upstream. Bump the version whose behavior changed:
@@ -521,6 +520,13 @@ PIPELINE_VERSION = "2-4.1"
 DSM_VERSION = "1"
 RADIATION_VERSION = "1"
 SCORING_VERSION = "2-4.1"
+
+# The city path always scores via the Part 2-4 multiplane production chain (plan §3); this
+# single source keeps the scoring_key's `method` field and the actual _score_roofs call in sync.
+CITY_METHOD = "multiplane"
+# DSM build resolution the city path uses — must match dsm.build_dsm's default (2.0 m); it is a
+# field of dsm_key, so a real resolution change is a DSM_VERSION bump, not a silent cache reuse.
+DSM_RESOLUTION_M = 2.0
 
 
 def dsm_key(
@@ -588,8 +594,8 @@ def scoring_key(
 
     Chains the parent `radiation_key` (so DSM/radiation changes cascade), then adds what only
     affects scoring: the footprints source, the geometry method ("multiplane"/"ransac"), and
-    SCORING_VERSION (which carries the retired "2-4.1" GCR generation). #12 makes this the
-    `TileManifest` stamp in place of `params_stamp`.
+    SCORING_VERSION (which carries the retired "2-4.1" GCR generation). This is the
+    `TileManifest` stamp `run_city` uses (ADR-0014, superseding ADR-0009's single stamp).
     """
     payload = {
         "radiation_key": radiation_key,
@@ -600,63 +606,16 @@ def scoring_key(
     return json.dumps(payload, sort_keys=True)
 
 
-def params_stamp(
-    *,
-    day_range: list[int] | None,
-    buffer_m: float,
-    tile_size_m: float,
-    origin: tuple[float, float],
-    dsm_source: str,
-    footprints_source: str,
-    pipeline_version: str = PIPELINE_VERSION,
-) -> str:
-    """Canonical fingerprint of the params that invalidate a cached tile (ADR-0009).
-
-    A tile is only ever recomputed when something that could change its *result* changes —
-    the radiation day range, the shading buffer, the grid geometry, the DSM/footprints
-    source, or the pipeline version itself (bumped for e.g. a Part 2-4/2-5 accuracy swap).
-    `TileManifest.is_current` compares this string verbatim against what a tile was last
-    computed with, so the encoding only needs to be **stable** (same params -> same string)
-    and **sensitive** (any param above changing -> a different string) — not human-readable.
-
-    Built as a stable JSON encoding: `sort_keys=True` so key order never matters, `day_range`
-    sorted (`None` passed through unchanged) so day-range *order* isn't a spurious cache
-    miss, and `origin` turned into a list (a JSON array, since JSON has no tuple type — a
-    bare `tuple` isn't `json.dumps`-stable across `list`/`tuple` callers otherwise).
-
-    Args:
-        day_range: r.sun days (`None` = the calibrated 12-day default; ADR-0001).
-        buffer_m: tile buffer, metres (`config.TILE_BUFFER_M`).
-        tile_size_m: grid cell edge length, metres (`config.TILE_SIZE_M`).
-        origin: grid origin, metres (`config.GRID_ORIGIN`).
-        dsm_source: identifies which DSM build feeds the tile (e.g. "pc-2m").
-        footprints_source: "ms-buildings" or "osm".
-        pipeline_version: bump to force a full recompute independent of the params above.
-
-    Returns:
-        A JSON string suitable as an opaque, order-independent cache-invalidation key.
-    """
-    payload = {
-        "day_range": sorted(day_range) if day_range is not None else None,
-        "buffer_m": buffer_m,
-        "tile_size_m": tile_size_m,
-        "origin": list(origin),
-        "dsm_source": dsm_source,
-        "footprints_source": footprints_source,
-        "pipeline_version": pipeline_version,
-    }
-    return json.dumps(payload, sort_keys=True)
-
-
 class TileManifest:
-    """Per-tile status + params-stamp, persisted as JSON under `config.TILES_CACHE_DIR`
-    (ADR-0009).
+    """Per-tile status + scoring_key stamp, persisted as JSON under `config.TILES_CACHE_DIR`
+    (ADR-0009/ADR-0014).
 
     Makes an expensive, multi-hour city run resumable: `run_city` (Part 2-2) checks
-    `is_current` before doing a tile's work at all, and a re-run after a crash or an
-    accuracy-swapped `params_stamp` recomputes only the tiles that actually need it — never
-    a from-scratch re-run, never a silently stale cache (a bare file-exists check would
-    serve stale results across a params change; ADR-0009's "Alternatives considered").
+    `is_current` before doing a tile's work at all, and a re-run after a crash or a
+    changed `scoring_key` (e.g. a downstream version bump) recomputes only the tiles that
+    actually need it — never a from-scratch re-run, never a silently stale cache (a bare
+    file-exists check would serve stale results across a key change; ADR-0009's "Alternatives
+    considered").
 
     Entries are keyed `"<row>_<col>"` (stable across runs because `Tile.row`/`Tile.col` are
     stable for a fixed `origin`/`tile_size_m` — ADR-0009's fixed-origin property) and hold
@@ -688,7 +647,7 @@ class TileManifest:
         """True only if `tile` is recorded `"done"` with a `stamp` matching exactly.
 
         False for an unknown tile, a `"failed"` tile (so it's retried on rerun), or a
-        `"done"` tile whose recorded stamp has since changed (so a params change forces
+        `"done"` tile whose recorded stamp has since changed (so a scoring_key change forces
         recompute) — the three cases `run_city` needs to decide "skip" vs "(re)compute".
         """
         entry = self.entries.get(_tile_key(tile))
@@ -754,12 +713,13 @@ def run_city(
         tile_size_m / buffer_m / origin: the grid (config defaults). `buffer_m` IS the effective
             inter-tile shadow reach (ADR-0009); `origin` is fixed so cache keys are stable.
         footprints_source / day_range / dsm_source: passed to the per-tile spine; together with
-            the grid params they form the params-stamp that invalidates the cache.
+            the grid params they feed the chained `dsm_key` -> `radiation_key` -> `scoring_key`
+            component keys (ADR-0014) that invalidate each tile's cache.
         tiles_dir: per-tile parquet cache + manifest (default `config.TILES_CACHE_DIR`).
         output_dir: where the city per-roof GeoParquet goes (default
             `config.CALIBRATED_CITY_OUTPUTS_DIR`, `outputs/dc/12day/`).
-        resume: skip tiles already recorded done under the current params-stamp (idempotent
-            re-run); False recomputes every tile.
+        resume: skip tiles already recorded done under the tile's current `scoring_key`
+            (idempotent re-run); False recomputes every tile.
         write_outputs: if False, compute but write no city parquet.
 
     Every footprint is scored in EXACTLY ONE tile by floor membership (`tiling.tile_membership`),
@@ -774,21 +734,28 @@ def run_city(
     tiles_dir = Path(tiles_dir) if tiles_dir is not None else config.TILES_CACHE_DIR
 
     grid = tiling.make_grid(aoi, tile_size_m, buffer_m, origin)
-    stamp = params_stamp(
-        day_range=day_range,
-        buffer_m=buffer_m,
-        tile_size_m=tile_size_m,
-        origin=origin,
-        dsm_source=dsm_source,
-        footprints_source=footprints_source,
-    )
     manifest = TileManifest.load(tiles_dir / MANIFEST_NAME)
 
     tile_frames: list[gpd.GeoDataFrame] = []
     for tile in grid:
-        cache = tiles_dir / f"tile_{tile.row}_{tile.col}_roofs.parquet"
-        if resume and manifest.is_current(tile, stamp) and cache.exists():
-            tile_frames.append(gpd.read_parquet(cache))
+        dk = dsm_key(
+            origin=origin,
+            tile_size_m=tile_size_m,
+            buffer_m=buffer_m,
+            row=tile.row,
+            col=tile.col,
+            resolution_m=DSM_RESOLUTION_M,
+            dsm_source=dsm_source,
+        )
+        rk = radiation_key(dsm_key=dk, day_range=day_range)
+        sk = scoring_key(radiation_key=rk, footprints_source=footprints_source, method=CITY_METHOD)
+
+        dsm_cache = tiles_dir / f"tile_{tile.row}_{tile.col}_dsm.tif"
+        insol_cache = tiles_dir / f"tile_{tile.row}_{tile.col}_insolation.tif"
+        roofs_cache = tiles_dir / f"tile_{tile.row}_{tile.col}_roofs.parquet"
+
+        if resume and manifest.is_current(tile, sk) and roofs_cache.exists():
+            tile_frames.append(gpd.read_parquet(roofs_cache))
             continue
         try:
             roofs = _score_tile(
@@ -797,14 +764,17 @@ def run_city(
                 origin=origin,
                 footprints_source=footprints_source,
                 day_range=day_range,
-                dsm_out_path=tiles_dir / f"tile_{tile.row}_{tile.col}_dsm.tif",
+                dsm_out_path=dsm_cache,
+                dsm_cache_key=dk,
+                insol_out_path=insol_cache,
+                radiation_cache_key=rk,
             )
         except Exception as exc:  # one bad tile must not abort a multi-hour batch (ADR-0009)
-            manifest.mark_failed(tile, stamp, error=repr(exc))
+            manifest.mark_failed(tile, sk, error=repr(exc))
             manifest.save()
             continue
-        _write_parquet(roofs, cache)
-        manifest.mark_done(tile, stamp, n_roofs=len(roofs))
+        _write_parquet(roofs, roofs_cache)
+        manifest.mark_done(tile, sk, n_roofs=len(roofs))
         manifest.save()
         tile_frames.append(roofs)
 
@@ -826,6 +796,9 @@ def _score_tile(
     footprints_source: str,
     day_range: list[int] | None,
     dsm_out_path: str | Path,
+    dsm_cache_key: str | None = None,
+    insol_out_path: str | Path | None = None,
+    radiation_cache_key: str | None = None,
 ) -> gpd.GeoDataFrame:
     """Score one tile's core footprints via the shared spine over its buffered extent.
 
@@ -834,6 +807,10 @@ def _score_tile(
     CRS — so a building is scored by exactly one tile (§5), never the `.within` boundary-drop.
     An empty core (the common case — DC is 43% of its bbox) short-circuits before the expensive
     DSM/`r.sun` work, returning 0 roofs.
+
+    `dsm_cache_key` / `insol_out_path` / `radiation_cache_key` are forwarded straight to
+    `_score_roofs` (ADR-0014 tiered cache) so a downstream-only re-run reuses the cached DSM
+    and/or insolation raster instead of rebuilding them.
     """
     buffered_wgs84 = _working_to_wgs84(tile.buffered)
     fp = footprints.load_footprints(buffered_wgs84, source=footprints_source).to_crs(
@@ -845,7 +822,14 @@ def _score_tile(
     # The city always runs the Part 2-4 multiplane production path (plan §3); explicit here so
     # the choice is visible at the call site, not left to _score_roofs's default.
     return _score_roofs(
-        fp_core, buffered_wgs84, day_range=day_range, dsm_out_path=dsm_out_path, method="multiplane"
+        fp_core,
+        buffered_wgs84,
+        day_range=day_range,
+        dsm_out_path=dsm_out_path,
+        dsm_cache_key=dsm_cache_key,
+        insol_out_path=insol_out_path,
+        radiation_cache_key=radiation_cache_key,
+        method=CITY_METHOD,
     )
 
 

@@ -1,10 +1,12 @@
-"""Unit tests for the city-scale idempotency manifest (Part 2-2, ADR-0009 — "idempotency
-= a tile manifest + a params stamp").
+"""Unit tests for the city-scale idempotency manifest (Part 2-2, ADR-0009 — idempotency =
+a tile manifest + a per-tile scoring_key stamp (ADR-0014, superseding ADR-0009's single
+params-stamp)).
 
-`params_stamp` fingerprints the params that invalidate a cached tile; `TileManifest` records
-per-tile status + stamp, persisted as JSON, so a crashed or accuracy-swapped multi-hour run
-resumes only what it must (stage-2-part2-plan.md §3, §5, §7). Pure/offline: tmp_path, no
-network/GRASS.
+`TileManifest` records per-tile status + stamp, persisted as JSON, so a crashed or
+accuracy-swapped multi-hour run resumes only what it must (stage-2-part2-plan.md §3, §5, §7).
+Pure/offline: tmp_path, no network/GRASS. The stamp itself is opaque here (plain strings like
+"stamp-1") — coverage for the `scoring_key`/`radiation_key`/`dsm_key` fingerprint formulas
+lives in `tests/test_cache_keys.py`.
 
 Expected values are behavioural comparisons (equal/unequal between two calls), never a
 hand-rebuilt `json.dumps(...)` re-derivation of the impl's own formula (tautological — see
@@ -19,54 +21,6 @@ from rooftop_solar import pipeline, tiling
 
 _TILE_A = tiling.Tile(row=0, col=0, core=None, buffered=None)
 _TILE_B = tiling.Tile(row=0, col=1, core=None, buffered=None)
-
-
-def _kwargs(**overrides) -> dict:
-    base = dict(
-        day_range=[172],
-        buffer_m=300.0,
-        tile_size_m=2000.0,
-        origin=(315000.0, 4295000.0),
-        dsm_source="pc-2m",
-        footprints_source="ms-buildings",
-    )
-    base.update(overrides)
-    return base
-
-
-# --------------------------------------------------------------------------- #
-# params_stamp                                                                #
-# --------------------------------------------------------------------------- #
-
-
-def test_params_stamp_is_stable_for_identical_kwargs():
-    a = pipeline.params_stamp(**_kwargs())
-    b = pipeline.params_stamp(**_kwargs())
-
-    assert a == b
-
-
-def test_params_stamp_changes_when_day_range_changes():
-    a = pipeline.params_stamp(**_kwargs(day_range=[172]))
-    b = pipeline.params_stamp(**_kwargs(day_range=[172, 200]))
-
-    assert a != b
-
-
-def test_params_stamp_changes_when_pipeline_version_bumps():
-    a = pipeline.params_stamp(**_kwargs(), pipeline_version="2-2.0")
-    b = pipeline.params_stamp(**_kwargs(), pipeline_version="2-2.1")
-
-    assert a != b
-
-
-def test_params_stamp_ignores_day_range_order():
-    # Sorted for the stamp (plan: "day_range sorted") — reordering the same set of days is
-    # not a params change worth invalidating a cache over.
-    a = pipeline.params_stamp(**_kwargs(day_range=[200, 172]))
-    b = pipeline.params_stamp(**_kwargs(day_range=[172, 200]))
-
-    assert a == b
 
 
 # --------------------------------------------------------------------------- #

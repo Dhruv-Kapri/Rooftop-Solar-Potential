@@ -18,7 +18,7 @@ from pyproj import Transformer
 from shapely.geometry import box
 from shapely.ops import transform as shp_transform
 
-from rooftop_solar import config, pipeline
+from rooftop_solar import config, dsm, pipeline, radiation
 
 # The Stage-1 smoke box (known 3DEP + building coverage), ~550 m x ~670 m — big enough to
 # straddle several cells of a deliberately small 300 m test grid, so the run is genuinely
@@ -79,3 +79,86 @@ def test_run_city_conserves_and_is_idempotent(tmp_path):
     assert second["capacity_kw"].sum() == first["capacity_kw"].sum()
     assert second["annual_energy_kwh"].sum() == first["annual_energy_kwh"].sum()
     assert second["suitability"].tolist() == first["suitability"].tolist()
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(shutil.which("grass") is None, reason="GRASS not on PATH")
+def test_run_city_scoring_bump_reuses_dsm_and_radiation(tmp_path, monkeypatch):
+    """Seam A2: a scoring-tier-only version bump reuses the cached DSM + r.sun raster.
+
+    ADR-0014 / spec #4 user-story 1 — the whole point of the tiered cache is that a
+    downstream-only change (e.g. a roof-plane/usable-area/yield tweak, bumping
+    `SCORING_VERSION`) must NOT force the DSM to be re-fetched or `r.sun` to be rerun: only
+    `dsm_key`/`radiation_key` invalidate those tiers, and neither changes here. We simulate the
+    bump by monkeypatching `pipeline.scoring_key` itself (cheaper than a real version bump, same
+    effect on the manifest stamp) and assert the expensive DSM/r.sun paths are never touched.
+    """
+    tiles_dir = tmp_path / "tiles"
+
+    kwargs = dict(
+        aoi=_AOI_WORKING,
+        tile_size_m=_TILE_SIZE_M,
+        buffer_m=_BUFFER_M,
+        origin=config.GRID_ORIGIN,
+        day_range=[172],
+        tiles_dir=tiles_dir,
+        output_dir=tmp_path,
+    )
+
+    # --- cold run: real network + GRASS, populates the DSM/insolation cache tiers ---
+    first = pipeline.run_city(**kwargs)
+
+    manifest = json.loads((tiles_dir / pipeline.MANIFEST_NAME).read_text())
+    done_nonempty = {
+        k: v for k, v in manifest.items() if v["status"] == "done" and v["n_roofs"] > 0
+    }
+    assert done_nonempty, "smoke AOI should produce at least one non-empty tile"
+
+    dsm_mtimes_before: dict[str, int] = {}
+    insol_mtimes_before: dict[str, int] = {}
+    for key in done_nonempty:
+        row, col = key.split("_")
+        dsm_tif = tiles_dir / f"tile_{row}_{col}_dsm.tif"
+        insol_tif = tiles_dir / f"tile_{row}_{col}_insolation.tif"
+        assert dsm_tif.exists()
+        assert (tiles_dir / f"tile_{row}_{col}_dsm.tif.key").exists()
+        assert insol_tif.exists()
+        assert (tiles_dir / f"tile_{row}_{col}_insolation.tif.key").exists()
+        dsm_mtimes_before[key] = dsm_tif.stat().st_mtime_ns
+        insol_mtimes_before[key] = insol_tif.stat().st_mtime_ns
+
+    # --- simulate a scoring-only version bump: only the manifest stamp changes; dsm_key/
+    # radiation_key (and therefore the DSM/insolation sidecars) are untouched. ---
+    real_scoring_key = pipeline.scoring_key
+    monkeypatch.setattr(
+        pipeline, "scoring_key", lambda **kw: real_scoring_key(**kw) + "-scorebump"
+    )
+
+    # Guard against the expensive work: neither a DSM network fetch nor a real r.sun pass may
+    # run on a scoring-only rerun (footprints ARE legitimately re-fetched — cheap, not a cache
+    # tier — so we deliberately do NOT monkeypatch footprints here).
+    def _no_dsm_fetch(*_a, **_k):
+        raise AssertionError("DSM network fetch on a scoring-only rerun")
+
+    def _no_grass(*_a, **_k):
+        raise AssertionError("r.sun ran on a scoring-only rerun")
+
+    monkeypatch.setattr(dsm, "_search_dsm_hrefs", _no_dsm_fetch)
+    monkeypatch.setattr(radiation, "grass_session", _no_grass)
+
+    # --- warm run: must complete without raising, proving the DSM + insolation caches were
+    # reused (only scoring reran) ---
+    second = pipeline.run_city(**kwargs)
+
+    for key in done_nonempty:
+        row, col = key.split("_")
+        dsm_tif = tiles_dir / f"tile_{row}_{col}_dsm.tif"
+        insol_tif = tiles_dir / f"tile_{row}_{col}_insolation.tif"
+        assert dsm_tif.stat().st_mtime_ns == dsm_mtimes_before[key], "DSM was rebuilt, not reused"
+        assert insol_tif.stat().st_mtime_ns == insol_mtimes_before[key], (
+            "insolation raster was rebuilt, not reused"
+        )
+
+    assert len(second) == len(first)
+    assert second["capacity_kw"].sum() == first["capacity_kw"].sum()
+    assert second["annual_energy_kwh"].sum() == first["annual_energy_kwh"].sum()
