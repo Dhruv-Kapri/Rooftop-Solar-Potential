@@ -144,6 +144,13 @@ don't over-claim precision.
   Playwright + `playwright install chromium`.
 - Lint/format: **ruff**. Tests: **pytest** — the unit tier runs by default; GRASS/network tests are
   marked `integration` and **deselected by default** (`pytest -m integration` to include).
+- **Remote compute VM (`ssh graham-build`, office LAN only):** when reachable, prefer it for long
+  batch runs (e.g. the full-DC `scripts/run_city.py` batch). It is **not always available** — the user
+  only reaches it from the office and runs the same jobs on the Mac from home, often moving a job
+  between the two day to day. So: probe first (`ssh -o ConnectTimeout=4 graham-build true`); if
+  unreachable, run locally — never block on it. Keep runs resumable (the per-tile manifest + cache
+  tiers, ADR-0009/0014) so work started on one machine can continue on the other. Whether the VM has the
+  conda env / GRASS / repo checkout set up is unverified — check before relying on it.
 - **Never commit data** — `data/`, `outputs/`, and all `*.tif/*.laz/*.las/*.copc.laz` are
   gitignored. LiDAR/DSM/imagery are huge.
 - Secrets in `.env` (gitignored); copy `.env.example` to start.

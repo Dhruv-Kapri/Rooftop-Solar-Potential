@@ -144,12 +144,25 @@ Together these are the plan's "accuracy comparison vs the RANSAC baseline" — d
      obstruction/setback-knob tuning** — run the expensive batch ONCE with both calibrations, not twice.
      Code + version bump are committed to the working tree; `outputs/12day/` + `web/assets/` still hold the
      pre-GCR numbers until that batch runs. See risks note on r.sun caching below.
+   - **⊙ re-sequenced (grill 2026-10-12):** the tiered cache (ADR-0014) removed the reason to bundle.
+     Now: (1) multi-core `r.sun` (`nprocs`, measured on one tile; tile-level process pool only if <~4×
+     on 8 cores) + GRASS version in `radiation_key` + log-noise cleanup; (2) **one** full-city run with
+     GCR under a **new run label** (old `12day` outputs left untouched), on the office VM
+     `graham-build` when reachable, else the Mac, with an rsync cache+manifest handoff between them;
+     (3) step-7b tuning as **re-scores** (`SCORING_VERSION` bumps, ≤3 rounds) — DSM + radiation reused.
 7. Validation: DSM self-consistency + the spot-check harness + your ~20 labels.
    - **⊙ partial (2026-09-08):** the DSM self-consistency **functions** are built + unit-tested
      (`validation.py`: `reconstruct_residuals`, `self_consistency`, `compare_self_consistency`;
      `fit_planes_multi` gained a `max_planes` param for the single-plane baseline). The **actual
      validation run** on a real sample AOI + **step 7b** (the spot-check harness + your ~20 labels)
      remain — the run consumes the fresh step-6 dataset.
+   - **Grill 2026-10-12 decisions for 7b:** the harness re-runs the scoring chain for just the sampled
+     buildings from the tile cache (per-plane + obstruction output on demand; city `roofs.parquet` schema
+     unchanged); sample = Glover Park + Farragut/K St NW; labels from DC 2023 orthophoto + rendered DSM
+     hillshade into a CSV (`building_id, n_major_planes, has_obstruction, notes`). Stop rule: spot-check
+     leads (plane count ±1 on ≥~80%, low obstruction false positives), ≤3 tuning rounds; the city ÷ NREL
+     ratio is **reported, not targeted**. Facet-vs-obstruction: tune knobs only; a structural fix becomes a
+     follow-up issue if the spot-check shows it matters. ML demo (step 8) split into its own spec.
 8. The ML demo: `method="ml"` adapter (integration) + the comparison notebook (best-effort).
 
 **Delegation note:** steps 1–4 (deterministic, clear contracts) are strong Sonnet-subagent TDD tasks,
@@ -175,7 +188,7 @@ closer to hand.
 - **Compute** — largely dissolves for the classical core: the re-run is Part 2-2's cost ≈ unchanged (the
   `r.sun` pass dominates, not plane-fitting). Only the **ML demo** wants a GPU, and it's inference-only on
   the M1. (The 12-day-timing figure just confirms the re-run cost; it's not a blocker.)
-- **r.sun is NOT cached, so a full city re-run is a ~10–15 h batch, not minutes** (corrected 2026-09-15).
+- **[Superseded by ADR-0014 (2026-09-16): r.sun is now cached per tile; downstream-only changes are re-scores.]** ~~**r.sun is NOT cached, so a full city re-run is a ~10–15 h batch, not minutes** (corrected 2026-09-15).~~ Historical note below kept for context.
   The per-tile cache holds only the DSM + the collapsed roofs.parquet; `radiation.surface_irradiance`
   (r.sun) re-runs on every tile recompute, and a `PIPELINE_VERSION` bump invalidates *whole* tiles. So a
   change purely downstream of r.sun (GCR here; Part 2-5's yield tweaks) still pays the full r.sun cost.
