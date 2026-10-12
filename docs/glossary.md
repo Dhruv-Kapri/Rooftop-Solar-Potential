@@ -161,6 +161,10 @@ Project-specific terms as used in this pipeline, not textbook-general definition
 - **Component version** — a per-tier version constant (`DSM_VERSION`/`RADIATION_VERSION`/
   `SCORING_VERSION`) bumped when that tier's behavior changes, replacing ADR-0009's single
   pipeline-version stamp so a change re-runs only the affected tier and below (ADR-0014).
+- **Re-score** — a city re-run in which only the scoring tier is invalidated (a `SCORING_VERSION`
+  bump), so every tile's cached DSM and radiation raster is reused and only roof planes → usable area →
+  yield are recomputed: minutes, not the ~10–15 h full batch. The unit of a Part 2-4 **tuning round**
+  (ADR-0014).
 - **Artifact validity key / sidecar** — the chained fingerprint of a cached artifact's real inputs,
   written as a small `.key` file next to the artifact; the artifact is reused only when it exists
   and its sidecar matches the current key (ADR-0014).

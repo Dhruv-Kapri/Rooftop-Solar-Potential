@@ -96,3 +96,12 @@ new key functions **coexist** unchanged in `pipeline.py`.
   keys; `dsm.py`/`radiation.py` only need to *store/check* a key they're handed, and moving
   derivation into the dependency-free module buys nothing while making `cache.py` a bigger,
   less-obviously-safe surface to keep import-free.
+
+## Addendum (2026-10-12) — engine version in the radiation key
+The radiation tier's output depends on the GRASS build that ran `r.sun`, but `radiation_key` didn't
+record it. Once the cache can be handed between machines (the office VM `graham-build` ↔ the Mac,
+rsync handoff — Part 2-4 completion grill), two different GRASS versions could silently feed one
+city dataset. **Decision:** `radiation_key` also carries the GRASS version string, so a cache made by
+a different engine version is recomputed, not reused. Chosen over a documented "pin the same GRASS
+on both machines" rule (unenforced) and over never handing off radiation (loses the cross-machine
+resume). Invalidates no existing work — no radiation cache had been populated when this was decided.
