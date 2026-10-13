@@ -119,6 +119,7 @@ def _score_roofs(
     insol_out_path: str | Path | None = None,
     radiation_cache_key: str | None = None,
     method: str = "multiplane",
+    nprocs: int = 1,
 ) -> gpd.GeoDataFrame:
     """The shared per-AOI scoring spine both scale paths run **identically** (ADR-0009).
 
@@ -151,7 +152,11 @@ def _score_roofs(
     """
     dsm_path = dsm.build_dsm(buffered_wgs84, out_path=dsm_out_path, cache_key=dsm_cache_key)
     insol_path = radiation.surface_irradiance(
-        dsm_path, day_range=day_range, out_path=insol_out_path, cache_key=radiation_cache_key
+        dsm_path,
+        day_range=day_range,
+        out_path=insol_out_path,
+        cache_key=radiation_cache_key,
+        nprocs=nprocs,
     )
     if method == "ransac":
         planes = roof_planes.fit_roof_planes(fp_core, dsm_path, method="ransac")
@@ -700,6 +705,7 @@ def run_city(
     output_dir: str | Path | None = None,
     resume: bool = True,
     write_outputs: bool = True,
+    nprocs: int = 1,
 ) -> gpd.GeoDataFrame:
     """Scale the Stage-1 per-roof spine over `aoi` by tiling it; return the city per-roof result.
 
@@ -721,6 +727,8 @@ def run_city(
         resume: skip tiles already recorded done under the tile's current `scoring_key`
             (idempotent re-run); False recomputes every tile.
         write_outputs: if False, compute but write no city parquet.
+        nprocs: `r.sun` threads per tile. Doesn't change results, so deliberately excluded from
+            `dsm_key`/`radiation_key`/`scoring_key` (changing it never invalidates a cache).
 
     Every footprint is scored in EXACTLY ONE tile by floor membership (`tiling.tile_membership`),
     so merging conserves — no building dropped or double-counted (§5). Suitability is recomputed
@@ -768,6 +776,7 @@ def run_city(
                 dsm_cache_key=dk,
                 insol_out_path=insol_cache,
                 radiation_cache_key=rk,
+                nprocs=nprocs,
             )
         except Exception as exc:  # one bad tile must not abort a multi-hour batch (ADR-0009)
             manifest.mark_failed(tile, sk, error=repr(exc))
@@ -799,6 +808,7 @@ def _score_tile(
     dsm_cache_key: str | None = None,
     insol_out_path: str | Path | None = None,
     radiation_cache_key: str | None = None,
+    nprocs: int = 1,
 ) -> gpd.GeoDataFrame:
     """Score one tile's core footprints via the shared spine over its buffered extent.
 
@@ -830,6 +840,7 @@ def _score_tile(
         insol_out_path=insol_out_path,
         radiation_cache_key=radiation_cache_key,
         method=CITY_METHOD,
+        nprocs=nprocs,
     )
 
 
