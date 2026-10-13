@@ -93,9 +93,9 @@ def sidecar_matches(artifact_path: str | Path, key: str) -> bool:
     """
     artifact = Path(artifact_path)
     record = _read_sidecar(artifact)
-    return (
-        record is not None
-        and artifact.exists()
-        and record["key"] == key
-        and record["sha256"] == _sha256(artifact)
-    )
+    if record is None or record["key"] != key:
+        return False
+    try:
+        return record["sha256"] == _sha256(artifact)
+    except OSError:  # missing, or vanished mid-hash (e.g. a concurrent rsync)
+        return False

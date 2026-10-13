@@ -167,7 +167,9 @@ don't over-claim precision.
   version is recomputed, because each cached artifact (DSM, insolation, roofs parquet) is reused
   only when its `.key` sidecar matches both the current key and the file's sha256 (ADR-0014
   addendum 2026-10-13). One machine owns the run at a time: the sent manifest replaces the
-  receiver's. No `--delete`, so tiles only the receiver has stay.
+  receiver's. No `--delete`: tiles only the receiver had re-score, but reuse their DSM and
+  insolation by sidecar. Both machines need GRASS even for a fully cached resume, because its
+  version is part of the radiation key. Without it, `run_city` fails fast with a clear error.
 - **Never commit data** — `data/`, `outputs/`, and all `*.tif/*.laz/*.las/*.copc.laz` are
   gitignored. LiDAR/DSM/imagery are huge.
 - Secrets in `.env` (gitignored); copy `.env.example` to start.

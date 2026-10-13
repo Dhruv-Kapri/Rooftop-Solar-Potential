@@ -21,7 +21,8 @@
 # Rules:
 #   - Stop the run on the sending machine first; one machine owns the run at a time. The sent
 #     manifest replaces the receiver's, which is right when the sender holds the newer state.
-#   - No --delete: tiles that only the receiver has stay put (unused or reused by key).
+#   - No --delete: files only the receiver has stay on disk. Their manifest entries are replaced,
+#     so those tiles re-score, but their DSM/insolation rasters are still reused by sidecar.
 #   - No --inplace/--partial: rsync writes each file to a temp name and renames it, so an
 #     interrupted sync leaves the old file or none, not a half file under the real name.
 #
@@ -51,15 +52,15 @@ fi
 case "$direction" in
   push)
     [[ -d "$LOCAL_TILES" ]] || { echo "sync_tiles: no local cache at $LOCAL_TILES" >&2; exit 1; }
-    ssh "$SYNC_HOST" mkdir -p "$REMOTE_TILES"
+    (( ${#dry_run[@]} )) || ssh "$SYNC_HOST" mkdir -p "$REMOTE_TILES"
     src="$LOCAL_TILES/"; dst="$SYNC_HOST:$REMOTE_TILES/"
     ;;
   pull)
-    mkdir -p "$LOCAL_TILES"
+    (( ${#dry_run[@]} )) || mkdir -p "$LOCAL_TILES"
     src="$SYNC_HOST:$REMOTE_TILES/"; dst="$LOCAL_TILES/"
     ;;
 esac
 
 echo "sync_tiles: $src -> $dst"
-# -a keeps mtimes, so a later sync only resends what changed.
-rsync -av ${dry_run[@]+"${dry_run[@]}"} "$src" "$dst"
+# -a keeps mtimes, so a later sync only resends what changed; *.tmp is a manifest mid-save.
+rsync -av --exclude '*.tmp' ${dry_run[@]+"${dry_run[@]}"} "$src" "$dst"
