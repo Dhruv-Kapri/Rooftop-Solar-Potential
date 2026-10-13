@@ -51,7 +51,10 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    splits = [tuple(int(v) for v in s.split("x")) for s in args.splits.split(",")]
+    splits: list[tuple[int, int]] = []
+    for split in args.splits.split(","):
+        workers, nprocs = split.split("x")
+        splits.append((int(workers), int(nprocs)))
     day_range = None if args.day_range is None else [int(d) for d in args.day_range.split(",")]
     spawn = multiprocessing.get_context("spawn")
 
