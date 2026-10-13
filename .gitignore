@@ -27,6 +27,9 @@ venv/
 .pytest_cache/
 .ruff_cache/
 
+# Claude Code session worktrees (see CLAUDE.md, Parallel sessions)
+.claude/worktrees/
+
 # OS / editor
 .DS_Store
 .idea/

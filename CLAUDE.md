@@ -161,6 +161,55 @@ Follow the user's global CLAUDE.md: ask before assuming, simplest solution that 
 unrelated code (surface smells separately), flag uncertainty. Cite plan §-numbers when a decision
 traces to the plan.
 
+**Per-ticket loop:** grill the plan → decide the seam → `tdd` (red → green → refactor), delegating
+scoped implementation to subagents → `code-review` (Standards + Spec) → commit. Pick the subagent
+model per task: Sonnet for scoped/mechanical work (a designed interface, tests, refactors, search),
+Opus for genuinely hard reasoning (subtle bugs, ambiguous specs).
+
+**Code standards** — every line shipped, yours or a subagent's:
+- Match the surrounding code's idiom, naming and comment density; docstrings cite the §/ADR a
+  choice traces to.
+- Functions where they suffice; a class only where it models the domain cleanly.
+- Extract shared logic once the repetition is real (the same concept twice), not on lookalike lines.
+- Small focused units, clear names, no dead code, errors handled explicitly.
+- `ruff check src tests` clean; `ruff format` the code you touch, and reformat untouched code only
+  in its own format-only commit.
+
+## Parallel sessions — worktrees + branches
+
+Several sessions run at once. Each works in its own git worktree **inside the repo, under
+`.claude/worktrees/<name>`** (git-ignored), on a child branch of the integration branch (currently
+`stage-2`): `git worktree add .claude/worktrees/14 -b issue-14-<slug> stage-2`. Sibling copies
+beside the repo root are the old layout — create new worktrees under `.claude/worktrees/`. One
+session is the **integrator**: it alone merges peers' branches (`--no-ff`) into the integration
+branch and runs the integration tier on the merged tip, so an implementor commits to its own branch
+and hands the integrator its sha. `git worktree remove` once merged.
+
+Worktree gotchas:
+- **Run Python with `PYTHONPATH=src`** from the worktree root. The conda env's editable install
+  points at the main checkout, so a bare `pytest` in a worktree silently tests the main checkout's
+  code. Leave that install alone — `pip install -e .` from a worktree repoints the shared env under
+  every other session.
+- `config.REPO_ROOT` follows the code, so a worktree has its **own empty `data/` and `outputs/`**
+  (tile cache included). Run data-producing batches (`scripts/run_city.py`, `scripts/build_web.py`)
+  from the main checkout, where the caches live. `.env` is still found when you run from inside
+  the worktree (dotenv walks up from the cwd to the repo root's `.env`).
+- The integration tier rewrites `web/screenshot*.png`; `git checkout` them before committing unless
+  the ticket is about the map.
+
+**Test runs, matched to the moment:**
+
+| Moment | Run |
+|---|---|
+| Editing (red → green) | the test files you touched |
+| Ticket close, in its worktree | the unit tier (`PYTHONPATH=src pytest`, seconds) + `ruff check src tests`; add the integration tier only when the ticket's criteria name it |
+| Merge into the integration branch | the integration tier once, by the integrator, on the merged tip (`pytest -m integration`: network + GRASS, ~65 min on the Mac) |
+| Docs-only commit | none |
+
+Run anything long (the integration tier, `run_city`) in the background. The Mac takes **at most two
+heavy runs at once** across all sessions and projects (it froze with 3–4 on 2026-09-26); past that,
+send the run to the VM or wait for a slot.
+
 ## Agent skills
 
 ### Issue tracker
