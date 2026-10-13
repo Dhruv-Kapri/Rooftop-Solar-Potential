@@ -219,7 +219,7 @@ def grass_session(epsg: str, gisdb: str) -> Iterator[ModuleType]:
 
 
 def run_r_sun(
-    gs: ModuleType, day: int, workdir: str
+    gs: ModuleType, day: int, workdir: str, nprocs: int = 1
 ) -> tuple[npt.NDArray[np.float64], float | None]:
     """Run `r.sun` mode 2 for one day (shading ON, the default) and read `glob_rad` back.
 
@@ -229,7 +229,8 @@ def run_r_sun(
     GRASS colour table to `glob_rad`, and `r.out.gdal`'s attempt to carry it into the Float32
     GeoTIFF logs a benign "SetColorTable() only supported for Byte or UInt16 bands" GDAL
     error to stderr — verified here on GRASS 8.5 that the raster values are written
-    correctly regardless (`r.out.gdal` still exits 0). Returns `(array, nodata)`.
+    correctly regardless (`r.out.gdal` still exits 0). `nprocs` is `r.sun`'s thread count
+    (GRASS >= 8.5); it only changes speed, not the result. Returns `(array, nodata)`.
     """
     out_name = f"glob_rad_{day}"
     gs.run_command(
@@ -239,6 +240,7 @@ def run_r_sun(
         slope="slope",
         day=day,
         glob_rad=out_name,
+        nprocs=nprocs,
         overwrite=True,
         quiet=True,
     )
@@ -275,6 +277,7 @@ def surface_irradiance(
     shadow_search_distance_m: float = 500.0,
     out_path: str | Path | None = None,
     cache_key: str | None = None,
+    nprocs: int = 1,
 ) -> Path:
     """Run GRASS `r.sun` over `dsm_path` and write an annual shaded insolation GeoTIFF.
 
@@ -304,6 +307,8 @@ def surface_irradiance(
             matching key skips r.sun and reuses the cached raster. Both `out_path` and
             `cache_key` must be given for a cache hit to be possible; either alone always
             recomputes.
+        nprocs: `r.sun` thread count (>= 1, default 1; needs GRASS >= 8.5). Speed only -- it
+            does not change the output, so it is deliberately NOT part of any cache key.
         shadow_search_distance_m: nominal horizon/shadow search distance in metres. Must be
             positive. **Honest status (trap 3, risks §8):** this parameter is accepted for
             forward compatibility but is *not yet wired* into an explicit `r.sun`/`r.horizon`
@@ -332,6 +337,8 @@ def surface_irradiance(
         raise ValueError(
             f"shadow_search_distance_m must be positive, got {shadow_search_distance_m}"
         )
+    if nprocs < 1:
+        raise ValueError(f"nprocs must be >= 1, got {nprocs}")
 
     if (
         out_path is not None
@@ -379,7 +386,7 @@ def surface_irradiance(
                 overwrite=True,
                 quiet=True,
             )
-            daily = [_masked(*run_r_sun(gs, day, workdir)) for day in days]
+            daily = [_masked(*run_r_sun(gs, day, workdir, nprocs)) for day in days]
     finally:
         shutil.rmtree(gisdb, ignore_errors=True)
         shutil.rmtree(workdir, ignore_errors=True)
