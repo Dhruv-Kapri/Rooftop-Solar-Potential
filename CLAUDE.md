@@ -150,15 +150,16 @@ don't over-claim precision.
   between the two day to day. So: probe first (`ssh -o ConnectTimeout=4 graham-build true`); if
   unreachable, run locally — never block on it. Keep runs resumable (the per-tile manifest + cache
   tiers, ADR-0009/0014) so work started on one machine can continue on the other. **Specs (verified
-  2026-10-13):** Ubuntu 24.04 x86_64, 8 vCPU (Xeon Gold 6530), 15 GiB RAM + 4 GiB swap, 98 GB disk
-  (~84 GB free). **Set up:** Miniforge at `~/miniforge3` (user-space; no sudo), repo at
+  2026-10-13):** Ubuntu 24.04 x86_64, 8 vCPU (Xeon Gold 6530), 15 GiB RAM + 4 GiB swap, 98 GB disk.
+  **Set up:** Miniforge at `~/miniforge3` (user-space; no passwordless sudo), repo at
   `~/rooftop-solar-potential` on `stage-2`, conda env `rooftop-solar` (editable install) with
   **GRASS 8.5.0 from conda-forge inside the env** — matches the Mac's 8.5.0. `.env` (NLR key) is
   in place. Unit tier + `tests/test_radiation_integration.py` pass there. Run as
   `ssh graham-build 'source ~/miniforge3/bin/activate rooftop-solar && cd ~/rooftop-solar-potential && nice -n 10 <cmd>'`.
-  The VM is **shared** with another team's runs (load often above 8): run niced, and expect
-  nice 19 to starve. Its checkout pulls from `origin`, so unpushed commits need a push or a
-  `git bundle` before a run.
+  The VM is **shared** with another team's runs (load often above 8): check `uptime` first and run
+  niced, but not at nice 19 — it starves under that load. Its checkout pulls from `origin`, so
+  unpushed commits need a push or a `git bundle` before a run (at setup it was fast-forwarded by
+  bundle to local `stage-2`, ahead of `origin` — check `git log` there before pulling).
 - **Never commit data** — `data/`, `outputs/`, and all `*.tif/*.laz/*.las/*.copc.laz` are
   gitignored. LiDAR/DSM/imagery are huge.
 - Secrets in `.env` (gitignored); copy `.env.example` to start.
