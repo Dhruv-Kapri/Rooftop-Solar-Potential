@@ -45,8 +45,10 @@ def test_run_r_sun_forwards_nprocs_to_grass():
     assert _r_sun_kwargs(nprocs=4)["nprocs"] == 4
 
 
-def test_run_r_sun_defaults_to_one_thread():
-    assert _r_sun_kwargs()["nprocs"] == 1
+def test_run_r_sun_default_omits_nprocs():
+    # GRASS < 8.5 rejects the unknown `nprocs` param, so the default call must not pass it.
+    assert "nprocs" not in _r_sun_kwargs()
+    assert "nprocs" not in _r_sun_kwargs(nprocs=1)
 
 
 def test_surface_irradiance_rejects_nprocs_below_one(tmp_path):
@@ -144,6 +146,7 @@ def _run_city_fake(tmp_path, monkeypatch, nprocs):
         return pipeline._empty_roofs()
 
     monkeypatch.setattr(pipeline, "_score_tile", _fake_score_tile)
+    monkeypatch.setattr(radiation, "grass_version", lambda: "8.5.0")  # no GRASS needed
     pipeline.run_city(
         aoi=box(*config.GRID_ORIGIN, config.GRID_ORIGIN[0] + 3000, config.GRID_ORIGIN[1] + 3000),
         tiles_dir=tmp_path,
@@ -158,6 +161,22 @@ def test_run_city_forwards_nprocs_to_every_tile(tmp_path, monkeypatch):
     seen, _keys, _manifest = _run_city_fake(tmp_path, monkeypatch, nprocs=8)
     assert len(seen) > 1
     assert set(seen) == {8}
+
+
+@pytest.mark.parametrize("bad", [0, -1, 2.0, True, "4"])
+def test_run_city_rejects_invalid_nprocs_before_any_tile_work(tmp_path, monkeypatch, bad):
+    def _boom(*a, **k):
+        raise AssertionError("tile work started")
+
+    monkeypatch.setattr(pipeline, "_score_tile", _boom)
+    monkeypatch.setattr(radiation, "grass_version", _boom)
+    with pytest.raises(ValueError, match="nprocs"):
+        pipeline.run_city(
+            aoi=box(*config.GRID_ORIGIN, *config.GRID_ORIGIN),
+            tiles_dir=tmp_path,
+            write_outputs=False,
+            nprocs=bad,
+        )
 
 
 def test_nprocs_is_not_part_of_any_cache_key_or_manifest(tmp_path, monkeypatch):
