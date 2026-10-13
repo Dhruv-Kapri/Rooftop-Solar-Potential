@@ -71,7 +71,8 @@ def _report_runlog(
     print(f"  tile workers         : {workers}")
     print(f"  wall-clock           : {wall_clock_s:8.1f} s")
     if len(done):
-        print(f"  per-tile (mean)      : {wall_clock_s / len(done):8.1f} s")
+        per_tile_s = wall_clock_s / len(done)  # tiles overlap when workers > 1
+        print(f"  wall-clock / tile    : {per_tile_s:8.1f} s")
 
     if len(city):
         total_energy_mwh = float(city["annual_energy_kwh"].sum()) / 1000.0
