@@ -68,10 +68,58 @@ One quiet-window run of all three counts back-to-back, so they are directly comp
 1 / 4 / 8-thread runs (the rise tracks the benchmark's own threads; no external load). It replaces an
 earlier run whose 8-thread row was contaminated by other sessions' jobs (load ~52). On this 4P+4E
 part the 8 threads include efficiency cores, so scaling is sub-linear. Every reading is **below
-~4×**, so tile-level worker processes remain a follow-up candidate (#27).
+~4×**, which is why tile-level worker processes were tried next (#27, below).
 
-Budget implication: `--nprocs 8` cuts the radiation step ~3.6× per tile (`--nprocs 4` ~2.8×); tiles still run in
-sequence, and DSM/footprint/plane stages are unaffected.
+Budget implication: `--nprocs 8` cuts the radiation step ~3.6× per tile (`--nprocs 4` ~2.8×); with
+the default `--workers 1` tiles run in sequence, and DSM/footprint/plane stages are unaffected.
+
+### Tile-level workers × `r.sun` threads — measured throughput (#27)
+
+`run_city(workers=K)` / `run_city.py --workers K` scores K tiles at once in spawned worker processes
+(ADR-0009 addendum), each running `r.sun` on `--nprocs` threads. Like `nprocs`, `workers` is in no
+cache key; output is **bit-identical** at every split. Measured with `scripts/bench_rsun_workers.py`
+on 8 full-size tiles (`5_4 5_5 5_6 5_7 6_5 6_6 6_8 7_5`, each 1300×1300 px @ 2 m), 12-day, radiation
+step only, at a fixed 8-core budget, on the VM `graham-build` (8 vCPU Xeon Gold 6530, GRASS 8.5.0,
+`nice -n 10`):
+
+| split (`workers × nprocs`) | 8 tiles wall-clock | tiles/h | vs 1 × 8 | identical |
+|---|---|---|---|---|
+| 1 × 8 | 680.0 s | 42.4 | 1.00× | ✓ |
+| 8 × 1 | 747.4 s | 38.5 | **0.91×** | ✓ |
+
+One quiet-window pair, run back-to-back (VM 1-min load ~1.3 at start; the bench printed 7.8 and 1.6
+at the end of the two splits — the low 8 × 1 reading is unexplained, but no other tenant was active). An earlier full sweep ran while the VM's other tenants were busy
+(load 12–14 during the first two splits) and is **not** comparable across splits: 1 × 8 1265.9 s and
+2 × 4 1851.9 s (both contaminated), 4 × 2 1221.5 s (load fell to ~3 during the split), 8 × 1 736.2 s
+(quiet). Only its 8 × 1 reading is clean, and it agrees with the pair above within 2%. All four
+splits of that sweep were bit-identical to its 1 × 8 output.
+
+**Reading:** for the radiation stage, worker processes did **not** beat `r.sun`'s own threads on the
+VM: 8 threads on one tile used the cores slightly better than 8 single-threaded tiles. This rests on
+one clean pair (~10% gap) on a shared VM, so read it as "no gain from workers", not a firm ranking. This
+measures `r.sun` only. Workers could still help the fetch/DSM/plane stages, which `nprocs` doesn't
+speed up and which are partly network-bound, but that end-to-end gain is **unmeasured**.
+
+**Dev Mac** (8 cores = 4P + 4E, 8 GB): a light run, 4 tiles (`5_4 5_5 5_6 5_7`), 2 splits, since a
+full 8-tile sweep had been stopped earlier when the host ran low on memory (other projects' jobs at
+load ~24–44):
+
+| split (`workers × nprocs`) | 4 tiles wall-clock | tiles/h | vs 1 × 8 | identical |
+|---|---|---|---|---|
+| 1 × 8 | 739.6 s | 19.5 | 1.00× | ✓ |
+| 2 × 4 | 603.2 s | 23.9 | **1.23×** | ✓ |
+
+**Contended**: host load ~5 at start but 14.9 / 16.4 at the end of the splits (above the bench's own
+8 threads; other sessions' jobs), and 1 × 8 ran at ~185 s/tile against #16's quiet 90.7 s. Both
+splits shared that load, so the ratio is indicative, not exact. Memory held (33% free at the end).
+Unlike the VM, splitting helps here. A likely reason (not measured): on a 4P + 4E part, one 8-thread
+`r.sun` waits on its slowest (efficiency-core) threads, while two independent 4-thread runs don't.
+
+**Defaults chosen:**
+- **VM:** `--workers 1 --nprocs 8` (the code default for `workers` is 1). Worth an end-to-end A/B
+  against `--workers 2 --nprocs 4` on the first full-city run (#19) before switching.
+- **Mac:** `--workers 2 --nprocs 4`. Keep `workers` at 2 on the 8 GB Mac: each worker imports the
+  geo stack and holds its tile's rasters, and an 8-worker sweep ran into memory pressure.
 
 ## 1-day vs 12-day — what fidelity changes (and what it doesn't)
 

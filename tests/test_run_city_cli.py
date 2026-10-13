@@ -81,11 +81,12 @@ def test_report_runlog_writes_file(script, tmp_path, capsys):
     )
     output_dir = tmp_path / "out" / "run"
 
-    script._report_runlog(tiles_dir, city, 123.4, 7, output_dir)
+    script._report_runlog(tiles_dir, city, 123.4, 7, 3, output_dir)
 
     text = (output_dir / "run_log.txt").read_text()
     assert platform.node() in text
     assert "r.sun threads        : 7" in text
+    assert "tile workers         : 3" in text
     assert "123.4" in text
     assert text.strip() == capsys.readouterr().out.strip()
 
@@ -99,8 +100,8 @@ def test_report_runlog_appends_each_segment(script, tmp_path):
     city = gpd.GeoDataFrame(geometry=[], crs=config.WORKING_CRS)
     output_dir = tmp_path / "out"
 
-    script._report_runlog(tiles_dir, city, 111.1, 1, output_dir)
-    script._report_runlog(tiles_dir, city, 222.2, 8, output_dir)
+    script._report_runlog(tiles_dir, city, 111.1, 1, 1, output_dir)
+    script._report_runlog(tiles_dir, city, 222.2, 8, 2, output_dir)
 
     text = (output_dir / "run_log.txt").read_text()
     assert "111.1" in text and "222.2" in text
