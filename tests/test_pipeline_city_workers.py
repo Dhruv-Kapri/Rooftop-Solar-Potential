@@ -69,6 +69,21 @@ def fake_score_tile_one_bad(tile, *, dsm_out_path, **kw):
     return fake_score_tile(tile, dsm_out_path=dsm_out_path, **kw)
 
 
+class _CoordinatorCantUnpickle(Exception):
+    """Stands in for GRASS's `CalledModuleError`: raised in a worker, but the coordinator can't
+    unpickle it (there it's because the coordinator never imports `grass`; here because
+    `__init__` needs two args and the pickled exception carries one)."""
+
+    def __init__(self, module, code):
+        super().__init__(f"{module} exited {code}")
+
+
+def fake_score_tile_one_unpicklable(tile, *, dsm_out_path, **kw):
+    if (tile.row, tile.col) == _BAD_TILE:
+        raise _CoordinatorCantUnpickle("r.sun", 1)
+    return fake_score_tile(tile, dsm_out_path=dsm_out_path, **kw)
+
+
 def fake_score_tile_one_crash(tile, *, dsm_out_path, **kw):
     # The worker PROCESS dies (as if OOM-killed) — no Python exception to carry back.
     if (tile.row, tile.col) == _BAD_TILE:
@@ -151,6 +166,23 @@ def test_pooled_bad_tile_then_resume_skips_done_tiles_and_retries_failed(tmp_pat
     assert all(v["status"] == "done" for v in manifest.values())
     assert len(city) == 2 * _N_TILES
     assert list(city["tile"][::2]) == ["0_0", "0_1", "1_0", "1_1"]  # grid order, not finish order
+
+
+def test_pooled_unpicklable_tile_error_fails_only_that_tile(tmp_path, monkeypatch):
+    # Found on the VM benchmark (#27): a GRASS error raised in a worker broke the whole pool,
+    # failing every unfinished tile. The error must come back as text, failing only its tile —
+    # with the same manifest as a one-worker run.
+    (tmp_path / "w1").mkdir()
+    (tmp_path / "w2").mkdir()
+    fake = fake_score_tile_one_unpicklable
+    _, manifest_1 = _run(tmp_path / "w1", monkeypatch, fake, workers=1)
+    city, manifest_2 = _run(tmp_path / "w2", monkeypatch, fake, workers=2)
+
+    bad_key = f"{_BAD_TILE[0]}_{_BAD_TILE[1]}"
+    assert manifest_2[bad_key]["status"] == "failed"
+    assert "r.sun exited 1" in manifest_2[bad_key]["error"]
+    assert manifest_2 == manifest_1
+    assert len(city) == 2 * (_N_TILES - 1)
 
 
 def test_worker_process_crash_does_not_abort_batch_and_resume_recovers(tmp_path, monkeypatch):

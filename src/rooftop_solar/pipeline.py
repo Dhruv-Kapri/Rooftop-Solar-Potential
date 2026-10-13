@@ -22,7 +22,6 @@ import json
 import multiprocessing
 from collections.abc import Callable, Iterable
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from functools import partial
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -814,12 +813,11 @@ def run_city(
         }
         to_score.append(_TileJob(i, tile, sk, roofs_cache, score_kwargs))
 
-    def cache_tile_result(job: _TileJob, roofs_or_raise: Callable[[], gpd.GeoDataFrame]) -> None:
-        """Coordinator-only: get a tile's roofs, then write its parquet + manifest entry."""
-        try:
-            roofs = roofs_or_raise()
-        except Exception as exc:  # one bad tile must not abort a multi-hour batch (ADR-0009)
-            manifest.mark_failed(job.tile, job.stamp, error=repr(exc))
+    def cache_tile_result(job: _TileJob, roofs: gpd.GeoDataFrame | None, error: str | None) -> None:
+        """Coordinator-only: write a tile's roofs parquet + manifest entry, or record its error
+        (skip-and-continue: one bad tile must not abort a multi-hour batch, ADR-0009)."""
+        if error is not None:
+            manifest.mark_failed(job.tile, job.stamp, error=error)
             manifest.save()
             return
         _write_parquet(roofs, job.roofs_cache)
@@ -829,7 +827,7 @@ def run_city(
 
     if workers == 1:
         for job in to_score:
-            cache_tile_result(job, partial(_score_tile, job.tile, **job.score_kwargs))
+            cache_tile_result(job, *_score_tile_or_error(_score_tile, job.tile, **job.score_kwargs))
     else:
         # spawn, not fork: fork is unsafe with GDAL threads on macOS and platform-dependent.
         # A worker process that dies outright (e.g. OOM-killed) breaks the whole pool: every
@@ -838,11 +836,17 @@ def run_city(
         with ProcessPoolExecutor(
             max_workers=workers, mp_context=multiprocessing.get_context("spawn")
         ) as pool:
+            # `_score_tile` is passed in (pickled by reference), not looked up in the worker.
             futures = {
-                pool.submit(_score_tile, job.tile, **job.score_kwargs): job for job in to_score
+                pool.submit(_score_tile_or_error, _score_tile, job.tile, **job.score_kwargs): job
+                for job in to_score
             }
             for future in as_completed(futures):
-                cache_tile_result(futures[future], future.result)
+                try:
+                    roofs, error = future.result()
+                except Exception as exc:  # the pool itself broke (`BrokenProcessPool`)
+                    roofs, error = None, repr(exc)
+                cache_tile_result(futures[future], roofs, error)
 
     city = recompute_city_suitability(merge_tile_roofs(tile_frames[i] for i in sorted(tile_frames)))
 
@@ -852,6 +856,22 @@ def run_city(
         )
         _write_parquet(city, out_dir / CITY_ROOFS_PARQUET_NAME)
     return city
+
+
+def _score_tile_or_error(
+    score: Callable[..., gpd.GeoDataFrame], tile: tiling.Tile, **kwargs: Any
+) -> tuple[gpd.GeoDataFrame | None, str | None]:
+    """`(score(tile, **kwargs), None)`, or `(None, repr(exc))` if it raises — never raises itself.
+
+    A worker hands its error back as text because the coordinator may be unable to unpickle the
+    exception: GRASS's `CalledModuleError` lives in `grass.exceptions`, which only a worker's
+    GRASS session puts on `sys.path`, and an unpicklable result breaks the whole pool (#27). The
+    sequential path uses it too, so the manifest's error text matches at any worker count.
+    """
+    try:
+        return score(tile, **kwargs), None
+    except Exception as exc:
+        return None, repr(exc)
 
 
 def _require_positive_int(name: str, value: object) -> None:
