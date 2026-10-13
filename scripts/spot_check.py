@@ -2,8 +2,9 @@
 """Part 2-4 step 7b CLI — build the hand spot-check kit (front half).
 
 Draws the stratified spot-check sample from the city roofs (plan §6), re-scores it with
-both the multiplane and the single-plane "ransac" methods, and renders one comparison
-figure per building (DC 2023 orthophoto | DSM hillshade | multiplane | ransac) so the
+multiplane and the single-plane baseline (`validation.SPOT_CHECK_METHODS`), and renders one
+comparison figure per building (DC 2023 orthophoto | DSM hillshade | multiplane | single-plane
+baseline) so the
 roofs can be hand-labelled in ``labels.csv``. Comparing the labels against the pipeline
 is a later ticket; this script stops at the figures + labels template.
 
@@ -169,7 +170,7 @@ def render_building(row, score, tiles_dir: Path, ortho_cache: Path, out_path: Pa
     mem = score.membership[score.membership["building_id"] == bid]
     obs = score.obstructions[score.obstructions["building_id"] == bid]
     planes = score.planes[score.planes["building_id"] == bid]
-    for ax, method in zip(axes[2:], ("multiplane", "ransac"), strict=True):
+    for ax, method in zip(axes[2:], validation.SPOT_CHECK_METHODS, strict=True):
         draw_method(ax, shade, plot_extent, extent, fp, mem, obs, planes, method)
 
     fig.suptitle(f"{bid}  |  {row['area']}  |  {row['roof_type']}", fontsize=10)
