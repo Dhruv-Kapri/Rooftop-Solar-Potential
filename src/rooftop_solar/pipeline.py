@@ -699,6 +699,14 @@ CITY_ROOFS_PARQUET_NAME = "roofs.parquet"
 MANIFEST_NAME = "manifest.json"
 
 
+def tile_cache_path(tiles_dir: str | Path, row: int, col: int, kind: str) -> Path:
+    """A tile's cached artifact under `tiles_dir` (ADR-0009/0014): `kind` is "dsm" or
+    "insolation" (rasters) or "roofs" (the scored GeoParquet). The one naming source the city
+    run and the spot-check re-score (`validation.rescore_sample`) both read."""
+    suffix = {"dsm": "dsm.tif", "insolation": "insolation.tif", "roofs": "roofs.parquet"}[kind]
+    return Path(tiles_dir) / f"tile_{row}_{col}_{suffix}"
+
+
 def run_city(
     *,
     aoi: BaseGeometry | None = None,
@@ -771,9 +779,9 @@ def run_city(
         rk = radiation_key(dsm_key=dk, day_range=day_range, grass_version=grass_version)
         sk = scoring_key(radiation_key=rk, footprints_source=footprints_source, method=CITY_METHOD)
 
-        dsm_cache = tiles_dir / f"tile_{tile.row}_{tile.col}_dsm.tif"
-        insol_cache = tiles_dir / f"tile_{tile.row}_{tile.col}_insolation.tif"
-        roofs_cache = tiles_dir / f"tile_{tile.row}_{tile.col}_roofs.parquet"
+        dsm_cache = tile_cache_path(tiles_dir, tile.row, tile.col, "dsm")
+        insol_cache = tile_cache_path(tiles_dir, tile.row, tile.col, "insolation")
+        roofs_cache = tile_cache_path(tiles_dir, tile.row, tile.col, "roofs")
 
         if resume and manifest.is_current(tile, sk) and roofs_cache.exists():
             tile_frames.append(gpd.read_parquet(roofs_cache))

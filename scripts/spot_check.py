@@ -30,12 +30,18 @@ import requests  # noqa: E402
 from rasterio.windows import from_bounds  # noqa: E402
 from shapely.geometry import box  # noqa: E402
 
-from rooftop_solar import config, validation  # noqa: E402
+from rooftop_solar import config, pipeline, validation  # noqa: E402
 
 PAD_M = 8.0  # padding around the footprint bounds in every panel
+PANEL_IN = 3.6  # approx. drawn width of one panel (16 in figure / 4 panels, minus margins)
 ORTHO_RES_M = 0.1
 ORTHO_MAX_PX = 800
 ORTHO_TIMEOUT_S = 30
+
+
+# Panel titles: "ransac" here is the single-plane baseline through the multiplane chain
+# (validation.SPOT_CHECK_METHODS), not the Phase-1 production ransac path -- say so on the image.
+METHOD_TITLES = {"multiplane": "multiplane", "ransac": "single-plane baseline"}
 
 
 def fetch_ortho(bounds, building_id: str, cache_dir: Path) -> np.ndarray | None:
@@ -69,7 +75,7 @@ def fetch_ortho(bounds, building_id: str, cache_dir: Path) -> np.ndarray | None:
 
 
 def hillshade(dsm: np.ndarray, res: float, azimuth: float = 315.0, altitude: float = 45.0):
-    """Standard Horn-style hillshade (0-1) of a DSM window; NaN-safe."""
+    """Hillshade (0-1) of a DSM window from central-difference slope/aspect; NaN-safe."""
     dsm = np.where(np.isfinite(dsm), dsm, np.nanmean(dsm) if np.isfinite(dsm).any() else 0.0)
     dzdy, dzdx = np.gradient(dsm, res)  # rows run north->south, so dzdy is d/d(south)
     slope = np.arctan(np.hypot(dzdx, dzdy))
@@ -82,7 +88,7 @@ def hillshade(dsm: np.ndarray, res: float, azimuth: float = 315.0, altitude: flo
 
 def read_hillshade(tiles_dir: Path, row: int, col: int, extent):
     """Hillshade of the tile DSM over `extent`; returns (image, (l, r, b, t) plot extent)."""
-    with rasterio.open(tiles_dir / f"tile_{row}_{col}_dsm.tif") as src:
+    with rasterio.open(pipeline.tile_cache_path(tiles_dir, row, col, "dsm")) as src:
         win = from_bounds(*extent, transform=src.transform).round_offsets().round_lengths()
         data = src.read(1, window=win, masked=True, boundless=True).astype(float)
         data = data.filled(np.nan)
@@ -101,6 +107,11 @@ def _outline(ax, geom, **kw) -> None:
 def _panel_base(ax, shade, plot_extent, extent, footprint) -> None:
     ax.imshow(shade, cmap="gray", extent=plot_extent, vmin=0, vmax=1)
     _outline(ax, footprint, color="cyan", lw=1.2)
+    _frame(ax, extent)
+
+
+def _frame(ax, extent) -> None:
+    """Clip a panel to the shared (minx, miny, maxx, maxy) extent, no ticks."""
     ax.set_xlim(extent[0], extent[2])
     ax.set_ylim(extent[1], extent[3])
     ax.set_xticks([])
@@ -111,10 +122,13 @@ def draw_method(ax, shade, plot_extent, extent, footprint, mem, obs, planes, met
     """Hillshade + plane-coloured DSM pixels + red obstruction outlines for one method."""
     _panel_base(ax, shade, plot_extent, extent, footprint)
     m = mem[mem["method"] == method]
+    # Marker side = one DSM cell in points (the panel is ~PANEL_IN inches across `extent`).
+    cell_m = (plot_extent[1] - plot_extent[0]) / shade.shape[1]
+    cell_pt = 72.0 * PANEL_IN * cell_m / max(extent[2] - extent[0], extent[3] - extent[1])
     fitted = m[m["plane_id"] >= 0]
     ax.scatter(
         fitted["x"], fitted["y"], c=fitted["plane_id"], cmap="tab10", vmin=0, vmax=9,
-        s=6, marker="s", alpha=0.5, linewidths=0,
+        s=(0.8 * cell_pt) ** 2, marker="s", alpha=0.5, linewidths=0,
     )  # fmt: skip
     unfit = m[m["plane_id"] < 0]
     ax.scatter(unfit["x"], unfit["y"], c="white", s=3, marker="x", alpha=0.5, linewidths=0.4)
@@ -123,7 +137,7 @@ def draw_method(ax, shade, plot_extent, extent, footprint, mem, obs, planes, met
         _outline(ax, geom, color="red", lw=1.0)
     p = planes[planes["method"] == method]
     ax.set_title(
-        f"{method}: {int(p['n_planes'].max()) if len(p) else 0} planes, "
+        f"{METHOD_TITLES[method]}: {int(p['n_planes'].max()) if len(p) else 0} planes, "
         f"obstr {p['obstruction_area_m2'].sum():.0f} m2, usable {p['usable_area_m2'].sum():.0f} m2",
         fontsize=8,
     )
@@ -139,19 +153,14 @@ def render_building(row, score, tiles_dir: Path, ortho_cache: Path, out_path: Pa
     fig, axes = plt.subplots(1, 4, figsize=(16, 4.4))
     ortho = fetch_ortho(extent, bid, ortho_cache)
     if ortho is None:
-        axes[0].text(0.5, 0.5, "orthophoto unavailable", ha="center", va="center")
-        axes[0].set_xlim(extent[0], extent[2])
-        axes[0].set_ylim(extent[1], extent[3])
-        _outline(axes[0], fp, color="cyan", lw=1.2)
-        axes[0].set_xticks([])
-        axes[0].set_yticks([])
+        axes[0].text(
+            0.5, 0.5, "orthophoto unavailable", ha="center", va="center",
+            transform=axes[0].transAxes,
+        )  # fmt: skip
     else:
         axes[0].imshow(ortho, extent=(extent[0], extent[2], extent[1], extent[3]))
-        _outline(axes[0], fp, color="cyan", lw=1.2)
-        axes[0].set_xlim(extent[0], extent[2])
-        axes[0].set_ylim(extent[1], extent[3])
-        axes[0].set_xticks([])
-        axes[0].set_yticks([])
+    _outline(axes[0], fp, color="cyan", lw=1.2)
+    _frame(axes[0], extent)
     axes[0].set_title("DC 2023 orthophoto", fontsize=8)
 
     _panel_base(axes[1], shade, plot_extent, extent, fp)

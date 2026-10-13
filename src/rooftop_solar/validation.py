@@ -16,7 +16,7 @@ import numpy.typing as npt
 import pandas as pd
 from shapely.geometry.base import BaseGeometry
 
-from rooftop_solar import config, radiation, roof_planes, usable_area, yield_pv
+from rooftop_solar import config, pipeline, radiation, roof_planes, usable_area, yield_pv
 from rooftop_solar.roof_planes import fit_planes_multi, roof_points
 from rooftop_solar.tiling import tile_index
 
@@ -368,8 +368,8 @@ def rescore_sample(sample: gpd.GeoDataFrame, tiles_dir: str | Path) -> DetailedS
 
     `sample` is :func:`select_spot_check_sample`'s output (`building_id`, `tile_row`,
     `tile_col`, geometry). Rasters come from the `pipeline.run_city` tile cache, named
-    `tile_{row}_{col}_dsm.tif` / `tile_{row}_{col}_insolation.tif` (mirrored from the
-    f-strings in `pipeline.run_city`, ADR-0009/0014); a missing one raises
+    `tile_{row}_{col}_dsm.tif` / `tile_{row}_{col}_insolation.tif`
+    (`pipeline.tile_cache_path`, ADR-0009/0014); a missing one raises
     `FileNotFoundError` -- the cache is populated by the city run (issue #19), never here.
     An empty `sample` raises `ValueError`. Per-tile results are concatenated.
     """
@@ -378,8 +378,8 @@ def rescore_sample(sample: gpd.GeoDataFrame, tiles_dir: str | Path) -> DetailedS
     tiles_dir = Path(tiles_dir)
     scores = []
     for (row, col), group in sample.groupby(["tile_row", "tile_col"]):
-        dsm_path = tiles_dir / f"tile_{row}_{col}_dsm.tif"
-        insol_path = tiles_dir / f"tile_{row}_{col}_insolation.tif"
+        dsm_path = pipeline.tile_cache_path(tiles_dir, row, col, "dsm")
+        insol_path = pipeline.tile_cache_path(tiles_dir, row, col, "insolation")
         for path in (dsm_path, insol_path):
             if not path.exists():
                 raise FileNotFoundError(
