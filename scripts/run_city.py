@@ -11,6 +11,7 @@ budget re-runs against (stage-2-part2-plan.md §6.5/§8).
     python scripts/run_city.py --day-range 172        # fast single-day smoke over the whole grid
     python scripts/run_city.py --no-aggregate         # roof side only (skip the equity map)
     python scripts/run_city.py --no-resume            # force a full recompute
+    python scripts/run_city.py --nprocs 8             # 8 r.sun threads per tile (same results)
 
 This is a BATCH JOB, not CI: the calibrated full-DC run is many tiles × a 12-day r.sun pass.
 Deliverables land in a run-labelled subdir — outputs/dc/12day (calibrated default) or
@@ -47,7 +48,7 @@ def _run_label(day_range: list[int] | None) -> str:
     return f"{len(day_range)}day"
 
 
-def _report_runlog(tiles_dir, city: gpd.GeoDataFrame, wall_clock_s: float) -> None:
+def _report_runlog(tiles_dir, city: gpd.GeoDataFrame, wall_clock_s: float, nprocs: int) -> None:
     """Print the §8 compute-cost run-log from the tile manifest + wall-clock."""
     manifest = json.loads((tiles_dir / pipeline.MANIFEST_NAME).read_text())
     done = {k: v for k, v in manifest.items() if v.get("status") == "done"}
@@ -62,6 +63,7 @@ def _report_runlog(tiles_dir, city: gpd.GeoDataFrame, wall_clock_s: float) -> No
         for key, entry in list(failed.items())[:5]:
             print(f"      tile {key}: {entry.get('error', '')[:100]}")
     print(f"  city roofs (merged)  : {len(city)}")
+    print(f"  r.sun threads        : {nprocs}")
     print(f"  wall-clock           : {wall_clock_s:8.1f} s")
     if len(done):
         print(f"  per-tile (mean)      : {wall_clock_s / len(done):8.1f} s")
@@ -85,6 +87,10 @@ def main() -> None:
     parser.add_argument("--tiles-dir", default=None, help="per-tile cache + manifest dir")
     parser.add_argument("--output-dir", default=None, help="where deliverables are written")
     parser.add_argument("--no-resume", action="store_true", help="recompute every tile")
+    parser.add_argument(
+        "--nprocs", type=int, default=1,
+        help="threads per tile's r.sun; doesn't change results or cache keys",
+    )
     parser.add_argument("--no-aggregate", action="store_true", help="skip the tract equity map")
     args = parser.parse_args()
 
@@ -105,9 +111,10 @@ def main() -> None:
         tiles_dir=tiles_dir,
         output_dir=output_dir,
         resume=not args.no_resume,
+        nprocs=args.nprocs,
     )
     wall_clock_s = time.perf_counter() - started
-    _report_runlog(tiles_dir, city, wall_clock_s)
+    _report_runlog(tiles_dir, city, wall_clock_s, args.nprocs)
     print(f"  deliverables dir     : {output_dir}")
 
     if not args.no_aggregate:
