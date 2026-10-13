@@ -87,14 +87,16 @@ step only, at a fixed 8-core budget, on the VM `graham-build` (8 vCPU Xeon Gold 
 | 1 × 8 | 680.0 s | 42.4 | 1.00× | ✓ |
 | 8 × 1 | 747.4 s | 38.5 | **0.91×** | ✓ |
 
-One quiet-window pair, run back-to-back (VM 1-min load ~1.3 at start; 7.8 / 1.6 at the end of each
-split is the benchmark's own load). An earlier full sweep ran while the VM's other tenants were busy
+One quiet-window pair, run back-to-back (VM 1-min load ~1.3 at start; the bench printed 7.8 and 1.6
+at the end of the two splits — the low 8 × 1 reading is unexplained, but no other tenant was active). An earlier full sweep ran while the VM's other tenants were busy
 (load 12–14 during the first two splits) and is **not** comparable across splits: 1 × 8 1265.9 s and
 2 × 4 1851.9 s (both contaminated), 4 × 2 1221.5 s (load fell to ~3 during the split), 8 × 1 736.2 s
-(quiet). Only its 8 × 1 reading is clean, and it agrees with the pair above within 2%.
+(quiet). Only its 8 × 1 reading is clean, and it agrees with the pair above within 2%. All four
+splits of that sweep were bit-identical to its 1 × 8 output.
 
-**Reading:** for the radiation stage, worker processes do **not** beat `r.sun`'s own threads on the
-VM: 8 threads on one tile already use the cores slightly better than 8 single-threaded tiles. This
+**Reading:** for the radiation stage, worker processes did **not** beat `r.sun`'s own threads on the
+VM: 8 threads on one tile used the cores slightly better than 8 single-threaded tiles. This rests on
+one clean pair (~10% gap) on a shared VM, so read it as "no gain from workers", not a firm ranking. This
 measures `r.sun` only. Workers could still help the fetch/DSM/plane stages, which `nprocs` doesn't
 speed up and which are partly network-bound, but that end-to-end gain is **unmeasured**.
 
