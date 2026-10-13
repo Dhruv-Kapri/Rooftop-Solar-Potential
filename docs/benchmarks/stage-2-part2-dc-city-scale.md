@@ -100,13 +100,26 @@ one clean pair (~10% gap) on a shared VM, so read it as "no gain from workers", 
 measures `r.sun` only. Workers could still help the fetch/DSM/plane stages, which `nprocs` doesn't
 speed up and which are partly network-bound, but that end-to-end gain is **unmeasured**.
 
+**Dev Mac** (8 cores = 4P + 4E, 8 GB): a light run, 4 tiles (`5_4 5_5 5_6 5_7`), 2 splits, since a
+full 8-tile sweep had been stopped earlier when the host ran low on memory (other projects' jobs at
+load ~24–44):
+
+| split (`workers × nprocs`) | 4 tiles wall-clock | tiles/h | vs 1 × 8 | identical |
+|---|---|---|---|---|
+| 1 × 8 | 739.6 s | 19.5 | 1.00× | ✓ |
+| 2 × 4 | 603.2 s | 23.9 | **1.23×** | ✓ |
+
+**Contended**: host load ~5 at start but 14.9 / 16.4 at the end of the splits (above the bench's own
+8 threads; other sessions' jobs), and 1 × 8 ran at ~185 s/tile against #16's quiet 90.7 s. Both
+splits shared that load, so the ratio is indicative, not exact. Memory held (33% free at the end).
+Unlike the VM, splitting helps here. A likely reason (not measured): on a 4P + 4E part, one 8-thread
+`r.sun` waits on its slowest (efficiency-core) threads, while two independent 4-thread runs don't.
+
 **Defaults chosen:**
 - **VM:** `--workers 1 --nprocs 8` (the code default for `workers` is 1). Worth an end-to-end A/B
   against `--workers 2 --nprocs 4` on the first full-city run (#19) before switching.
-- **Mac:** `--workers 1 --nprocs 8`, **provisional**. The Mac sweep was stopped when the host
-  ran low on memory (8 GB, other projects' jobs at load ~24–44). `workers > 1` multiplies per-process
-  memory (each worker imports the geo stack and holds its tile's rasters), so the Mac needs a quiet
-  window before it is measured.
+- **Mac:** `--workers 2 --nprocs 4`. Keep `workers` at 2 on the 8 GB Mac: each worker imports the
+  geo stack and holds its tile's rasters, and an 8-worker sweep ran into memory pressure.
 
 ## 1-day vs 12-day — what fidelity changes (and what it doesn't)
 
