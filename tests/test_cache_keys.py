@@ -326,3 +326,17 @@ def test_radiation_key_requires_grass_version():
     dk = pipeline.dsm_key(**_dsm_kwargs())
     with pytest.raises(TypeError):
         pipeline.radiation_key(dsm_key=dk, day_range=[172])  # type: ignore[call-arg]
+
+
+def test_sidecar_matches_false_when_artifact_vanishes_while_hashing(tmp_path: Path, monkeypatch):
+    # e.g. a concurrent rsync replacing the file between the exists() check and the hash (#18)
+    artifact = tmp_path / "tile.tif"
+    artifact.write_bytes(b"raster")
+    cache.write_key_sidecar(artifact, "key-1")
+
+    def vanished(path):
+        raise FileNotFoundError(path)
+
+    monkeypatch.setattr(cache, "_sha256", vanished)
+
+    assert cache.sidecar_matches(artifact, "key-1") is False
