@@ -88,3 +88,20 @@ def test_report_runlog_writes_file(script, tmp_path, capsys):
     assert "r.sun threads        : 7" in text
     assert "123.4" in text
     assert text.strip() == capsys.readouterr().out.strip()
+
+
+def test_report_runlog_appends_each_segment(script, tmp_path):
+    """A resumed / handed-off run (Mac <-> VM) appends a timestamped segment, so earlier
+    segments' machine and wall-clock survive (#19)."""
+    tiles_dir = tmp_path / "tiles"
+    tiles_dir.mkdir()
+    (tiles_dir / pipeline.MANIFEST_NAME).write_text(json.dumps({}))
+    city = gpd.GeoDataFrame(geometry=[], crs=config.WORKING_CRS)
+    output_dir = tmp_path / "out"
+
+    script._report_runlog(tiles_dir, city, 111.1, 1, output_dir)
+    script._report_runlog(tiles_dir, city, 222.2, 8, output_dir)
+
+    text = (output_dir / "run_log.txt").read_text()
+    assert "111.1" in text and "222.2" in text
+    assert text.count("logged (UTC)") == 2

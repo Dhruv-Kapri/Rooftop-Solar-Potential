@@ -29,6 +29,7 @@ import json
 import os
 import platform
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 
 import geopandas as gpd
@@ -54,14 +55,17 @@ def _run_label(day_range: list[int] | None) -> str:
 def _report_runlog(
     tiles_dir, city: gpd.GeoDataFrame, wall_clock_s: float, nprocs: int, output_dir: Path
 ) -> None:
-    """Print the §8 compute-cost run-log from the tile manifest + wall-clock, and write the same
-    text to `<output_dir>/run_log.txt` so the cost record travels with the run's deliverables."""
+    """Print the §8 compute-cost run-log from the tile manifest + wall-clock, and append the same
+    text to `<output_dir>/run_log.txt` so the cost record travels with the run's deliverables.
+    Appended, not overwritten: a run resumed on another machine (Mac <-> VM) adds a timestamped
+    segment, so every segment's machine and wall-clock survive (#19)."""
     manifest = json.loads((tiles_dir / pipeline.MANIFEST_NAME).read_text())
     done = {k: v for k, v in manifest.items() if v.get("status") == "done"}
     failed = {k: v for k, v in manifest.items() if v.get("status") == "failed"}
     n_with_roofs = sum(1 for v in done.values() if v.get("n_roofs", 0) > 0)
 
     lines = ["\n=== Part 2-2 city run — compute-cost run-log (§8) ==="]
+    lines.append(f"  logged (UTC)         : {datetime.now(UTC):%Y-%m-%d %H:%M:%S}")
     lines.append(
         f"  machine              : {platform.node()} ({platform.platform()}, {os.cpu_count()} cpus)"
     )
@@ -88,7 +92,8 @@ def _report_runlog(
     text = "\n".join(lines)
     print(text)
     output_dir.mkdir(parents=True, exist_ok=True)
-    (output_dir / "run_log.txt").write_text(text + "\n")
+    with (output_dir / "run_log.txt").open("a") as log:
+        log.write(text + "\n")
 
 
 def main() -> None:
