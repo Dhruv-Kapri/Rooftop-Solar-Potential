@@ -172,11 +172,24 @@ def grass_version() -> str:
     """Return the installed GRASS version string (`grass --config version`).
 
     Feeds `pipeline.radiation_key` so a radiation cache from a different GRASS build is
-    recomputed, not reused (ADR-0014 addendum, issue #14).
+    recomputed, not reused (ADR-0014 addendum, issue #14). There is deliberately no no-GRASS
+    fallback: the resume check needs the version, so `run_city` requires GRASS even for a
+    fully cached run — a missing or broken install raises a clear `RuntimeError` (issue #18).
     """
-    return subprocess.run(
-        ["grass", "--config", "version"], capture_output=True, text=True, check=True
-    ).stdout.strip()
+    try:
+        result = subprocess.run(
+            ["grass", "--config", "version"], capture_output=True, text=True, check=True
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            "GRASS GIS is not on PATH, but run_city needs it: its version is part of the "
+            "radiation cache key (ADR-0014 addendum), so even a fully cached run queries it."
+        ) from exc
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(
+            f"`grass --config version` failed (exit {exc.returncode}): {exc.stderr.strip()}"
+        ) from exc
+    return result.stdout.strip()
 
 
 @contextlib.contextmanager
