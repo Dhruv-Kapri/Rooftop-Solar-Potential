@@ -3,9 +3,10 @@
 
 Thin wrapper over `pipeline.run_city` (tile the DC AOI → score each tile's roofs → cache →
 merge → recompute city-wide suitability) followed by the reused `pipeline.run_aggregation`
-(→ the real, populated tract equity map). Sequential + resumable: a crashed or accuracy-swapped
-run resumes only the tiles it must (ADR-0009). Prints the compute-cost run-log Parts 2-4/2-5
-budget re-runs against (stage-2-part2-plan.md §6.5/§8).
+(→ the real, populated tract equity map). Resumable, with tiles optionally scored in parallel
+worker processes: a crashed or accuracy-swapped run resumes only the tiles it must (ADR-0009).
+Prints the compute-cost run-log Parts 2-4/2-5 budget re-runs against (stage-2-part2-plan.md
+§6.5/§8).
 
     python scripts/run_city.py                        # full DC, calibrated 12-day (batch job!)
     python scripts/run_city.py --day-range 172        # fast single-day smoke over the whole grid
@@ -13,6 +14,7 @@ budget re-runs against (stage-2-part2-plan.md §6.5/§8).
     python scripts/run_city.py --no-resume            # force a full recompute
     python scripts/run_city.py --run-label 12day_gcr   # new run label; old outputs untouched
     python scripts/run_city.py --nprocs 8             # 8 r.sun threads per tile (same results)
+    python scripts/run_city.py --workers 2 --nprocs 4 # 2 tiles at once x 4 threads (same results)
 
 This is a BATCH JOB, not CI: the calibrated full-DC run is many tiles × a 12-day r.sun pass.
 Deliverables land in a run-labelled subdir — outputs/dc/12day (calibrated default) or
@@ -53,7 +55,12 @@ def _run_label(day_range: list[int] | None) -> str:
 
 
 def _report_runlog(
-    tiles_dir, city: gpd.GeoDataFrame, wall_clock_s: float, nprocs: int, output_dir: Path
+    tiles_dir,
+    city: gpd.GeoDataFrame,
+    wall_clock_s: float,
+    nprocs: int,
+    workers: int,
+    output_dir: Path,
 ) -> None:
     """Print the §8 compute-cost run-log from the tile manifest + wall-clock, and append the same
     text to `<output_dir>/run_log.txt` so the cost record travels with the run's deliverables.
@@ -78,9 +85,11 @@ def _report_runlog(
         lines.append(f"      tile {key}: {entry.get('error', '')[:100]}")
     lines.append(f"  city roofs (merged)  : {len(city)}")
     lines.append(f"  r.sun threads        : {nprocs}")
+    lines.append(f"  tile workers         : {workers}")
     lines.append(f"  wall-clock           : {wall_clock_s:8.1f} s")
     if len(done):
-        lines.append(f"  per-tile (mean)      : {wall_clock_s / len(done):8.1f} s")
+        per_tile_s = wall_clock_s / len(done)  # tiles overlap when workers > 1
+        lines.append(f"  wall-clock / tile    : {per_tile_s:8.1f} s")
 
     if len(city):
         total_energy_mwh = float(city["annual_energy_kwh"].sum()) / 1000.0
@@ -118,6 +127,12 @@ def main() -> None:
         default=1,
         help="threads per tile's r.sun; doesn't change results or cache keys",
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="tiles scored at once in worker processes; doesn't change results or cache keys",
+    )
     parser.add_argument("--no-aggregate", action="store_true", help="skip the tract equity map")
     args = parser.parse_args()
     if args.run_label is not None and (
@@ -146,9 +161,10 @@ def main() -> None:
         output_dir=output_dir,
         resume=not args.no_resume,
         nprocs=args.nprocs,
+        workers=args.workers,
     )
     wall_clock_s = time.perf_counter() - started
-    _report_runlog(tiles_dir, city, wall_clock_s, args.nprocs, output_dir)
+    _report_runlog(tiles_dir, city, wall_clock_s, args.nprocs, args.workers, output_dir)
     print(f"  deliverables dir     : {output_dir}")
 
     if not args.no_aggregate:
