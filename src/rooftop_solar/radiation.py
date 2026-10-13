@@ -168,6 +168,17 @@ def plane_poa(planes_gdf: gpd.GeoDataFrame, insol_path: str | Path) -> gpd.GeoDa
     return out
 
 
+def grass_version() -> str:
+    """Return the installed GRASS version string (`grass --config version`).
+
+    Feeds `pipeline.radiation_key` so a radiation cache from a different GRASS build is
+    recomputed, not reused (ADR-0014 addendum, issue #14).
+    """
+    return subprocess.run(
+        ["grass", "--config", "version"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+
+
 @contextlib.contextmanager
 def grass_session(epsg: str, gisdb: str) -> Iterator[ModuleType]:
     """Create a throwaway GRASS location/mapset bound to `epsg` and yield `grass.script`.
