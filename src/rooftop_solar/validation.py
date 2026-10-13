@@ -7,6 +7,7 @@ single-plane ransac baseline. The spot-check sampler + labels template (step 7b)
 
 from __future__ import annotations
 
+import dataclasses
 from pathlib import Path
 
 import geopandas as gpd
@@ -15,7 +16,7 @@ import numpy.typing as npt
 import pandas as pd
 from shapely.geometry.base import BaseGeometry
 
-from rooftop_solar import config
+from rooftop_solar import config, radiation, roof_planes, usable_area, yield_pv
 from rooftop_solar.roof_planes import fit_planes_multi, roof_points
 from rooftop_solar.tiling import tile_index
 
@@ -241,3 +242,154 @@ def write_labels_template(sample: gpd.GeoDataFrame | pd.DataFrame, path: str | P
     out["building_id"] = list(sample["building_id"])
     out.to_csv(path, index=False)
     return path
+
+
+# --- Spot-check detailed re-score (Part 2-4 step 7b; plan §6, ADR-0011/0013) ---------
+
+# Method label -> `max_planes` for the re-score. "ransac" is the single-plane BASELINE fit
+# through the same multiplane fitter and the same obstruction-aware downstream chain -- not
+# the Phase-1 `fit_roof_planes(method="ransac")` / footprint-mean / flat-0.70 path -- so the
+# comparison is "N facets vs 1" and nothing else differs.
+SPOT_CHECK_METHODS = {"multiplane": roof_planes.MAX_PLANES, "ransac": 1}
+
+
+@dataclasses.dataclass(frozen=True)
+class DetailedScore:
+    """The detail the production collapse discards, for the spot-check (all long format).
+
+    Every frame has a `method` column (a :data:`SPOT_CHECK_METHODS` key) and the caller's
+    `building_id`. `planes`: one row per (building, plane) -- `yield_pv.plane_yields` output
+    minus the array-valued `coef`/`inlier_xy` (so it is parquet-writable), footprint
+    geometry. `obstructions`: one row per plane with obstruction pixels (`building_id,
+    method, plane_id, obstruction_area_m2, geometry` = the obstruction polygon). `membership`:
+    a plain DataFrame, one row per footprint DSM pixel per method (`building_id, method, x,
+    y, z, plane_id, is_obstruction`; `plane_id` is the nearest plane, -1 for an unfittable
+    roof). `buildings`: `yield_pv.collapse_to_buildings` output, i.e. what production emits.
+    """
+
+    planes: gpd.GeoDataFrame
+    obstructions: gpd.GeoDataFrame
+    membership: pd.DataFrame
+    buildings: gpd.GeoDataFrame
+
+
+def _membership(
+    footprints: gpd.GeoDataFrame, dsm_path: str | Path, fit: gpd.GeoDataFrame
+) -> pd.DataFrame:
+    """Per-pixel plane assignment + obstruction flag for one method's fit (positional ids)."""
+    frames = []
+    for building_id, geom in enumerate(footprints.geometry):
+        X, z = roof_points(geom, dsm_path)
+        group = fit[fit["building_id"] == building_id].sort_values("plane_id")
+        if group.iloc[0]["coef"] is None:
+            plane_id = np.full(len(z), -1)
+            is_obstruction = np.zeros(len(z), dtype=bool)
+        else:
+            plane_id, is_obstruction = usable_area.obstruction_pixels(
+                X, z, list(group["coef"]), usable_area.OBSTRUCTION_TAU_M
+            )
+        frames.append(
+            pd.DataFrame(
+                {
+                    "building_id": building_id,
+                    "x": X[:, 0],
+                    "y": X[:, 1],
+                    "z": z,
+                    "plane_id": plane_id,
+                    "is_obstruction": is_obstruction,
+                }
+            )
+        )
+    return pd.concat(frames, ignore_index=True)
+
+
+def detailed_score(
+    footprints: gpd.GeoDataFrame, dsm_path: str | Path, insol_path: str | Path
+) -> DetailedScore:
+    """Re-score `footprints` per :data:`SPOT_CHECK_METHODS`, keeping per-plane detail.
+
+    `footprints` needs a `building_id` column (any hashable ids, e.g. the spot-check
+    "7_2_15" strings) and geometry in the rasters' CRS. Per method this is the production
+    multiplane chain (`pipeline._score_roofs`, ADR-0011/0012/0013) with the facet cap swapped:
+    `fit_roof_planes(method="multiplane", max_planes=k)` -> `radiation.plane_poa` ->
+    `usable_area.detect_obstructions` -> `usable_area.usable_area(obstructions=...)` ->
+    `yield_pv.plane_yields` -> `collapse_to_buildings`. The fitter emits positional ids; they
+    are mapped back to the caller's.
+
+    In `buildings`, `suitability` is ranked within the given footprints only (not the city
+    rank); every other column is per-building and independent of which others are scored.
+    """
+    footprints = footprints.reset_index(drop=True)
+    ids = footprints["building_id"]
+    planes, obstructions, membership, buildings = [], [], [], []
+    for method, max_planes in SPOT_CHECK_METHODS.items():
+        fit = roof_planes.fit_roof_planes(
+            footprints, dsm_path, method="multiplane", max_planes=max_planes
+        )
+        fit = radiation.plane_poa(fit, insol_path)
+        obs = usable_area.detect_obstructions(fit, dsm_path)
+        yields = yield_pv.plane_yields(usable_area.usable_area(fit, obstructions=obs))
+
+        def label(df, method=method):
+            return df.assign(building_id=df["building_id"].map(ids), method=method)
+
+        planes.append(label(yields.drop(columns=["coef", "inlier_xy"])))
+        has_obs = obs["obstruction_area_m2"] > 0
+        obstructions.append(
+            label(
+                gpd.GeoDataFrame(
+                    {
+                        "building_id": fit.loc[has_obs, "building_id"],
+                        "plane_id": fit.loc[has_obs, "plane_id"],
+                        "obstruction_area_m2": obs.loc[has_obs, "obstruction_area_m2"],
+                    },
+                    geometry=obs.loc[has_obs, "geometry"],
+                    crs=obs.crs,
+                )
+            )[["building_id", "method", "plane_id", "obstruction_area_m2", "geometry"]]
+        )
+        membership.append(label(_membership(footprints, dsm_path, fit)))
+        buildings.append(label(yield_pv.collapse_to_buildings(yields)))
+
+    def stack(frames):
+        return pd.concat(frames, ignore_index=True)
+
+    membership_cols = ["building_id", "method", "x", "y", "z", "plane_id", "is_obstruction"]
+    return DetailedScore(
+        planes=stack(planes),
+        obstructions=stack(obstructions),
+        membership=stack(membership)[membership_cols],
+        buildings=stack(buildings),
+    )
+
+
+def rescore_sample(sample: gpd.GeoDataFrame, tiles_dir: str | Path) -> DetailedScore:
+    """:func:`detailed_score` over a spot-check sample, one tile raster pair at a time.
+
+    `sample` is :func:`select_spot_check_sample`'s output (`building_id`, `tile_row`,
+    `tile_col`, geometry). Rasters come from the `pipeline.run_city` tile cache, named
+    `tile_{row}_{col}_dsm.tif` / `tile_{row}_{col}_insolation.tif` (mirrored from the
+    f-strings in `pipeline.run_city`, ADR-0009/0014); a missing one raises
+    `FileNotFoundError` -- the cache is populated by the city run (issue #19), never here.
+    An empty `sample` raises `ValueError`. Per-tile results are concatenated.
+    """
+    if sample.empty:
+        raise ValueError("rescore_sample: empty sample -- nothing to re-score")
+    tiles_dir = Path(tiles_dir)
+    scores = []
+    for (row, col), group in sample.groupby(["tile_row", "tile_col"]):
+        dsm_path = tiles_dir / f"tile_{row}_{col}_dsm.tif"
+        insol_path = tiles_dir / f"tile_{row}_{col}_insolation.tif"
+        for path in (dsm_path, insol_path):
+            if not path.exists():
+                raise FileNotFoundError(
+                    f"{path} not found; the tile cache must be populated by "
+                    "pipeline.run_city (issue #19)"
+                )
+        scores.append(detailed_score(group, dsm_path, insol_path))
+    return DetailedScore(
+        **{
+            f.name: pd.concat([getattr(s, f.name) for s in scores], ignore_index=True)
+            for f in dataclasses.fields(DetailedScore)
+        }
+    )
