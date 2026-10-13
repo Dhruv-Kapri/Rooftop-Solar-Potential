@@ -563,6 +563,7 @@ def radiation_key(
     *,
     dsm_key: str,
     day_range: list[int] | None,
+    grass_version: str,
     version: str = RADIATION_VERSION,
     horizon_params: object = None,
 ) -> str:
@@ -570,7 +571,9 @@ def radiation_key(
 
     Chaining on the parent `dsm_key` string makes a DSM change cascade automatically. Adds the
     radiation day range (sorted; None passed through — the calibrated 12-day default, ADR-0001)
-    and RADIATION_VERSION. `horizon_params` is a RESERVED slot for the shadow/horizon parameters
+    and RADIATION_VERSION, plus the running `grass_version` (REQUIRED, no default — a radiation
+    raster from a different GRASS build is recomputed, not reused; ADR-0014 addendum, issue #14).
+    `horizon_params` is a RESERVED slot for the shadow/horizon parameters
     Part 2-5 will wire (risks §8 trap 3): it defaults to None and is already in the payload, so
     adding real params later is a non-breaking key change, not a schema break.
     """
@@ -578,6 +581,7 @@ def radiation_key(
         "dsm_key": dsm_key,
         "day_range": sorted(day_range) if day_range is not None else None,
         "radiation_version": version,
+        "grass_version": grass_version,
         "horizon_params": horizon_params,
     }
     return json.dumps(payload, sort_keys=True)
@@ -714,7 +718,8 @@ def run_city(
             inter-tile shadow reach (ADR-0009); `origin` is fixed so cache keys are stable.
         footprints_source / day_range / dsm_source: passed to the per-tile spine; together with
             the grid params they feed the chained `dsm_key` -> `radiation_key` -> `scoring_key`
-            component keys (ADR-0014) that invalidate each tile's cache.
+            component keys (ADR-0014) that invalidate each tile's cache. The running GRASS version
+            (queried once per run) also feeds `radiation_key`, so a GRASS upgrade recomputes.
         tiles_dir: per-tile parquet cache + manifest (default `config.TILES_CACHE_DIR`).
         output_dir: where the city per-roof GeoParquet goes (default
             `config.CALIBRATED_CITY_OUTPUTS_DIR`, `outputs/dc/12day/`).
@@ -735,6 +740,7 @@ def run_city(
 
     grid = tiling.make_grid(aoi, tile_size_m, buffer_m, origin)
     manifest = TileManifest.load(tiles_dir / MANIFEST_NAME)
+    grass_version = radiation.grass_version()  # once per run, not per tile (issue #14)
 
     tile_frames: list[gpd.GeoDataFrame] = []
     for tile in grid:
@@ -747,7 +753,7 @@ def run_city(
             resolution_m=DSM_RESOLUTION_M,
             dsm_source=dsm_source,
         )
-        rk = radiation_key(dsm_key=dk, day_range=day_range)
+        rk = radiation_key(dsm_key=dk, day_range=day_range, grass_version=grass_version)
         sk = scoring_key(radiation_key=rk, footprints_source=footprints_source, method=CITY_METHOD)
 
         dsm_cache = tiles_dir / f"tile_{tile.row}_{tile.col}_dsm.tif"
