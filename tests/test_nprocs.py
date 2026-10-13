@@ -84,7 +84,7 @@ def test_surface_irradiance_forwards_nprocs_to_run_r_sun(tmp_path, monkeypatch):
         raise RuntimeError("STOP")
 
     monkeypatch.setattr(
-        radiation, "grass_session", lambda *a, **k: contextlib.nullcontext(_FakeGrass2())
+        radiation, "grass_session", lambda *a, **k: contextlib.nullcontext(_NoopGrass())
     )
     monkeypatch.setattr(radiation, "run_r_sun", _fake_run_r_sun)
     with pytest.raises(RuntimeError, match="STOP"):
@@ -92,7 +92,7 @@ def test_surface_irradiance_forwards_nprocs_to_run_r_sun(tmp_path, monkeypatch):
     assert seen == [3]
 
 
-class _FakeGrass2:
+class _NoopGrass:
     def run_command(self, *_a, **_k):
         return None
 

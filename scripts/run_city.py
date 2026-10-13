@@ -88,7 +88,9 @@ def main() -> None:
     parser.add_argument("--output-dir", default=None, help="where deliverables are written")
     parser.add_argument("--no-resume", action="store_true", help="recompute every tile")
     parser.add_argument(
-        "--nprocs", type=int, default=1,
+        "--nprocs",
+        type=int,
+        default=1,
         help="threads per tile's r.sun; doesn't change results or cache keys",
     )
     parser.add_argument("--no-aggregate", action="store_true", help="skip the tract equity map")
