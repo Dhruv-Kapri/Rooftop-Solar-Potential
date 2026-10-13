@@ -158,8 +158,7 @@ don't over-claim precision.
   `ssh graham-build 'source ~/miniforge3/bin/activate rooftop-solar && cd ~/rooftop-solar-potential && nice -n 10 <cmd>'`.
   The VM is **shared** with another team's runs (load often above 8): check `uptime` first and run
   niced, but not at nice 19 — it starves under that load. Its checkout pulls from `origin`, so
-  unpushed commits need a push or a `git bundle` before a run (at setup it was fast-forwarded by
-  bundle to local `stage-2`, ahead of `origin` — check `git log` there before pulling).
+  unpushed commits need a push or a `git bundle` before a run.
 - **Never commit data** — `data/`, `outputs/`, and all `*.tif/*.laz/*.las/*.copc.laz` are
   gitignored. LiDAR/DSM/imagery are huge.
 - Secrets in `.env` (gitignored); copy `.env.example` to start.
