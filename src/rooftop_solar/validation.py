@@ -2,7 +2,7 @@
 
 Ground-truth-free accuracy checks for the Part 2-4 geometry: DSM self-consistency
 (reconstruct the DSM from the fitted planes; per-roof residual), multiplane vs the
-single-plane ransac baseline. The spot-check harness (step 7b) will join it here later.
+single-plane ransac baseline. The spot-check sampler + labels template (step 7b) live here too.
 """
 
 from __future__ import annotations
@@ -12,8 +12,12 @@ from pathlib import Path
 import geopandas as gpd
 import numpy as np
 import numpy.typing as npt
+import pandas as pd
+from shapely.geometry.base import BaseGeometry
 
+from rooftop_solar import config
 from rooftop_solar.roof_planes import fit_planes_multi, roof_points
+from rooftop_solar.tiling import tile_index
 
 # A pixel counts as "reconstructed within tolerance" when |residual| <= this. Reuses the
 # RANSAC inlier band (roof_planes.RESIDUAL_THRESHOLD_M) -- a roof surface the fit
@@ -121,3 +125,119 @@ def compare_self_consistency(
         )
 
     return gpd.GeoDataFrame(records, crs=footprints.crs)
+
+
+# --- Spot-check sampling (Part 2-4 step 7b; plan §6) ---------------------------------
+
+# Skip sheds/garages too small for a human to label a roof structure on.
+SPOT_CHECK_MIN_AREA_M2 = 50.0
+# n_planes at/above which a roof counts as multi-facet.
+MULTI_PLANE_MIN = 3
+ROOF_TYPES = ("flat", "gable", "hip", "complex")
+# The hand-label CSV schema: the building plus what the labeller sees on the imagery.
+LABEL_COLUMNS = ("building_id", "n_major_planes", "has_obstruction", "notes")
+
+
+def roof_type(n_planes: int, roof_class: str) -> str:
+    """Stratification proxy for roof archetype from the model's own output (plan §6).
+
+    There is no ground truth, so this only spreads the sample across archetypes: flat /
+    gable (1-2 pitched facets) / hip (3+ pitched facets) / complex (flat-dominant with
+    extra planes -- penthouses, mechanical, mixed; the ADR-0013 facet-vs-obstruction cases).
+    """
+    multi = n_planes >= MULTI_PLANE_MIN
+    if roof_class == "flat":
+        return "complex" if multi else "flat"
+    return "hip" if multi else "gable"
+
+
+def spot_check_id(tile_row: int, tile_col: int, building_id: int) -> str:
+    """City-unique, stable building id (`building_id` is only unique within its tile)."""
+    return f"{tile_row}_{tile_col}_{building_id}"
+
+
+def select_spot_check_sample(
+    city: gpd.GeoDataFrame,
+    areas: dict[str, BaseGeometry],
+    *,
+    per_cell: int = 3,
+    seed: int = 20,
+    tile_size_m: float = config.TILE_SIZE_M,
+    origin: tuple[float, float] = config.GRID_ORIGIN,
+    min_area_m2: float = SPOT_CHECK_MIN_AREA_M2,
+) -> gpd.GeoDataFrame:
+    """Stratified, deterministic sample of roofs for the hand spot-check (plan §6).
+
+    `areas` maps name -> polygon in `city`'s CRS; a building is in an area if its
+    representative point is within it, and goes to the first matching area (dict order).
+    Candidates need a fitted roof (`tilt_deg` not NaN) and `footprint_area_m2 >=
+    min_area_m2`. From each (area, `roof_type`) cell, `min(per_cell, n)` are drawn with a
+    per-cell rng seeded `[seed, area_index, type_index]` over id-sorted candidates, so the
+    result is independent of input row order and of other cells' sizes. The per-tile int
+    `building_id` is kept as `tile_building_id`; `building_id` becomes the city-unique
+    `spot_check_id` (tile cache files are keyed by the same row/col, ADR-0009).
+    """
+    cols = [
+        "building_id",
+        "area",
+        "roof_type",
+        "tile_row",
+        "tile_col",
+        "tile_building_id",
+        "n_planes",
+        "roof_class",
+        "footprint_area_m2",
+        "geometry",
+    ]
+    reps = city.geometry.representative_point()
+    area_of = pd.Series(pd.NA, index=city.index, dtype=object)
+    for name, poly in areas.items():
+        free = area_of.isna() & reps.within(poly)
+        area_of[free] = name
+
+    keep = area_of.notna() & city["tilt_deg"].notna() & (city["footprint_area_m2"] >= min_area_m2)
+    cand = city[keep].copy()
+    cand["area"] = area_of[keep]
+    cand["tile_building_id"] = cand["building_id"]
+    rc = [tile_index(p, tile_size_m, origin) for p in reps[keep]]
+    cand["tile_row"] = [r for r, _ in rc]
+    cand["tile_col"] = [c for _, c in rc]
+    cand["building_id"] = [
+        spot_check_id(r, c, b)
+        for r, c, b in zip(
+            cand["tile_row"], cand["tile_col"], cand["tile_building_id"], strict=True
+        )
+    ]
+    cand["roof_type"] = [
+        roof_type(n, c) for n, c in zip(cand["n_planes"], cand["roof_class"], strict=True)
+    ]
+
+    picked = []
+    for ai, name in enumerate(areas):
+        for ti, rtype in enumerate(ROOF_TYPES):
+            cell = cand[(cand["area"] == name) & (cand["roof_type"] == rtype)]
+            cell = cell.sort_values("building_id")
+            take = min(per_cell, len(cell))
+            if take == 0:
+                continue
+            idx = np.random.default_rng([seed, ai, ti]).choice(len(cell), take, replace=False)
+            picked.append(cell.iloc[np.sort(idx)])
+
+    if not picked:
+        return gpd.GeoDataFrame(columns=cols, geometry="geometry", crs=city.crs)
+    return gpd.GeoDataFrame(pd.concat(picked)[cols], crs=city.crs).reset_index(drop=True)
+
+
+def write_labels_template(sample: gpd.GeoDataFrame | pd.DataFrame, path: str | Path) -> Path:
+    """Write the blank hand-label CSV (`LABEL_COLUMNS`), `building_id` pre-filled.
+
+    Refuses to overwrite: an existing file may hold hand-entered labels.
+    """
+    path = Path(path)
+    if path.exists():
+        raise FileExistsError(f"{path} exists; refusing to overwrite hand-entered labels")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    out = pd.DataFrame({c: "" for c in LABEL_COLUMNS}, index=range(len(sample)))
+    out["building_id"] = list(sample["building_id"])
+    out.to_csv(path, index=False)
+    return path
