@@ -149,6 +149,9 @@ def _score_roofs(
     raster when its sidecar matches instead of re-fetching/re-running `r.sun`. `run_stage1`
     passes none of these four cache args (all default `None`), so Stage-1 stays uncached and
     unchanged; only `run_city` (via `_score_tile`) supplies them.
+
+    `nprocs` is the `r.sun` thread count, forwarded to `radiation.surface_irradiance`. It is
+    speed-only, so it is never part of a cache key.
     """
     dsm_path = dsm.build_dsm(buffered_wgs84, out_path=dsm_out_path, cache_key=dsm_cache_key)
     insol_path = radiation.surface_irradiance(
@@ -727,8 +730,8 @@ def run_city(
         resume: skip tiles already recorded done under the tile's current `scoring_key`
             (idempotent re-run); False recomputes every tile.
         write_outputs: if False, compute but write no city parquet.
-        nprocs: `r.sun` threads per tile. Doesn't change results, so deliberately excluded from
-            `dsm_key`/`radiation_key`/`scoring_key` (changing it never invalidates a cache).
+        nprocs: `r.sun` thread count for every tile (default 1). Speed only — not part of any
+            cache key or the manifest, so a run resumes identically at any thread count.
 
     Every footprint is scored in EXACTLY ONE tile by floor membership (`tiling.tile_membership`),
     so merging conserves — no building dropped or double-counted (§5). Suitability is recomputed
@@ -820,7 +823,8 @@ def _score_tile(
 
     `dsm_cache_key` / `insol_out_path` / `radiation_cache_key` are forwarded straight to
     `_score_roofs` (ADR-0014 tiered cache) so a downstream-only re-run reuses the cached DSM
-    and/or insolation raster instead of rebuilding them.
+    and/or insolation raster instead of rebuilding them. `nprocs` (the `r.sun` thread count) is
+    forwarded the same way.
     """
     buffered_wgs84 = _working_to_wgs84(tile.buffered)
     fp = footprints.load_footprints(buffered_wgs84, source=footprints_source).to_crs(
