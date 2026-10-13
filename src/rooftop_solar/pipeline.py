@@ -22,8 +22,9 @@ import json
 import multiprocessing
 from collections.abc import Callable, Iterable
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from functools import partial
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import geopandas as gpd
 import pandas as pd
@@ -695,11 +696,23 @@ def _tile_key(tile: tiling.Tile) -> str:
 # --------------------------------------------------------------------------- #
 # City runner — tile the District, score per tile, cache, merge (Part 2-2,    #
 # ADR-0009: per-tile cache, resumable/idempotent; tiles scored sequentially   #
-# or across worker processes, manifest written by the coordinator only, #27). #
+# or across worker processes, the manifest written by the coordinator only,   #
+# #27).                                                                       #
 # --------------------------------------------------------------------------- #
 
 CITY_ROOFS_PARQUET_NAME = "roofs.parquet"
 MANIFEST_NAME = "manifest.json"
+
+
+class _TileJob(NamedTuple):
+    """A tile `run_city` must (re)score: its grid index (merge order), manifest stamp, roofs
+    cache path, and the `_score_tile` keyword args."""
+
+    index: int
+    tile: tiling.Tile
+    stamp: str
+    roofs_cache: Path
+    score_kwargs: dict[str, Any]
 
 
 def run_city(
@@ -769,7 +782,7 @@ def run_city(
 
     # Per-grid-index slots so the merge is in grid order, not completion order (#27).
     tile_frames: dict[int, gpd.GeoDataFrame] = {}
-    to_score: list[tuple[int, tiling.Tile, str, Path, dict[str, Any]]] = []
+    to_score: list[_TileJob] = []
     for i, tile in enumerate(grid):
         dk = dsm_key(
             origin=origin,
@@ -799,36 +812,37 @@ def run_city(
             "radiation_cache_key": rk,
             "nprocs": nprocs,
         }
-        to_score.append((i, tile, sk, roofs_cache, score_kwargs))
+        to_score.append(_TileJob(i, tile, sk, roofs_cache, score_kwargs))
 
-    def record(i: int, tile: tiling.Tile, sk: str, roofs_cache: Path, get_roofs: Callable) -> None:
-        """Coordinator-only: fetch a tile's result, then cache it and update the manifest."""
+    def cache_tile_result(job: _TileJob, roofs_or_raise: Callable[[], gpd.GeoDataFrame]) -> None:
+        """Coordinator-only: get a tile's roofs, then write its parquet + manifest entry."""
         try:
-            roofs = get_roofs()
+            roofs = roofs_or_raise()
         except Exception as exc:  # one bad tile must not abort a multi-hour batch (ADR-0009)
-            manifest.mark_failed(tile, sk, error=repr(exc))
+            manifest.mark_failed(job.tile, job.stamp, error=repr(exc))
             manifest.save()
             return
-        _write_parquet(roofs, roofs_cache)
-        manifest.mark_done(tile, sk, n_roofs=len(roofs))
+        _write_parquet(roofs, job.roofs_cache)
+        manifest.mark_done(job.tile, job.stamp, n_roofs=len(roofs))
         manifest.save()
-        tile_frames[i] = roofs
+        tile_frames[job.index] = roofs
 
     if workers == 1:
-        for i, tile, sk, roofs_cache, kw in to_score:
-            record(i, tile, sk, roofs_cache, lambda tile=tile, kw=kw: _score_tile(tile, **kw))
+        for job in to_score:
+            cache_tile_result(job, partial(_score_tile, job.tile, **job.score_kwargs))
     else:
         # spawn, not fork: fork is unsafe with GDAL threads on macOS and platform-dependent.
+        # A worker process that dies outright (e.g. OOM-killed) breaks the whole pool: every
+        # tile not yet finished is then recorded failed (`BrokenProcessPool`) and the batch
+        # still completes; a resumed run retries them.
         with ProcessPoolExecutor(
             max_workers=workers, mp_context=multiprocessing.get_context("spawn")
         ) as pool:
-            futures = {}
-            for job in to_score:
-                _, tile, _, _, kw = job
-                futures[pool.submit(_score_tile, tile, **kw)] = job
+            futures = {
+                pool.submit(_score_tile, job.tile, **job.score_kwargs): job for job in to_score
+            }
             for future in as_completed(futures):
-                i, tile, sk, roofs_cache, _ = futures[future]
-                record(i, tile, sk, roofs_cache, future.result)
+                cache_tile_result(futures[future], future.result)
 
     city = recompute_city_suitability(merge_tile_roofs(tile_frames[i] for i in sorted(tile_frames)))
 

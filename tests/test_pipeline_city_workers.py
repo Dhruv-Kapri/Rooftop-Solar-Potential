@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -65,6 +66,13 @@ def fake_score_tile_one_bad(tile, *, dsm_out_path, **kw):
     if (tile.row, tile.col) == _BAD_TILE:
         _mark_call(tile, dsm_out_path)
         raise ValueError("boom: no DSM coverage")
+    return fake_score_tile(tile, dsm_out_path=dsm_out_path, **kw)
+
+
+def fake_score_tile_one_crash(tile, *, dsm_out_path, **kw):
+    # The worker PROCESS dies (as if OOM-killed) — no Python exception to carry back.
+    if (tile.row, tile.col) == _BAD_TILE:
+        os._exit(1)
     return fake_score_tile(tile, dsm_out_path=dsm_out_path, **kw)
 
 
@@ -143,6 +151,22 @@ def test_pooled_bad_tile_then_resume_skips_done_tiles_and_retries_failed(tmp_pat
     assert all(v["status"] == "done" for v in manifest.values())
     assert len(city) == 2 * _N_TILES
     assert list(city["tile"][::2]) == ["0_0", "0_1", "1_0", "1_1"]  # grid order, not finish order
+
+
+def test_worker_process_crash_does_not_abort_batch_and_resume_recovers(tmp_path, monkeypatch):
+    # A dead worker breaks the whole pool: the crashed tile (and any tile not yet finished) is
+    # recorded failed, the batch still returns, and a resumed run completes the city.
+    _, manifest = _run(tmp_path, monkeypatch, fake_score_tile_one_crash, workers=2)
+
+    bad_key = f"{_BAD_TILE[0]}_{_BAD_TILE[1]}"
+    assert len(manifest) == _N_TILES
+    assert manifest[bad_key]["status"] == "failed"
+    assert "BrokenProcessPool" in manifest[bad_key]["error"]
+
+    city, manifest = _run(tmp_path, monkeypatch, fake_score_tile, workers=2)
+
+    assert all(v["status"] == "done" for v in manifest.values())
+    assert len(city) == 2 * _N_TILES
 
 
 def test_workers_does_not_leak_into_scoring_kwargs(tmp_path, monkeypatch):
