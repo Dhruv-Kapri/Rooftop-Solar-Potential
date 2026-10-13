@@ -107,3 +107,12 @@ TILES_CACHE_DIR = DATA_DIR / "tiles"
 # `build_web` reads.
 CALIBRATED_CITY_LABEL = "12day"
 CALIBRATED_CITY_OUTPUTS_DIR = outputs_run_dir("dc", CALIBRATED_CITY_LABEL)
+
+# --- spot-check validation (Part 2-4 step 7b — plan §6) ---
+# Glover Park + one dense downtown block, as WGS84 (west, south, east, north) bboxes.
+SPOT_CHECK_AREAS_WGS84 = {
+    "glover_park": AOI_BBOX_WGS84,
+    "farragut_k_st": (-77.0445, 38.8995, -77.0330, 38.9050),  # Farragut Square / K St NW
+}
+# DC OCTO 2023 orthophoto (0.08 m, flown May 2023) — the hand-label reference imagery.
+DC_ORTHO_2023_URL = "https://imagery.dcgis.dc.gov/dcgis/rest/services/Ortho/Ortho_2023/ImageServer"
