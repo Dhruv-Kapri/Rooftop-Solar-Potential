@@ -230,9 +230,12 @@ def run_r_sun(
     GeoTIFF logs a benign "SetColorTable() only supported for Byte or UInt16 bands" GDAL
     error to stderr — verified here on GRASS 8.5 that the raster values are written
     correctly regardless (`r.out.gdal` still exits 0). `nprocs` is `r.sun`'s thread count
-    (GRASS >= 8.5); it only changes speed, not the result. Returns `(array, nodata)`.
+    (GRASS >= 8.5); it only changes speed, not the result, and is passed only when > 1 so the
+    default call also runs on older GRASS (which rejects the unknown param). Returns
+    `(array, nodata)`.
     """
     out_name = f"glob_rad_{day}"
+    extra = {"nprocs": nprocs} if nprocs > 1 else {}
     gs.run_command(
         "r.sun",
         elevation="dsm",
@@ -240,9 +243,9 @@ def run_r_sun(
         slope="slope",
         day=day,
         glob_rad=out_name,
-        nprocs=nprocs,
         overwrite=True,
         quiet=True,
+        **extra,
     )
     tif_path = f"{workdir}/{out_name}.tif"
     subprocess.run(
@@ -307,8 +310,8 @@ def surface_irradiance(
             matching key skips r.sun and reuses the cached raster. Both `out_path` and
             `cache_key` must be given for a cache hit to be possible; either alone always
             recomputes.
-        nprocs: `r.sun` thread count (>= 1, default 1; needs GRASS >= 8.5). Speed only -- it
-            does not change the output, so it is deliberately NOT part of any cache key.
+        nprocs: `r.sun` thread count (>= 1, default 1; values > 1 need GRASS >= 8.5). Speed only --
+            it does not change the output, so it is deliberately NOT part of any cache key.
         shadow_search_distance_m: nominal horizon/shadow search distance in metres. Must be
             positive. **Honest status (trap 3, risks §8):** this parameter is accepted for
             forward compatibility but is *not yet wired* into an explicit `r.sun`/`r.horizon`

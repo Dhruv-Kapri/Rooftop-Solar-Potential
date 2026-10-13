@@ -743,6 +743,10 @@ def run_city(
     once city-wide after the merge (ADR-0004 at city scale). Per-tile failures are recorded and
     skipped (skip-and-continue); empty tiles record 0 roofs.
     """
+    # Fail fast: the per-tile `except Exception` below would otherwise swallow this into an
+    # all-failed batch.
+    if isinstance(nprocs, bool) or not isinstance(nprocs, int) or nprocs < 1:
+        raise ValueError(f"nprocs must be an int >= 1, got {nprocs!r}")
     if aoi is None:
         from rooftop_solar import aoi as aoi_mod  # local import: `aoi` is a parameter name here
 
