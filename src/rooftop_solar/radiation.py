@@ -208,7 +208,7 @@ def grass_session(epsg: str, gisdb: str) -> Iterator[ModuleType]:
 
 
 def run_r_sun(
-    gs: ModuleType, day: int, workdir: str
+    gs: ModuleType, day: int, workdir: str, nprocs: int = 1
 ) -> tuple[npt.NDArray[np.float64], float | None]:
     """Run `r.sun` mode 2 for one day (shading ON, the default) and read `glob_rad` back.
 
@@ -218,7 +218,8 @@ def run_r_sun(
     GRASS colour table to `glob_rad`, and `r.out.gdal`'s attempt to carry it into the Float32
     GeoTIFF logs a benign "SetColorTable() only supported for Byte or UInt16 bands" GDAL
     error to stderr — verified here on GRASS 8.5 that the raster values are written
-    correctly regardless (`r.out.gdal` still exits 0). Returns `(array, nodata)`.
+    correctly regardless (`r.out.gdal` still exits 0). `nprocs` is r.sun's OpenMP thread
+    count. Returns `(array, nodata)`.
     """
     out_name = f"glob_rad_{day}"
     gs.run_command(
@@ -228,6 +229,7 @@ def run_r_sun(
         slope="slope",
         day=day,
         glob_rad=out_name,
+        nprocs=nprocs,
         overwrite=True,
         quiet=True,
     )
@@ -264,6 +266,7 @@ def surface_irradiance(
     shadow_search_distance_m: float = 500.0,
     out_path: str | Path | None = None,
     cache_key: str | None = None,
+    nprocs: int = 1,
 ) -> Path:
     """Run GRASS `r.sun` over `dsm_path` and write an annual shaded insolation GeoTIFF.
 
@@ -312,6 +315,8 @@ def surface_irradiance(
             silently change results vs. the notebook, which "faithful promotion first, harden
             second" (stage-1-plan.md §3) rules out here. Left as a documented Phase 2
             hardening item; do not read this docstring as trap-3 compliance.
+        nprocs: thread count for `r.sun`'s OpenMP parallelism (>= 1). Does not change the
+            output, so it is deliberately NOT part of `cache_key`.
 
     Returns:
         Path to a single-band float32 GeoTIFF (kWh/m²/yr), nodata `INSOLATION_NODATA`, on the
@@ -321,6 +326,8 @@ def surface_irradiance(
         raise ValueError(
             f"shadow_search_distance_m must be positive, got {shadow_search_distance_m}"
         )
+    if nprocs < 1:
+        raise ValueError(f"nprocs must be >= 1, got {nprocs}")
 
     if (
         out_path is not None
@@ -368,7 +375,7 @@ def surface_irradiance(
                 overwrite=True,
                 quiet=True,
             )
-            daily = [_masked(*run_r_sun(gs, day, workdir)) for day in days]
+            daily = [_masked(*run_r_sun(gs, day, workdir, nprocs)) for day in days]
     finally:
         shutil.rmtree(gisdb, ignore_errors=True)
         shutil.rmtree(workdir, ignore_errors=True)

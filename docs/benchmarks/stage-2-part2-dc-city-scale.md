@@ -50,6 +50,28 @@ Esri-validated ~1,162), which is the calibration signal that matters.
 (2.9 s), so it is **not** a real cold-run figure. The **12-day cold run above is the authoritative
 timing** — the figure Parts 2-4/2-5 budget their re-runs against.
 
+### Multi-core `r.sun` — measured per-tile speedup (#16)
+
+`run_city(nprocs=N)` / `run_city.py --nprocs N` forwards a thread count to every tile's `r.sun`
+(GRASS 8.5 OpenMP). It is **not** part of any cache key — the output is **bit-identical** at every
+thread count (max |diff| = 0, checked below). Measured with `scripts/bench_rsun_threads.py` on the
+largest tile (`6_7`, 1300×1300 px @ 2 m), radiation step only, on the dev Mac (8 cores = 4P + 4E):
+
+| `nprocs` | 12-day wall-clock | speedup | identical to 1 thread |
+|---|---|---|---|
+| 1 | 367.1 s | 1.00× | — |
+| 4 | 138.3 s | **2.66×** | ✓ |
+| 8 | 270.3 s² | 1.36×² | ✓ |
+
+² **Contaminated:** host load jumped to ~52 mid-run (other sessions' jobs). The 1/4-thread rows
+ran at load ~5. A 1-day check on the same tile at load ~8–10 gave 1 → 8 threads = 35.0 → 18.1 s
+(**1.94×**). On this 4P+4E part, 8 threads add only efficiency cores, so the 8-thread figure
+won't approach 8×. Every reading is **below ~4×**, so tile-level worker processes are the
+follow-up (#27).
+
+Budget implication: `--nprocs 4` cuts the radiation step ~2.7× per tile; tiles still run in
+sequence, and DSM/footprint/plane stages are unaffected.
+
 ## 1-day vs 12-day — what fidelity changes (and what it doesn't)
 
 The comparison is the point: single-day vs 12-day calibrated is a **radiation-fidelity** difference.
