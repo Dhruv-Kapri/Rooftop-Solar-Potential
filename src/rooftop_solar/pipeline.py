@@ -19,7 +19,9 @@ so the choropleth describes the neighbourhood, not the buffer ring.
 from __future__ import annotations
 
 import json
+import multiprocessing
 from collections.abc import Callable, Iterable
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
@@ -692,7 +694,8 @@ def _tile_key(tile: tiling.Tile) -> str:
 
 # --------------------------------------------------------------------------- #
 # City runner — tile the District, score per tile, cache, merge (Part 2-2,    #
-# ADR-0009: sequential + per-tile cache, resumable/idempotent).               #
+# ADR-0009: per-tile cache, resumable/idempotent; tiles scored sequentially   #
+# or across worker processes, manifest written by the coordinator only, #27). #
 # --------------------------------------------------------------------------- #
 
 CITY_ROOFS_PARQUET_NAME = "roofs.parquet"
@@ -713,6 +716,7 @@ def run_city(
     resume: bool = True,
     write_outputs: bool = True,
     nprocs: int = 1,
+    workers: int = 1,
 ) -> gpd.GeoDataFrame:
     """Scale the Stage-1 per-roof spine over `aoi` by tiling it; return the city per-roof result.
 
@@ -737,16 +741,22 @@ def run_city(
         write_outputs: if False, compute but write no city parquet.
         nprocs: `r.sun` thread count for every tile (default 1). Speed only — not part of any
             cache key or the manifest, so a run resumes identically at any thread count.
+        workers: tiles scored at once (default 1 = in-process, sequential). >1 scores tiles in
+            that many spawned worker processes (issue #27; processes, not threads, because GRASS
+            session setup mutates `os.environ`). Speed only — not part of any cache key or the
+            manifest, and the merged city frame is in grid order whatever the completion order.
+            The coordinator alone writes each tile's roofs parquet and `manifest.json`; workers
+            only return roofs or raise. Total cores used ~ `workers * nprocs`.
 
     Every footprint is scored in EXACTLY ONE tile by floor membership (`tiling.tile_membership`),
     so merging conserves — no building dropped or double-counted (§5). Suitability is recomputed
     once city-wide after the merge (ADR-0004 at city scale). Per-tile failures are recorded and
     skipped (skip-and-continue); empty tiles record 0 roofs.
     """
-    # Fail fast: the per-tile `except Exception` below would otherwise swallow this into an
+    # Fail fast: the per-tile `except Exception` below would otherwise swallow these into an
     # all-failed batch.
-    if isinstance(nprocs, bool) or not isinstance(nprocs, int) or nprocs < 1:
-        raise ValueError(f"nprocs must be an int >= 1, got {nprocs!r}")
+    _require_positive_int("nprocs", nprocs)
+    _require_positive_int("workers", workers)
     if aoi is None:
         from rooftop_solar import aoi as aoi_mod  # local import: `aoi` is a parameter name here
 
@@ -757,8 +767,10 @@ def run_city(
     manifest = TileManifest.load(tiles_dir / MANIFEST_NAME)
     grass_version = radiation.grass_version()  # once per run, not per tile (issue #14)
 
-    tile_frames: list[gpd.GeoDataFrame] = []
-    for tile in grid:
+    # Per-grid-index slots so the merge is in grid order, not completion order (#27).
+    tile_frames: dict[int, gpd.GeoDataFrame] = {}
+    to_score: list[tuple[int, tiling.Tile, str, Path, dict[str, Any]]] = []
+    for i, tile in enumerate(grid):
         dk = dsm_key(
             origin=origin,
             tile_size_m=tile_size_m,
@@ -771,36 +783,54 @@ def run_city(
         rk = radiation_key(dsm_key=dk, day_range=day_range, grass_version=grass_version)
         sk = scoring_key(radiation_key=rk, footprints_source=footprints_source, method=CITY_METHOD)
 
-        dsm_cache = tiles_dir / f"tile_{tile.row}_{tile.col}_dsm.tif"
-        insol_cache = tiles_dir / f"tile_{tile.row}_{tile.col}_insolation.tif"
         roofs_cache = tiles_dir / f"tile_{tile.row}_{tile.col}_roofs.parquet"
 
         if resume and manifest.is_current(tile, sk) and roofs_cache.exists():
-            tile_frames.append(gpd.read_parquet(roofs_cache))
+            tile_frames[i] = gpd.read_parquet(roofs_cache)
             continue
+        score_kwargs = {
+            "tile_size_m": tile_size_m,
+            "origin": origin,
+            "footprints_source": footprints_source,
+            "day_range": day_range,
+            "dsm_out_path": tiles_dir / f"tile_{tile.row}_{tile.col}_dsm.tif",
+            "dsm_cache_key": dk,
+            "insol_out_path": tiles_dir / f"tile_{tile.row}_{tile.col}_insolation.tif",
+            "radiation_cache_key": rk,
+            "nprocs": nprocs,
+        }
+        to_score.append((i, tile, sk, roofs_cache, score_kwargs))
+
+    def record(i: int, tile: tiling.Tile, sk: str, roofs_cache: Path, get_roofs: Callable) -> None:
+        """Coordinator-only: fetch a tile's result, then cache it and update the manifest."""
         try:
-            roofs = _score_tile(
-                tile,
-                tile_size_m=tile_size_m,
-                origin=origin,
-                footprints_source=footprints_source,
-                day_range=day_range,
-                dsm_out_path=dsm_cache,
-                dsm_cache_key=dk,
-                insol_out_path=insol_cache,
-                radiation_cache_key=rk,
-                nprocs=nprocs,
-            )
+            roofs = get_roofs()
         except Exception as exc:  # one bad tile must not abort a multi-hour batch (ADR-0009)
             manifest.mark_failed(tile, sk, error=repr(exc))
             manifest.save()
-            continue
+            return
         _write_parquet(roofs, roofs_cache)
         manifest.mark_done(tile, sk, n_roofs=len(roofs))
         manifest.save()
-        tile_frames.append(roofs)
+        tile_frames[i] = roofs
 
-    city = recompute_city_suitability(merge_tile_roofs(tile_frames))
+    if workers == 1:
+        for i, tile, sk, roofs_cache, kw in to_score:
+            record(i, tile, sk, roofs_cache, lambda tile=tile, kw=kw: _score_tile(tile, **kw))
+    else:
+        # spawn, not fork: fork is unsafe with GDAL threads on macOS and platform-dependent.
+        with ProcessPoolExecutor(
+            max_workers=workers, mp_context=multiprocessing.get_context("spawn")
+        ) as pool:
+            futures = {}
+            for job in to_score:
+                _, tile, _, _, kw = job
+                futures[pool.submit(_score_tile, tile, **kw)] = job
+            for future in as_completed(futures):
+                i, tile, sk, roofs_cache, _ = futures[future]
+                record(i, tile, sk, roofs_cache, future.result)
+
+    city = recompute_city_suitability(merge_tile_roofs(tile_frames[i] for i in sorted(tile_frames)))
 
     if write_outputs:
         out_dir = (
@@ -808,6 +838,12 @@ def run_city(
         )
         _write_parquet(city, out_dir / CITY_ROOFS_PARQUET_NAME)
     return city
+
+
+def _require_positive_int(name: str, value: object) -> None:
+    """Reject a non-int (incl. bool) or < 1 `name` — shared by `nprocs` and `workers`."""
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(f"{name} must be an int >= 1, got {value!r}")
 
 
 def _score_tile(
