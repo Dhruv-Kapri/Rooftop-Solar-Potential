@@ -68,10 +68,43 @@ One quiet-window run of all three counts back-to-back, so they are directly comp
 1 / 4 / 8-thread runs (the rise tracks the benchmark's own threads; no external load). It replaces an
 earlier run whose 8-thread row was contaminated by other sessions' jobs (load ~52). On this 4P+4E
 part the 8 threads include efficiency cores, so scaling is sub-linear. Every reading is **below
-~4×**, so tile-level worker processes remain a follow-up candidate (#27).
+~4×**, which is why tile-level worker processes were tried next (#27, below).
 
-Budget implication: `--nprocs 8` cuts the radiation step ~3.6× per tile (`--nprocs 4` ~2.8×); tiles still run in
-sequence, and DSM/footprint/plane stages are unaffected.
+Budget implication: `--nprocs 8` cuts the radiation step ~3.6× per tile (`--nprocs 4` ~2.8×); with
+the default `--workers 1` tiles run in sequence, and DSM/footprint/plane stages are unaffected.
+
+### Tile-level workers × `r.sun` threads — measured throughput (#27)
+
+`run_city(workers=K)` / `run_city.py --workers K` scores K tiles at once in spawned worker processes
+(ADR-0009 addendum), each running `r.sun` on `--nprocs` threads. Like `nprocs`, `workers` is in no
+cache key; output is **bit-identical** at every split. Measured with `scripts/bench_rsun_workers.py`
+on 8 full-size tiles (`5_4 5_5 5_6 5_7 6_5 6_6 6_8 7_5`, each 1300×1300 px @ 2 m), 12-day, radiation
+step only, at a fixed 8-core budget, on the VM `graham-build` (8 vCPU Xeon Gold 6530, GRASS 8.5.0,
+`nice -n 10`):
+
+| split (`workers × nprocs`) | 8 tiles wall-clock | tiles/h | vs 1 × 8 | identical |
+|---|---|---|---|---|
+| 1 × 8 | 680.0 s | 42.4 | 1.00× | ✓ |
+| 8 × 1 | 747.4 s | 38.5 | **0.91×** | ✓ |
+
+One quiet-window pair, run back-to-back (VM 1-min load ~1.3 at start; 7.8 / 1.6 at the end of each
+split is the benchmark's own load). An earlier full sweep ran while the VM's other tenants were busy
+(load 12–14 during the first two splits) and is **not** comparable across splits: 1 × 8 1265.9 s and
+2 × 4 1851.9 s (both contaminated), 4 × 2 1221.5 s (load fell to ~3 during the split), 8 × 1 736.2 s
+(quiet). Only its 8 × 1 reading is clean, and it agrees with the pair above within 2%.
+
+**Reading:** for the radiation stage, worker processes do **not** beat `r.sun`'s own threads on the
+VM: 8 threads on one tile already use the cores slightly better than 8 single-threaded tiles. This
+measures `r.sun` only. Workers could still help the fetch/DSM/plane stages, which `nprocs` doesn't
+speed up and which are partly network-bound, but that end-to-end gain is **unmeasured**.
+
+**Defaults chosen:**
+- **VM:** `--workers 1 --nprocs 8` (the code default for `workers` is 1). Worth an end-to-end A/B
+  against `--workers 2 --nprocs 4` on the first full-city run (#19) before switching.
+- **Mac:** `--workers 1 --nprocs 8`, **provisional**. The Mac sweep was stopped when the host
+  ran low on memory (8 GB, other projects' jobs at load ~24–44). `workers > 1` multiplies per-process
+  memory (each worker imports the geo stack and holds its tile's rasters), so the Mac needs a quiet
+  window before it is measured.
 
 ## 1-day vs 12-day — what fidelity changes (and what it doesn't)
 
