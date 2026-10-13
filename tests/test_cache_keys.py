@@ -19,6 +19,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from rooftop_solar import cache, pipeline
 
 
@@ -40,6 +42,7 @@ def _rad_kwargs(dsm_key: str, **overrides) -> dict:
     base = dict(
         dsm_key=dsm_key,
         day_range=[172],
+        grass_version="8.5.0",
     )
     base.update(overrides)
     return base
@@ -59,7 +62,7 @@ def _full_chain(**overrides) -> tuple[str, str, str]:
     """Build a dsm_key -> radiation_key -> scoring_key chain, with overrides applied to
     whichever kwargs dict(s) they belong in (by key name)."""
     dsm_over = {k: v for k, v in overrides.items() if k in _dsm_kwargs()}
-    rad_over = {k: v for k, v in overrides.items() if k in ("day_range", "horizon_params")}
+    rad_over = {k: v for k, v in overrides.items() if k in (*_rad_kwargs(""), "horizon_params")}
     score_over = {k: v for k, v in overrides.items() if k in ("footprints_source", "method")}
 
     dk = pipeline.dsm_key(
@@ -266,3 +269,28 @@ def test_write_key_sidecar_creates_parent_dirs(tmp_path: Path):
     cache.write_key_sidecar(artifact, "key-1")
 
     assert cache.read_key_sidecar(artifact) == "key-1"
+
+
+# --------------------------------------------------------------------------- #
+# GRASS engine version in the radiation key (issue #14, ADR-0014 addendum)
+# --------------------------------------------------------------------------- #
+
+
+def test_radiation_key_is_stable_for_same_grass_version():
+    dk, rk_a, _ = _full_chain(grass_version="8.5.0")
+    _, rk_b, _ = _full_chain(grass_version="8.5.0")
+    assert rk_a == rk_b
+
+
+def test_changing_grass_version_cascades_into_scoring_but_not_dsm():
+    dk_a, rk_a, sk_a = _full_chain(grass_version="8.5.0")
+    dk_b, rk_b, sk_b = _full_chain(grass_version="8.6.0")
+    assert dk_a == dk_b
+    assert rk_a != rk_b
+    assert sk_a != sk_b
+
+
+def test_radiation_key_requires_grass_version():
+    dk = pipeline.dsm_key(**_dsm_kwargs())
+    with pytest.raises(TypeError):
+        pipeline.radiation_key(dsm_key=dk, day_range=[172])  # type: ignore[call-arg]

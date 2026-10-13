@@ -262,3 +262,17 @@ def test_zonal_insolation_windowed_matches_full_raster_reference(tmp_path):
         reference.append(float(np.mean(v)) if v.size else np.nan)
 
     np.testing.assert_allclose(got, reference, equal_nan=True)
+
+
+def test_grass_version_returns_stripped_cli_output(monkeypatch):
+    import subprocess
+
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, stdout="8.5.0\n", stderr="")
+
+    monkeypatch.setattr(radiation.subprocess, "run", fake_run)
+    assert radiation.grass_version() == "8.5.0"
+    assert calls == [["grass", "--config", "version"]]
