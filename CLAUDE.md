@@ -201,8 +201,9 @@ Worktree gotchas:
   every other session.
 - `config.REPO_ROOT` follows the code, so a worktree has its **own empty `data/` and `outputs/`**
   (tile cache included). Run data-producing batches (`scripts/run_city.py`, `scripts/build_web.py`)
-  from the main checkout, where the caches live. `.env` is still found when you run from inside
-  the worktree (dotenv walks up from the cwd to the repo root's `.env`).
+  from the main checkout, where the caches live. `.env` is still found from an in-repo worktree:
+  `config.py`'s bare `load_dotenv()` walks up from the *module's* location (not the cwd), and
+  `.claude/worktrees/<name>/src/…` sits under the repo root. Sibling worktrees don't find it.
 - The integration tier rewrites `web/screenshot*.png`; `git checkout` them before committing unless
   the ticket is about the map.
 
