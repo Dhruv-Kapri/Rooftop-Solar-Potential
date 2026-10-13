@@ -11,6 +11,7 @@ budget re-runs against (stage-2-part2-plan.md §6.5/§8).
     python scripts/run_city.py --day-range 172        # fast single-day smoke over the whole grid
     python scripts/run_city.py --no-aggregate         # roof side only (skip the equity map)
     python scripts/run_city.py --no-resume            # force a full recompute
+    python scripts/run_city.py --run-label 12day_gcr   # new run label; old outputs untouched
     python scripts/run_city.py --nprocs 8             # 8 r.sun threads per tile (same results)
 
 This is a BATCH JOB, not CI: the calibrated full-DC run is many tiles × a 12-day r.sun pass.
@@ -25,6 +26,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import platform
 import time
 from pathlib import Path
 
@@ -48,32 +51,44 @@ def _run_label(day_range: list[int] | None) -> str:
     return f"{len(day_range)}day"
 
 
-def _report_runlog(tiles_dir, city: gpd.GeoDataFrame, wall_clock_s: float, nprocs: int) -> None:
-    """Print the §8 compute-cost run-log from the tile manifest + wall-clock."""
+def _report_runlog(
+    tiles_dir, city: gpd.GeoDataFrame, wall_clock_s: float, nprocs: int, output_dir: Path
+) -> None:
+    """Print the §8 compute-cost run-log from the tile manifest + wall-clock, and write the same
+    text to `<output_dir>/run_log.txt` so the cost record travels with the run's deliverables."""
     manifest = json.loads((tiles_dir / pipeline.MANIFEST_NAME).read_text())
     done = {k: v for k, v in manifest.items() if v.get("status") == "done"}
     failed = {k: v for k, v in manifest.items() if v.get("status") == "failed"}
     n_with_roofs = sum(1 for v in done.values() if v.get("n_roofs", 0) > 0)
 
-    print("\n=== Part 2-2 city run — compute-cost run-log (§8) ===")
-    print(f"  tiles done           : {len(done)}  ({n_with_roofs} with roofs, "
-          f"{len(done) - n_with_roofs} empty)")
-    print(f"  tiles failed         : {len(failed)}")
-    if failed:
-        for key, entry in list(failed.items())[:5]:
-            print(f"      tile {key}: {entry.get('error', '')[:100]}")
-    print(f"  city roofs (merged)  : {len(city)}")
-    print(f"  r.sun threads        : {nprocs}")
-    print(f"  wall-clock           : {wall_clock_s:8.1f} s")
+    lines = ["\n=== Part 2-2 city run — compute-cost run-log (§8) ==="]
+    lines.append(
+        f"  machine              : {platform.node()} ({platform.platform()}, {os.cpu_count()} cpus)"
+    )
+    lines.append(
+        f"  tiles done           : {len(done)}  ({n_with_roofs} with roofs, "
+        f"{len(done) - n_with_roofs} empty)"
+    )
+    lines.append(f"  tiles failed         : {len(failed)}")
+    for key, entry in list(failed.items())[:5]:
+        lines.append(f"      tile {key}: {entry.get('error', '')[:100]}")
+    lines.append(f"  city roofs (merged)  : {len(city)}")
+    lines.append(f"  r.sun threads        : {nprocs}")
+    lines.append(f"  wall-clock           : {wall_clock_s:8.1f} s")
     if len(done):
-        print(f"  per-tile (mean)      : {wall_clock_s / len(done):8.1f} s")
+        lines.append(f"  per-tile (mean)      : {wall_clock_s / len(done):8.1f} s")
 
     if len(city):
         total_energy_mwh = float(city["annual_energy_kwh"].sum()) / 1000.0
         total_capacity_mw = float(city["capacity_kw"].sum()) / 1000.0
-        print("\n=== city per-roof totals (sanity vs NREL/NLR DC potential, §6.4) ===")
-        print(f"  installed capacity   : {total_capacity_mw:10.1f} MW")
-        print(f"  annual energy        : {total_energy_mwh:10.1f} MWh/yr")
+        lines.append("\n=== city per-roof totals (sanity vs NREL/NLR DC potential, §6.4) ===")
+        lines.append(f"  installed capacity   : {total_capacity_mw:10.1f} MW")
+        lines.append(f"  annual energy        : {total_energy_mwh:10.1f} MWh/yr")
+
+    text = "\n".join(lines)
+    print(text)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "run_log.txt").write_text(text + "\n")
 
 
 def main() -> None:
@@ -86,6 +101,11 @@ def main() -> None:
     )
     parser.add_argument("--tiles-dir", default=None, help="per-tile cache + manifest dir")
     parser.add_argument("--output-dir", default=None, help="where deliverables are written")
+    parser.add_argument(
+        "--run-label",
+        default=None,
+        help="deliverables go to outputs/dc/<LABEL> (default: 12day / <N>day); --output-dir wins",
+    )
     parser.add_argument("--no-resume", action="store_true", help="recompute every tile")
     parser.add_argument(
         "--nprocs",
@@ -95,6 +115,13 @@ def main() -> None:
     )
     parser.add_argument("--no-aggregate", action="store_true", help="skip the tract equity map")
     args = parser.parse_args()
+    if args.run_label is not None and (
+        not args.run_label
+        or args.run_label == ".."
+        or "/" in args.run_label
+        or "\\" in args.run_label
+    ):
+        parser.error("--run-label must be a plain dir name (no path separators or '..')")
 
     tiles_dir = Path(args.tiles_dir) if args.tiles_dir is not None else config.TILES_CACHE_DIR
     day_range = _parse_day_range(args.day_range)
@@ -102,7 +129,7 @@ def main() -> None:
     output_dir = (
         Path(args.output_dir)
         if args.output_dir is not None
-        else config.outputs_run_dir("dc", _run_label(day_range))
+        else config.outputs_run_dir("dc", args.run_label or _run_label(day_range))
     )
 
     started = time.perf_counter()
@@ -116,7 +143,7 @@ def main() -> None:
         nprocs=args.nprocs,
     )
     wall_clock_s = time.perf_counter() - started
-    _report_runlog(tiles_dir, city, wall_clock_s, args.nprocs)
+    _report_runlog(tiles_dir, city, wall_clock_s, args.nprocs, output_dir)
     print(f"  deliverables dir     : {output_dir}")
 
     if not args.no_aggregate:
