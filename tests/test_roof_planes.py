@@ -11,9 +11,12 @@ Fast: pure numpy + sklearn, no DSM, no network, no GRASS.
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import numpy.typing as npt
 import pytest
+from sklearn.exceptions import UndefinedMetricWarning
 
 from rooftop_solar import roof_planes
 
@@ -186,3 +189,78 @@ def test_too_few_pixels_are_flagged_not_fitted():
     assert np.isnan(fit["aspect_deg"])
     assert fit["n_px"] == 4
     assert fit["low_confidence"] is True
+
+
+# --- Quiet sklearn R^2 warning flood (issue #15) -----------------------------------------
+# RANSAC's R^2 score is only a tie-breaker among candidates; on a degenerate roof it is
+# undefined (nan either way), so silencing the warning must not move any per-roof output.
+
+
+def _collinear_strip(n: int) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    """A 1-px-wide, collinear, noisy strip — the degenerate roof that floods the logs."""
+    X = np.column_stack([np.arange(n) * 1.0, np.zeros(n)])
+    z = 100 + np.random.default_rng(1).normal(0, 3, n)
+    return X, z
+
+
+@pytest.mark.parametrize("n", [6, 10])
+def test_degenerate_roof_emits_no_undefined_metric_warning(n):
+    X, z = _collinear_strip(n)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        roof_planes.fit_roof_plane(X, z)
+        roof_planes.fit_planes_multi(X, z)
+
+    assert not [w for w in caught if issubclass(w.category, UndefinedMetricWarning)]
+
+
+# fit_roof_plane outputs on _collinear_strip(n), captured from the code BEFORE the warning was
+# silenced — a regression pin (tied to the seeded noise + sklearn's RANSAC; may move on upgrade).
+_PINNED_STRIP = {
+    6: {
+        "tilt_deg": 3.710601556151217,
+        "aspect_deg": 270.0,
+        "inlier_ratio": 0.5,
+        "n_px": 6,
+        "low_confidence": True,
+    },
+    10: {
+        "tilt_deg": 0.874090241633737,
+        "aspect_deg": 270.0,
+        "inlier_ratio": 0.6,
+        "n_px": 10,
+        "low_confidence": True,
+    },
+}
+
+
+@pytest.mark.parametrize("n", [6, 10])
+def test_degenerate_roof_outputs_unchanged(n):
+    X, z = _collinear_strip(n)
+
+    fit = roof_planes.fit_roof_plane(X, z)
+
+    expected = _PINNED_STRIP[n]
+    assert fit["n_px"] == expected["n_px"]
+    assert fit["low_confidence"] is expected["low_confidence"]
+    assert fit["inlier_ratio"] == pytest.approx(expected["inlier_ratio"], abs=1e-12)
+    assert fit["tilt_deg"] == pytest.approx(expected["tilt_deg"], abs=1e-9)
+    assert fit["aspect_deg"] == pytest.approx(expected["aspect_deg"], abs=1e-9)
+    assert roof_planes.fit_planes_multi(X, z) == []
+
+
+def test_normal_roof_outputs_unchanged():
+    X, z = synthetic_roof(30.0, "south", n=10)
+
+    fit = roof_planes.fit_roof_plane(X, z)
+    planes = roof_planes.fit_planes_multi(X, z)
+
+    assert fit["tilt_deg"] == pytest.approx(30.0, abs=1e-9)
+    assert fit["aspect_deg"] == pytest.approx(180.0, abs=1e-9)
+    assert fit["inlier_ratio"] == 1.0
+    assert fit["n_px"] == 100
+    assert fit["low_confidence"] is False
+    assert len(planes) == 1
+    assert planes[0]["n_px"] == 100
+    assert planes[0]["coef"] == pytest.approx((0.0, np.tan(np.radians(30.0)), 0.0), abs=1e-9)

@@ -10,6 +10,7 @@ uncertainty; don't over-claim precision.
 
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 
 import geopandas as gpd
@@ -20,6 +21,7 @@ import rasterio.mask
 import rasterio.transform
 from shapely.geometry import mapping
 from shapely.geometry.base import BaseGeometry
+from sklearn.exceptions import UndefinedMetricWarning
 from sklearn.linear_model import RANSACRegressor
 
 # Below this many DSM pixels, a plane fit isn't trustworthy — don't attempt one.
@@ -33,6 +35,19 @@ MAX_PLANES = 4
 MIN_PLANE_PX = 8
 # RANSAC inlier band for the multi-plane fit — reuses the single-plane fit_roof_plane value.
 RESIDUAL_THRESHOLD_M = 0.5
+
+
+def _fit_ransac(X: npt.NDArray[np.float64], z: npt.NDArray[np.float64]) -> RANSACRegressor:
+    """Fit RANSAC with the shared inlier band, silencing sklearn's undefined-R^2 warning.
+
+    R^2 is only RANSAC's tie-breaker between candidates; it is undefined (nan either way) on
+    <2-sample candidate sets, so ignoring the warning on degenerate roofs changes no output.
+    """
+    ransac = RANSACRegressor(residual_threshold=RESIDUAL_THRESHOLD_M, random_state=0)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UndefinedMetricWarning)
+        ransac.fit(X, z)
+    return ransac
 
 
 def fit_roof_plane(X: npt.NDArray[np.float64], z: npt.NDArray[np.float64]) -> dict[str, object]:
@@ -54,8 +69,7 @@ def fit_roof_plane(X: npt.NDArray[np.float64], z: npt.NDArray[np.float64]) -> di
             "n_px": n_px,
             "low_confidence": True,
         }
-    ransac = RANSACRegressor(residual_threshold=0.5, random_state=0)
-    ransac.fit(X, z)
+    ransac = _fit_ransac(X, z)
     a, b = (float(v) for v in ransac.estimator_.coef_)
     inlier_ratio = float(ransac.inlier_mask_.mean())
     tilt_deg = float(np.degrees(np.arctan(np.hypot(a, b))))
@@ -97,8 +111,7 @@ def fit_planes_multi(
     for _ in range(max_planes):
         if len(remaining) < MIN_PX:
             break
-        ransac = RANSACRegressor(residual_threshold=RESIDUAL_THRESHOLD_M, random_state=0)
-        ransac.fit(X[remaining], z[remaining])
+        ransac = _fit_ransac(X[remaining], z[remaining])
         mask = ransac.inlier_mask_
         inliers = remaining[mask]
         if len(inliers) < MIN_PLANE_PX:
