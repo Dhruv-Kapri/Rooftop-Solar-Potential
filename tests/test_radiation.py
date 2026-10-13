@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import geopandas as gpd
 import numpy as np
+import pytest
 import rasterio
 from rasterio.features import geometry_mask
 from rasterio.transform import from_origin
@@ -276,3 +277,27 @@ def test_grass_version_returns_stripped_cli_output(monkeypatch):
     monkeypatch.setattr(radiation.subprocess, "run", fake_run)
     assert radiation.grass_version() == "8.5.0"
     assert calls == [["grass", "--config", "version"]]
+
+
+def test_grass_version_without_grass_on_path_raises_clear_error(monkeypatch):
+    def fake_run(cmd, **kwargs):
+        raise FileNotFoundError(2, "No such file or directory", "grass")
+
+    monkeypatch.setattr(radiation.subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError, match="GRASS GIS.*PATH.*run_city") as excinfo:
+        radiation.grass_version()
+    assert isinstance(excinfo.value.__cause__, FileNotFoundError)
+
+
+def test_grass_version_nonzero_exit_raises_with_stderr(monkeypatch):
+    import subprocess
+
+    def fake_run(cmd, **kwargs):
+        raise subprocess.CalledProcessError(1, cmd, output="", stderr="grass: broken install")
+
+    monkeypatch.setattr(radiation.subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError, match="grass: broken install") as excinfo:
+        radiation.grass_version()
+    assert isinstance(excinfo.value.__cause__, subprocess.CalledProcessError)

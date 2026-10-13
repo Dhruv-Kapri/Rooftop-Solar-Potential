@@ -255,20 +255,52 @@ def test_sidecar_matches_false_when_sidecar_missing(tmp_path: Path):
     assert cache.sidecar_matches(artifact, "key-1") is False
 
 
-def test_sidecar_matches_false_when_artifact_missing_but_sidecar_present(tmp_path: Path):
+def test_sidecar_matches_false_when_artifact_deleted_after_sidecar_written(tmp_path: Path):
     artifact = tmp_path / "tile_0_0.tif"
+    artifact.write_bytes(b"fake raster")
     cache.write_key_sidecar(artifact, "key-1")
-    # sidecar exists, but the artifact itself was never written (or was deleted)
+    artifact.unlink()
 
     assert cache.sidecar_matches(artifact, "key-1") is False
 
 
-def test_write_key_sidecar_creates_parent_dirs(tmp_path: Path):
-    artifact = tmp_path / "nested" / "deeper" / "tile_0_0.tif"
+def test_write_key_sidecar_raises_for_missing_artifact(tmp_path: Path):
+    artifact = tmp_path / "tile_0_0.tif"
 
+    with pytest.raises(FileNotFoundError, match="tile_0_0.tif"):
+        cache.write_key_sidecar(artifact, "key-1")
+
+
+# --- cross-machine handoff integrity (issue #18): the sidecar also pins the artifact bytes ---
+
+
+def test_sidecar_matches_false_for_truncated_artifact(tmp_path: Path):
+    artifact = tmp_path / "tile_0_0.tif"
+    artifact.write_bytes(b"fake raster bytes")
     cache.write_key_sidecar(artifact, "key-1")
 
-    assert cache.read_key_sidecar(artifact) == "key-1"
+    artifact.write_bytes(b"fake raster")  # truncated; sidecar left intact
+
+    assert cache.sidecar_matches(artifact, "key-1") is False
+
+
+def test_sidecar_matches_false_for_same_size_replaced_artifact(tmp_path: Path):
+    artifact = tmp_path / "tile_0_0.tif"
+    artifact.write_bytes(b"old raster!")
+    cache.write_key_sidecar(artifact, "key-1")
+
+    artifact.write_bytes(b"new raster!")  # same length, different content
+
+    assert cache.sidecar_matches(artifact, "key-1") is False
+
+
+def test_sidecar_matches_false_for_legacy_plain_text_sidecar(tmp_path: Path):
+    artifact = tmp_path / "tile_0_0.tif"
+    artifact.write_bytes(b"fake raster")
+    cache.sidecar_path(artifact).write_text("key-1")  # pre-#18 format: the bare key
+
+    assert cache.read_key_sidecar(artifact) is None
+    assert cache.sidecar_matches(artifact, "key-1") is False
 
 
 # --------------------------------------------------------------------------- #

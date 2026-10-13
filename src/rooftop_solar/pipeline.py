@@ -19,6 +19,8 @@ so the choropleth describes the neighbourhood, not the buffer ring.
 from __future__ import annotations
 
 import json
+import os
+import warnings
 from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any
@@ -32,6 +34,7 @@ from shapely.ops import transform as shp_transform
 from rooftop_solar import (
     aggregate,
     aoi,
+    cache,
     config,
     dsm,
     footprints,
@@ -642,18 +645,35 @@ class TileManifest:
 
     @classmethod
     def load(cls, path: str | Path) -> TileManifest:
-        """Read the manifest JSON at `path` if it exists, else start empty."""
+        """Read the manifest JSON at `path` if it exists, else start empty.
+
+        An unparseable manifest (e.g. rsynced mid-save, issue #18) also starts empty, with a
+        warning naming the path: every tile re-scores, while the DSM/insolation rasters are
+        still reused through their own sidecars (ADR-0014).
+        """
         path = Path(path)
+        entries: dict[str, dict[str, Any]] = {}
         if path.exists():
-            entries = json.loads(path.read_text())
-        else:
-            entries = {}
+            try:
+                entries = json.loads(path.read_text())
+            except ValueError:
+                warnings.warn(
+                    f"tile manifest {path} is not valid JSON; starting with an empty manifest "
+                    "(every tile will be re-scored)",
+                    stacklevel=2,
+                )
         return cls(path, entries)
 
     def save(self) -> None:
-        """Write the manifest to `self.path` as JSON, creating parent dirs as needed."""
+        """Write the manifest to `self.path` as JSON, creating parent dirs as needed.
+
+        Atomic (temp file in the same dir, then `os.replace`), so a crash or a concurrent rsync
+        never sees a half-written manifest (issue #18).
+        """
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(self.entries, sort_keys=True, indent=2))
+        tmp = self.path.with_name(f"{self.path.name}.tmp")
+        tmp.write_text(json.dumps(self.entries, sort_keys=True, indent=2))
+        os.replace(tmp, self.path)
 
     def is_current(self, tile: tiling.Tile, stamp: str) -> bool:
         """True only if `tile` is recorded `"done"` with a `stamp` matching exactly.
@@ -732,8 +752,10 @@ def run_city(
         tiles_dir: per-tile parquet cache + manifest (default `config.TILES_CACHE_DIR`).
         output_dir: where the city per-roof GeoParquet goes (default
             `config.CALIBRATED_CITY_OUTPUTS_DIR`, `outputs/dc/12day/`).
-        resume: skip tiles already recorded done under the tile's current `scoring_key`
-            (idempotent re-run); False recomputes every tile.
+        resume: skip tiles already recorded done under the tile's current `scoring_key` whose
+            roofs parquet still matches its checksum sidecar (idempotent re-run; a truncated,
+            swapped or sidecar-less parquet after a cross-machine rsync handoff is recomputed
+            — issue #18); False recomputes every tile.
         write_outputs: if False, compute but write no city parquet.
         nprocs: `r.sun` thread count for every tile (default 1). Speed only — not part of any
             cache key or the manifest, so a run resumes identically at any thread count.
@@ -775,7 +797,7 @@ def run_city(
         insol_cache = tiles_dir / f"tile_{tile.row}_{tile.col}_insolation.tif"
         roofs_cache = tiles_dir / f"tile_{tile.row}_{tile.col}_roofs.parquet"
 
-        if resume and manifest.is_current(tile, sk) and roofs_cache.exists():
+        if resume and manifest.is_current(tile, sk) and cache.sidecar_matches(roofs_cache, sk):
             tile_frames.append(gpd.read_parquet(roofs_cache))
             continue
         try:
@@ -796,6 +818,7 @@ def run_city(
             manifest.save()
             continue
         _write_parquet(roofs, roofs_cache)
+        cache.write_key_sidecar(roofs_cache, sk)  # artifact first, then its checksum sidecar
         manifest.mark_done(tile, sk, n_roofs=len(roofs))
         manifest.save()
         tile_frames.append(roofs)

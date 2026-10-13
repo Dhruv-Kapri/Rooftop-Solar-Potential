@@ -17,6 +17,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from rooftop_solar import pipeline, tiling
 
 _TILE_A = tiling.Tile(row=0, col=0, core=None, buffered=None)
@@ -63,3 +65,28 @@ def test_save_then_load_round_trips_is_current(tmp_path: Path):
     assert reloaded.is_current(_TILE_A, "stamp-1") is True
     assert reloaded.is_current(_TILE_B, "stamp-1") is False
     assert reloaded.is_current(_TILE_A, "stamp-2") is False
+
+
+def test_load_treats_corrupt_manifest_as_empty_with_a_warning(tmp_path: Path):
+    path = tmp_path / "manifest.json"
+    path.write_text('{"0_0": {"status": "do')  # e.g. rsynced mid-save
+
+    with pytest.warns(UserWarning, match="manifest.json"):
+        manifest = pipeline.TileManifest.load(path)
+
+    assert manifest.is_current(_TILE_A, "stamp-1") is False
+
+
+def test_save_is_atomic_leaving_no_temp_file_behind(tmp_path: Path):
+    path = tmp_path / "manifest.json"
+    manifest = pipeline.TileManifest.load(path)
+    manifest.mark_done(_TILE_A, "stamp-1", n_roofs=3)
+
+    manifest.save()
+    manifest.mark_done(_TILE_B, "stamp-1", n_roofs=4)
+    manifest.save()  # overwrite an existing manifest
+
+    assert list(tmp_path.iterdir()) == [path]
+    reloaded = pipeline.TileManifest.load(path)
+    assert reloaded.is_current(_TILE_A, "stamp-1") is True
+    assert reloaded.is_current(_TILE_B, "stamp-1") is True

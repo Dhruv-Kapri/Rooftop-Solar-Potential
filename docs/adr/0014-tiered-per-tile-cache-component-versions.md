@@ -105,3 +105,20 @@ city dataset. **Decision:** `radiation_key` also carries the GRASS version strin
 a different engine version is recomputed, not reused. Chosen over a documented "pin the same GRASS
 on both machines" rule (unenforced) and over never handing off radiation (loses the cross-machine
 resume). Invalidates no existing work — no radiation cache had been populated when this was decided.
+
+## Addendum (2026-10-13) — sidecars carry an artifact checksum (cross-machine handoff, #18)
+The tile cache is now rsynced between the Mac and the VM (`scripts/sync_tiles.sh`). Matching only
+"artifact exists AND sidecar key matches" fell short of the "half-written artifact forces recompute"
+promise above once files cross machines. A truncated copy with an intact sidecar was reused. rsync
+also carries on past a per-file error, so an *old* artifact can end up beside a *new* sidecar, and
+same-tile rasters are usually the same size. **Decision:** the sidecar records the key plus the
+sha256 of the artifact's bytes, and a match requires both. The tile's roofs GeoParquet gets a
+sidecar too, under its `scoring_key`, so the `run_city` resume check no longer trusts the manifest
+plus existence alone. A truncated parquet used to crash the run outside the per-tile `try`.
+`TileManifest.load` treats an unparseable manifest as empty, with a warning, and `save` is atomic
+(temp file + `os.replace`).
+
+This is an integrity checksum, not the content-hash *key* rejected under "Alternatives": the key
+is still derived from component versions. The cost is a sha256 of a ~5–10 MB raster on reuse,
+milliseconds against a file that is read anyway. Sidecars in the old plain-text format don't parse,
+so they force a recompute. No sidecar-backed cache had been populated when this was decided.
