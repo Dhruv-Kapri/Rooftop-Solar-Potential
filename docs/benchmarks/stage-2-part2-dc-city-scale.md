@@ -59,17 +59,18 @@ largest tile (`6_7`, 1300×1300 px @ 2 m), radiation step only, on the dev Mac (
 
 | `nprocs` | 12-day wall-clock | speedup | identical to 1 thread |
 |---|---|---|---|
-| 1 | 367.1 s | 1.00× | — |
-| 4 | 138.3 s | **2.66×** | ✓ |
-| 8 | 270.3 s² | 1.36×² | ✓ |
+| 1 | 324.4 s | 1.00× | — |
+| 4 | 116.1 s | **2.79×** | ✓ |
+| 8 | 90.7 s | **3.58×** | ✓ |
 
-² **Contaminated:** host load jumped to ~52 mid-run (other sessions' jobs). The 1/4-thread rows
-ran at load ~5. A 1-day check on the same tile at load ~8–10 gave 1 → 8 threads = 35.0 → 18.1 s
-(**1.94×**). On this 4P+4E part, 8 threads add only efficiency cores, so the 8-thread figure
-won't approach 8×. Every reading is **below ~4×**, so tile-level worker processes are the
-follow-up (#27).
+One quiet-window run of all three counts back-to-back, so they are directly comparable: dev Mac
+(8 cores = 4P + 4E), host 1-min load ~5 at start and 3.0 / 5.7 / 10.6 reported at the end of the
+1 / 4 / 8-thread runs (the rise tracks the benchmark's own threads; no external load). It replaces an
+earlier run whose 8-thread row was contaminated by other sessions' jobs (load ~52). On this 4P+4E
+part the 8 threads include efficiency cores, so scaling is sub-linear. Every reading is **below
+~4×**, so tile-level worker processes remain a follow-up candidate (#27).
 
-Budget implication: `--nprocs 4` cuts the radiation step ~2.7× per tile; tiles still run in
+Budget implication: `--nprocs 8` cuts the radiation step ~3.6× per tile (`--nprocs 4` ~2.8×); tiles still run in
 sequence, and DSM/footprint/plane stages are unaffected.
 
 ## 1-day vs 12-day — what fidelity changes (and what it doesn't)
