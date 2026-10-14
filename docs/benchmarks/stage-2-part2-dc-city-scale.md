@@ -121,6 +121,41 @@ Unlike the VM, splitting helps here. A likely reason (not measured): on a 4P + 4
 - **Mac:** `--workers 2 --nprocs 4`. Keep `workers` at 2 on the 8 GB Mac: each worker imports the
   geo stack and holds its tile's rasters, and an 8-worker sweep ran into memory pressure.
 
+## Full-city GCR run — `12day_gcr` (#19, 2026-10-13)
+
+The Part 2-4 multiplane chain with the flat-roof GCR calibration (`SCORING_VERSION` `2-4.1`), run once
+over the whole District under the **new run label** `12day_gcr` (`run_city.py --run-label 12day_gcr
+--workers 1 --nprocs 8`, the VM default above). The old `outputs/dc/12day/` is untouched (its files
+still carry their September timestamps). The run also filled the DSM + radiation cache tiers (ADR-0014)
+for all 66 tiles: each tile's `*_dsm.tif` / `*_insolation.tif` opens, and its `.key` sidecar equals the
+key recomputed from the current code (GRASS 8.5.0), with a matching `done` manifest stamp. Tuning
+rounds (#20) are therefore re-scores, not r.sun re-runs.
+
+| | Pre-GCR multiplane (`12day/roofs_multiplane_nogcr.parquet`) | **GCR (`12day_gcr`)** |
+|---|---|---|
+| Machine | dev Mac | VM `graham-build` (hostname `garham-server`; 8 vCPU, shared, `nice -n 10`) |
+| `workers × nprocs` | — (predates #16/#27) | 1 × 8 |
+| Tiles / failed | — | 66 / 0 (no resume pass needed) |
+| Wall-clock (cold DSM + r.sun) | — | **14,186 s (~3.9 h)**, 214.9 s/tile |
+| Roofs merged | 100,064 | 100,064 (seam conservation holds) |
+| Installed capacity | 3,831.5 MW | **2,302.7 MW** |
+| Annual energy | 4,531 GWh/yr | **2,734 GWh/yr** |
+| Specific yield | ~1,183 kWh/kWp | **~1,187 kWh/kWp** (GCR moves capacity, not yield) |
+| Capacity ÷ NREL (~1.3 GW) | **2.9×** | **1.77×** |
+| Energy ÷ NREL (~1.6 TWh) | 2.8× | **1.71×** |
+| Tracts | — | 56 of 206 priority; 2 data-missing |
+
+The analytic estimate (plan step 6: ~2.23 GW, ~1.7×) holds: the measured 2,302.7 MW is 3% above it.
+Flat roofs still carry 64% of capacity (1,471 MW of 2,303 MW; 31,721 flat roofs). The ~1.7× NREL ratio
+is **reported, not targeted** (Part 2-4 grill 2026-10-12); the spot-check (#20) decides any further
+knob changes.
+
+The ~3.9 h is a single run on a VM other teams share; tenant load wasn't logged. Read it as "under
+4 h on 8 vCPU", not an exact figure. The suggested end-to-end A/B of `1 × 8` vs `2 × 4` (above) was
+**not** run; this run used `1 × 8` only. Deliverables (`roofs.parquet`, `tracts.gpkg`, `tract_*.png`,
+`run_log.txt`) are in `outputs/dc/12day_gcr/` on the VM (`~/rsp-19`) and copied to the Mac main
+checkout. The ~726 MB tile cache stays on the VM (`~/rsp-19/data/tiles`) until it is handed off (#18).
+
 ## 1-day vs 12-day — what fidelity changes (and what it doesn't)
 
 The comparison is the point: single-day vs 12-day calibrated is a **radiation-fidelity** difference.
@@ -146,6 +181,9 @@ is day-independent and our **usable-area estimate overstates** it (the flat ×0.
 footprint rowhouse merging, ADR-0003/0005). This is a *geometry / usable-area* over-estimate, not a
 radiation one — and it is exactly the lever **Part 2-4** attacks (obstruction-aware usable area,
 ADR-0013). Reported honestly, not smoothed over.
+
+**Update (#19, 2026-10-13):** the Part 2-4 multiplane run (3.83 GW, 2.9×) plus the flat-roof GCR
+calibration measures **2.30 GW / 2.73 TWh, ~1.77× / ~1.71× NREL**. See "Full-city GCR run" above.
 
 ## Caveats
 
