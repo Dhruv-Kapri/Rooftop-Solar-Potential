@@ -137,11 +137,11 @@ def main() -> None:
     args = parser.parse_args()
     if args.run_label is not None and (
         not args.run_label
-        or args.run_label == ".."
+        or args.run_label in (".", "..")
         or "/" in args.run_label
         or "\\" in args.run_label
     ):
-        parser.error("--run-label must be a plain dir name (no path separators or '..')")
+        parser.error("--run-label must be a plain dir name (no path separators, '.' or '..')")
 
     tiles_dir = Path(args.tiles_dir) if args.tiles_dir is not None else config.TILES_CACHE_DIR
     day_range = _parse_day_range(args.day_range)

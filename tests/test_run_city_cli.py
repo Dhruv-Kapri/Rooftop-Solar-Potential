@@ -63,7 +63,7 @@ def test_output_dir_beats_run_label(run_cli, tmp_path):
     assert recorded["output_dir"] == tmp_path / "explicit"
 
 
-@pytest.mark.parametrize("label", ["", "a/b", "..", "a\\b"])
+@pytest.mark.parametrize("label", ["", "a/b", ".", "..", "a\\b"])
 def test_bad_run_label_rejected(run_cli, label):
     with pytest.raises(SystemExit):
         run_cli("--run-label", label)
