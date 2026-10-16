@@ -121,4 +121,13 @@ plus existence alone. A truncated parquet used to crash the run outside the per-
 This is an integrity checksum, not the content-hash *key* rejected under "Alternatives": the key
 is still derived from component versions. The cost is a sha256 of a ~5–10 MB raster on reuse,
 milliseconds against a file that is read anyway. Sidecars in the old plain-text format don't parse,
-so they force a recompute. No sidecar-backed cache had been populated when this was decided.
+so they force a recompute. No cache populated *under the checksum format* existed when this was
+decided.
+
+The #19 full-city cache (66 tiles, ~3.9 h of r.sun on the VM) did predate it: plain-text raster
+sidecars, no roofs sidecars. Recomputing it for a format change would waste that run, so a one-off
+`scripts/adopt_legacy_sidecars.py` upgrades it in place: each legacy sidecar keeps its key and gains
+the file's sha256, and each manifest-`done` roofs parquet gets a sidecar under its manifest stamp.
+Adoption vouches for the bytes as they are at that moment, so it runs only on the machine that
+produced the cache, before the first handoff (`cache.adopt_legacy_sidecar`) — never on a received
+copy.
