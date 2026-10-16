@@ -704,7 +704,7 @@ class TileManifest:
         to ints (`row`/`col` may be negative: the grid is anchored on a fixed origin)."""
         for key, entry in self.entries.items():
             if entry.get("status") == "done":
-                row, col = (int(i) for i in key.split("_"))
+                row, col = _parse_tile_key(key)
                 yield DoneTile(row, col, entry["stamp"], entry["n_roofs"])
 
     def mark_done(self, tile: tiling.Tile, stamp: str, n_roofs: int) -> None:
@@ -730,6 +730,12 @@ def _tile_key(tile: tiling.Tile) -> str:
     return f"{tile.row}_{tile.col}"
 
 
+def _parse_tile_key(key: str) -> tuple[int, int]:
+    """`_tile_key`'s inverse: `"<row>_<col>"` back to `(row, col)` (either may be negative)."""
+    row, col = key.split("_")
+    return int(row), int(col)
+
+
 # --------------------------------------------------------------------------- #
 # City runner — tile the District, score per tile, cache, merge (Part 2-2,    #
 # ADR-0009: per-tile cache, resumable/idempotent; tiles scored sequentially   #
@@ -742,7 +748,7 @@ MANIFEST_NAME = "manifest.json"
 
 
 TileArtifact = Literal["dsm", "insolation", "roofs"]
-_TILE_ARTIFACT_SUFFIX: dict[str, str] = {
+_TILE_ARTIFACT_SUFFIX: dict[TileArtifact, str] = {
     "dsm": "dsm.tif",
     "insolation": "insolation.tif",
     "roofs": "roofs.parquet",
