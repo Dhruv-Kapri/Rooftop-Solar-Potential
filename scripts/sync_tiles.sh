@@ -14,7 +14,7 @@
 #                                     # -n: dry run, list what would transfer
 #
 # Env overrides:
-#   SYNC_HOST     ssh alias of the other machine      (default: graham-build)
+#   SYNC_HOST     ssh alias of the other machine      (default: graham-build; graham-ts = Tailscale)
 #   LOCAL_TILES   local tile cache dir                (default: <repo>/data/tiles)
 #   REMOTE_TILES  remote tile cache dir, ~-relative   (default: rooftop-solar-potential/data/tiles)
 #
@@ -45,7 +45,7 @@ case "${2:-}" in
 esac
 
 if ! ssh -o ConnectTimeout=4 "$SYNC_HOST" true 2>/dev/null; then
-  echo "sync_tiles: $SYNC_HOST unreachable (office LAN only) — nothing synced." >&2
+  echo "sync_tiles: $SYNC_HOST unreachable (try SYNC_HOST=graham-ts for Tailscale) — nothing synced." >&2
   exit 1
 fi
 
