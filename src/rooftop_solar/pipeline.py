@@ -829,8 +829,8 @@ def run_city(
     """
     # Fail fast: the per-tile `except Exception` below would otherwise swallow these into an
     # all-failed batch.
-    _require_positive_int("nprocs", nprocs)
-    _require_positive_int("workers", workers)
+    radiation.require_positive_int("nprocs", nprocs)
+    radiation.require_positive_int("workers", workers)
     if aoi is None:
         from rooftop_solar import aoi as aoi_mod  # local import: `aoi` is a parameter name here
 
@@ -943,12 +943,6 @@ def _score_tile_or_error(
         return score(tile, **kwargs)
     except Exception as exc:
         return repr(exc)
-
-
-def _require_positive_int(name: str, value: object) -> None:
-    """Reject a non-int (incl. bool) or < 1 `name` — shared by `nprocs` and `workers`."""
-    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-        raise ValueError(f"{name} must be an int >= 1, got {value!r}")
 
 
 def _score_tile(
