@@ -60,9 +60,7 @@ class Tile:
     buffered: Polygon
 
 
-def tile_index(
-    point: Point, tile_size_m: float, origin: tuple[float, float]
-) -> tuple[int, int]:
+def tile_index(point: Point, tile_size_m: float, origin: tuple[float, float]) -> tuple[int, int]:
     """Map a point to its `(row, col)` grid cell by floor-arithmetic membership.
 
     `row` comes from northing (y), `col` from easting (x): `col = floor((x - ox) /

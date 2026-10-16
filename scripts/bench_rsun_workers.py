@@ -7,7 +7,7 @@ budget — every tile's `radiation.surface_irradiance(nprocs=N)` in a K-process 
 start method `run_city` uses — and reports throughput (tiles/hour) per split. Each tile's output is
 compared against the first split's (worker count must not change results).
 
-    python scripts/bench_rsun_workers.py data/tiles_12day/tile_{5_4,5_5,5_6,5_7}_dsm.tif
+    python scripts/bench_rsun_workers.py data/tiles/tile_{5_4,5_5,5_6,5_7}_dsm.tif
     python scripts/bench_rsun_workers.py <dsm.tif ...> --splits 1x8,2x4,4x2 --day-range 172
 
 Default `--day-range` is the calibrated 12-day pass (ADR-0001). Note the machine load (printed) —

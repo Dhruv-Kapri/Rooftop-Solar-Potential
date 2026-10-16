@@ -168,6 +168,12 @@ def plane_poa(planes_gdf: gpd.GeoDataFrame, insol_path: str | Path) -> gpd.GeoDa
     return out
 
 
+def require_positive_int(name: str, value: object) -> None:
+    """Reject a non-int (incl. bool) or < 1 `name` — shared by `nprocs` and `workers`."""
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(f"{name} must be an int >= 1, got {value!r}")
+
+
 def grass_version() -> str:
     """Return the installed GRASS version string (`grass --config version`).
 
@@ -353,8 +359,7 @@ def surface_irradiance(
         raise ValueError(
             f"shadow_search_distance_m must be positive, got {shadow_search_distance_m}"
         )
-    if nprocs < 1:
-        raise ValueError(f"nprocs must be >= 1, got {nprocs}")
+    require_positive_int("nprocs", nprocs)
 
     if (
         out_path is not None

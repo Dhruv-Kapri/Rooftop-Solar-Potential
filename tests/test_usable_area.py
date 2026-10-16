@@ -337,9 +337,7 @@ def test_usable_area_composer_qualifies_and_derates():
 
     # Footprint area is recorded, and qualifying roofs are derated by 0.70 (100 -> 70).
     np.testing.assert_allclose(out["footprint_area_m2"], 100.0)
-    np.testing.assert_allclose(
-        out["usable_area_m2"].to_numpy(), [70.0, 0.0, 0.0, 0.0, 70.0]
-    )
+    np.testing.assert_allclose(out["usable_area_m2"].to_numpy(), [70.0, 0.0, 0.0, 0.0, 70.0])
     assert out["usable"].tolist() == [True, False, False, False, True]
     assert out["roof_class"].tolist()[0] == "pitched_sun_facing"
     assert out["roof_class"].tolist()[4] == "flat"

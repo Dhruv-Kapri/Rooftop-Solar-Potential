@@ -9,9 +9,10 @@ ADR-0004 suitability percentile **city-wide** after the tiles are merged. Offlin
 from __future__ import annotations
 
 import geopandas as gpd
+import pytest
 from shapely.geometry import box
 
-from rooftop_solar import config, pipeline
+from rooftop_solar import cache, config, pipeline, tiling
 
 
 def _merged_city_roofs() -> gpd.GeoDataFrame:
@@ -60,3 +61,42 @@ def test_recompute_city_suitability_handles_empty_frame():
     out = pipeline.recompute_city_suitability(empty)
 
     assert len(out) == 0
+
+
+def test_tile_cache_path_rejects_unknown_kind(tmp_path):
+    with pytest.raises(ValueError, match="bogus"):
+        pipeline.tile_cache_path(tmp_path, 0, 1, "bogus")
+
+
+def _job(tmp_path) -> pipeline._TileJob:
+    tile = tiling.Tile(row=2, col=3, core=None, buffered=None)
+    roofs_cache = pipeline.tile_cache_path(tmp_path, 2, 3, "roofs")
+    return pipeline._TileJob(0, tile, "stamp-1", roofs_cache, {})
+
+
+def test_cache_tile_result_success_writes_parquet_sidecar_and_done_entry(tmp_path):
+    job = _job(tmp_path)
+    manifest = pipeline.TileManifest.load(tmp_path / pipeline.MANIFEST_NAME)
+    roofs = _merged_city_roofs()
+
+    out = pipeline._cache_tile_result(manifest, job, roofs)
+
+    assert out is roofs
+    assert len(gpd.read_parquet(job.roofs_cache)) == len(roofs)
+    assert cache.sidecar_matches(job.roofs_cache, "stamp-1")
+    reloaded = pipeline.TileManifest.load(tmp_path / pipeline.MANIFEST_NAME)
+    assert reloaded.is_current(job.tile, "stamp-1")
+
+
+def test_cache_tile_result_error_marks_failed_writes_nothing_and_returns_none(tmp_path):
+    job = _job(tmp_path)
+    manifest = pipeline.TileManifest.load(tmp_path / pipeline.MANIFEST_NAME)
+
+    out = pipeline._cache_tile_result(manifest, job, "RuntimeError('boom')")
+
+    assert out is None
+    assert not job.roofs_cache.exists()
+    reloaded = pipeline.TileManifest.load(tmp_path / pipeline.MANIFEST_NAME)
+    assert not reloaded.is_current(job.tile, "stamp-1")
+    assert list(reloaded.done_entries()) == []
+    assert "boom" in reloaded.entries["2_3"]["error"]

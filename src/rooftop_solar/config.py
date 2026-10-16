@@ -32,7 +32,14 @@ def outputs_area_dir(area: str) -> Path:
 
 
 def outputs_run_dir(area: str, label: str) -> Path:
-    """Output dir for a labelled run within a study area, e.g. outputs/dc/12day."""
+    """Output dir for a labelled run within a study area, e.g. outputs/dc/12day.
+
+    `label` must be a plain dir name (non-empty, no path separators, not '.' or '..') so a run
+    label can't escape `outputs/<area>/`; otherwise `ValueError`."""
+    if not label or label in (".", "..") or "/" in label or "\\" in label:
+        raise ValueError(
+            f"label must be a plain dir name (no path separators, '.' or '..'): {label!r}"
+        )
     return OUTPUTS_DIR / area / label
 
 
@@ -40,7 +47,9 @@ def outputs_run_dir(area: str, label: str) -> Path:
 NLR_API_KEY = os.getenv("NLR_API_KEY")
 NLR_API_EMAIL = os.getenv("NLR_API_EMAIL")
 NLR_API_BASE = "https://developer.nlr.gov"  # renamed from developer.nrel.gov (2025-12-01)
-CENSUS_API_KEY = os.getenv("CENSUS_API_KEY")  # free key: https://api.census.gov/data/key_signup.html
+CENSUS_API_KEY = os.getenv(
+    "CENSUS_API_KEY"
+)  # free key: https://api.census.gov/data/key_signup.html
 
 # --- study area (Phase 1) ---
 STUDY_AREA = "Washington, DC"

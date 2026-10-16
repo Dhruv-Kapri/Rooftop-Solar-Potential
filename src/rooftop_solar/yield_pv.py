@@ -187,17 +187,13 @@ def estimate_yield(usable: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     roofs = usable.copy()
     yields = [
         pv_yield(ua, poa)
-        for ua, poa in zip(
-            roofs["usable_area_m2"], roofs[POA_COLUMN], strict=True
-        )
+        for ua, poa in zip(roofs["usable_area_m2"], roofs[POA_COLUMN], strict=True)
     ]
     roofs["poa_real_kwh_m2"] = [y[0] for y in yields]
     roofs["capacity_kw"] = [y[1] for y in yields]
     roofs["annual_energy_kwh"] = [y[2] for y in yields]
     roofs["annual_co2_kg"] = [y[3] for y in yields]
-    roofs["energy_density_kwh_m2"] = (
-        roofs["annual_energy_kwh"] / roofs["footprint_area_m2"]
-    )
+    roofs["energy_density_kwh_m2"] = roofs["annual_energy_kwh"] / roofs["footprint_area_m2"]
     roofs["suitability"] = suitability_score(
         roofs["energy_density_kwh_m2"].to_numpy(), roofs["usable_area_m2"].to_numpy()
     )

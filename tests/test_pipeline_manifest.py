@@ -90,3 +90,17 @@ def test_save_is_atomic_leaving_no_temp_file_behind(tmp_path: Path):
     reloaded = pipeline.TileManifest.load(path)
     assert reloaded.is_current(_TILE_A, "stamp-1") is True
     assert reloaded.is_current(_TILE_B, "stamp-1") is True
+
+
+def test_done_entries_yields_only_done_tiles_with_parsed_row_col(tmp_path: Path):
+    manifest = pipeline.TileManifest.load(tmp_path / "manifest.json")
+    manifest.mark_done(_TILE_B, "stamp-b", n_roofs=7)
+    manifest.mark_done(tiling.Tile(row=-1, col=-2, core=None, buffered=None), "stamp-n", n_roofs=0)
+    manifest.mark_failed(_TILE_A, "stamp-a", error="boom")
+
+    done = sorted(manifest.done_entries())
+
+    assert done == [
+        pipeline.DoneTile(row=-1, col=-2, stamp="stamp-n", n_roofs=0),
+        pipeline.DoneTile(row=0, col=1, stamp="stamp-b", n_roofs=7),
+    ]

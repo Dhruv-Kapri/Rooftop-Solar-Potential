@@ -1,5 +1,7 @@
 """Smoke test that the package imports and config resolves. Real tests land per phase."""
 
+import pytest
+
 from rooftop_solar import config
 
 
@@ -59,6 +61,12 @@ def test_tiles_cache_dir_under_data_dir():
 
 def test_outputs_area_dir_is_a_subdir_of_outputs():
     assert config.outputs_area_dir("glover_park") == config.OUTPUTS_DIR / "glover_park"
+
+
+@pytest.mark.parametrize("label", ["", ".", "..", "a/b", "a\\b"])
+def test_outputs_run_dir_rejects_unsafe_label(label):
+    with pytest.raises(ValueError, match="label"):
+        config.outputs_run_dir("dc", label)
 
 
 def test_outputs_run_dir_nests_label_under_area():

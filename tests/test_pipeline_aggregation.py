@@ -22,10 +22,10 @@ _TRACT_B = box(100.0, 0.0, 200.0, 100.0)
 
 def _buildings():
     rows = [
-        (box(40.0, 40.0, 60.0, 60.0), True, 70.0, 14.0, 1000.0, 350.0, 80.0),   # →A
-        (box(10.0, 10.0, 30.0, 30.0), False, 0.0, 0.0, 0.0, 0.0, 0.0),          # →A unusable
-        (box(140.0, 40.0, 160.0, 60.0), True, 30.0, 6.0, 500.0, 175.0, 60.0),   # →B
-        (box(95.0, 40.0, 109.0, 60.0), True, 20.0, 4.0, 300.0, 105.0, 40.0),    # →B straddler
+        (box(40.0, 40.0, 60.0, 60.0), True, 70.0, 14.0, 1000.0, 350.0, 80.0),  # →A
+        (box(10.0, 10.0, 30.0, 30.0), False, 0.0, 0.0, 0.0, 0.0, 0.0),  # →A unusable
+        (box(140.0, 40.0, 160.0, 60.0), True, 30.0, 6.0, 500.0, 175.0, 60.0),  # →B
+        (box(95.0, 40.0, 109.0, 60.0), True, 20.0, 4.0, 300.0, 105.0, 40.0),  # →B straddler
     ]
     return gpd.GeoDataFrame(
         {
@@ -61,9 +61,7 @@ def _acs():
 
 
 def _energy_burden():
-    return pd.DataFrame(
-        {"GEOID": ["11001000100", "11001000200"], "energy_burden": [0.03, 0.05]}
-    )
+    return pd.DataFrame({"GEOID": ["11001000100", "11001000200"], "energy_burden": [0.03, 0.05]})
 
 
 def test_run_aggregation_composes_conserves_and_writes(tmp_path):
@@ -80,8 +78,14 @@ def test_run_aggregation_composes_conserves_and_writes(tmp_path):
     # The full equity contract is present on the output tracts.
     assert isinstance(result, gpd.GeoDataFrame)
     assert result.crs == config.WORKING_CRS
-    for col in ("GEOID", "annual_energy_kwh", "potential_per_household", "energy_burden",
-                "equity_class", "is_priority"):
+    for col in (
+        "GEOID",
+        "annual_energy_kwh",
+        "potential_per_household",
+        "energy_burden",
+        "equity_class",
+        "is_priority",
+    ):
         assert col in result.columns
 
     # Conservation end-to-end through the wired path (§7.1): every roof's energy survives the
@@ -94,6 +98,7 @@ def test_run_aggregation_composes_conserves_and_writes(tmp_path):
     gpkg = tmp_path / pipeline.TRACT_GEOPACKAGE_NAME
     assert gpkg.exists()
     import fiona
+
     assert "tracts" in fiona.listlayers(gpkg)
     assert (tmp_path / pipeline.POTENTIAL_CHOROPLETH_NAME).exists()
     assert (tmp_path / pipeline.EQUITY_CHOROPLETH_NAME).exists()
