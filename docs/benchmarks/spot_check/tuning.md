@@ -50,22 +50,23 @@ Before any city round, a scratch sweep re-scored only the 17 labelled roofs (sec
 `validation.rescore_sample` over the same cache) across `MIN_PLANE_PX` ∈ {8, 9, 10, 11, 12, 16, 20,
 25, 30, 40} × τ ∈ {0.5, 0.75, 1.0}:
 
-| `MIN_PLANE_PX` (τ 0.5) | ±1 clamped | raw | hit / miss / FP | unfittable roofs | large-planar | escaped m² |
+| `MIN_PLANE_PX` (τ 0.5) | ±1 clamped | raw | hit / miss / FP / TN | unfittable roofs | large-planar | escaped m² |
 |---|---|---|---|---|---|---|
-| 8 | 12 | 8 | 14 / 1 / 2 | 0 | 6 | 739 |
-| 9 | 12 | 9 | 14 / 1 / 2 | 0 | 6 | 680 |
-| 10 | 12 | 8 | 13 / 2 / 2 | 0 | 5 | 646 |
-| 11–12 | 12 | 8 | 13 / 2 / 1 | 1 | 4–5 | 595 |
-| 16 | 12 | 9 | 11 / 4 / 1 | 3 | 3 | 547 |
-| ≥ 25 | 10–11 | 8 | 8 / 7 / 0 | ≥ 8 | 0 | 0 |
+| 8 | 12 | 8 | 14 / 1 / 2 / 0 | 0 | 6 | 739 |
+| 9 | 12 | 9 | 14 / 1 / 2 / 0 | 0 | 6 | 680 |
+| 10 | 12 | 8 | 13 / 2 / 2 / 0 | 0 | 5 | 646 |
+| 11–12 | 12 | 8 | 13 / 2 / 1 / 1 | 1 | 4–5 | 595 |
+| 16 | 12 | 9 | 11 / 4 / 1 / 1 | 3 | 3 | 547 |
+| ≥ 25 | 10–11 | 8 | 8 / 7 / 0 / 2 | ≥ 8 | 0 | 0 |
 
 - **`MIN_PLANE_PX`: no headroom, kept at 8.** The same threshold also gates a roof's *first*
   plane. Raising it removes HVAC "planes" on flat rowhouses, but from 11 px real roofs become
   unfittable (the gable `7_2_587`; `7_2_225` and `7_2_1300` by 16 px). An unfittable roof drops out
   of the city. Clamped agreement never rises above 12/17. At 9 px `7_2_103` drops to 2 planes and agrees,
   but `7_2_225` (labelled 10) falls from 4 planes to 2 and stops agreeing: a swap, not a gain.
-- **τ → 0.5.** At every `MIN_PLANE_PX`, 0.5 finds the most labelled obstructions (14 hits vs 12 at
-  0.75) with the same false positives. It also equals the RANSAC inlier band
+- **τ → 0.5.** At 8–12 px, 0.5 finds more labelled obstructions than 0.75 (14 vs 12 hits at 8 px;
+  13 vs 12 at 12 px). At 16–20 px they tie, and 0.5 never finds fewer. False positives are the same
+  at every `MIN_PLANE_PX`. It also equals the RANSAC inlier band
   (`roof_planes.RESIDUAL_THRESHOLD_M`), so every pixel is now either within a plane's band or,
   above it, an obstruction. At 0.75, pixels between 0.5 and 0.75 m above every plane counted as roof.
 - **Setback: no evidence, kept at 0.85.** The labels say nothing about edge setback or usable
@@ -81,7 +82,8 @@ Before any city round, a scratch sweep re-scored only the 17 labelled roofs (sec
   Glover Park gable to 1 plane: exact agreement falls 9/17 → 7–8/17. That evidence and a structural
   rule are #30.
 - **Obstruction false positives can't be judged from this sample.** Only 2 scored roofs are
-  labelled `has_obstruction=n` (`6_4_42`, `7_2_587`), and the model flags both at every τ ≤ 0.75.
+  labelled `has_obstruction=n` (`6_4_42`, `7_2_587`), and at the chosen 8 px the model flags both at
+  every τ ≤ 0.75 (from 11 px `7_2_587` turns true-negative only because it becomes unfittable).
   "Low false positives" needs more clean roofs.
 - **`escaped_usable_m2` is a heuristic.** It assumes the surplus planes are the smallest ones (by
   plane area). Read it as an order of magnitude, not a measurement.
