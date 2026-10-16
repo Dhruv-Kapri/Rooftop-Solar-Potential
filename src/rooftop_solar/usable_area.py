@@ -32,8 +32,11 @@ UTILIZATION_FRACTION = 0.70
 # --- obstruction-aware usable area (Part 2-4, ADR-0013 — revises the flat UTILIZATION_FRACTION
 # above for the multiplane path; the ransac path keeps UTILIZATION_FRACTION unchanged) ---
 # A DSM pixel sitting more than this many metres above its supporting fitted plane is an
-# obstruction (chimney, vent, HVAC, bulkhead) rather than roof surface.
-OBSTRUCTION_TAU_M = 0.75
+# obstruction (chimney, vent, HVAC, bulkhead) rather than roof surface. Tuned 0.75 -> 0.5 on the
+# spot-check (#23): it matches the RANSAC inlier band (roof_planes.RESIDUAL_THRESHOLD_M), so a
+# pixel above every plane's band is an obstruction, not roof; it found 2 more labelled obstructions
+# with no new false positives (docs/benchmarks/spot_check/tuning.md).
+OBSTRUCTION_TAU_M = 0.5
 # Replaces UTILIZATION_FRACTION's single flat number: once obstructions are measured and
 # subtracted, only a smaller, principled setback factor (edge setback/panel access) remains.
 SETBACK_FACTOR = 0.85
