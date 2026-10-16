@@ -417,17 +417,27 @@ _OBSTRUCTION_WORDS = {
 }  # fmt: skip
 
 
-def _parse_obstruction(value) -> bool | None:
+def _parse_obstruction(value: object) -> bool | None:
     """y/yes/true/1 -> True, n/no/false/0 -> False (case/whitespace-insensitive); else None."""
     return _OBSTRUCTION_WORDS.get(str(value).strip().lower())
 
 
-def _parse_plane_count(value) -> int | None:
+def _parse_plane_count(value: object) -> int | None:
     """An integer >= 1 (text or number), else None."""
     number = pd.to_numeric(pd.Series([value]), errors="coerce").iloc[0]
     if not np.isfinite(number) or number != int(number) or number < 1:
         return None
     return int(number)
+
+
+def _obstruction_outcome(label: bool, model: bool) -> str:
+    """Confusion-matrix name of a (label, model) obstruction pair (#29)."""
+    return {
+        (True, True): "hit",
+        (True, False): "miss",
+        (False, True): "false_positive",
+        (False, False): "true_negative",
+    }[(label, model)]
 
 
 def _is_excluded(labels: pd.DataFrame) -> pd.Series:
@@ -504,20 +514,17 @@ def compare_labels(labels: pd.DataFrame, score: DetailedScore) -> pd.DataFrame:
             model_obstruction = key in obstructed
             diff = model_planes - label.label_planes
             flagged = label.label_obstruction and diff > 0
-            surplus = (
-                score.planes[
-                    (score.planes["building_id"] == label.building_id)
-                    & (score.planes["method"] == method)
-                ]
-                .sort_values(["plane_area_m2", "plane_id"])
-                .head(diff if flagged else 0)
-            )
-            outcome = {
-                (True, True): "hit",
-                (True, False): "miss",
-                (False, True): "false_positive",
-                (False, False): "true_negative",
-            }[(label.label_obstruction, model_obstruction)]
+            escaped_usable_m2 = 0.0
+            if flagged:
+                surplus = (
+                    score.planes[
+                        (score.planes["building_id"] == label.building_id)
+                        & (score.planes["method"] == method)
+                    ]
+                    .sort_values(["plane_area_m2", "plane_id"])
+                    .head(diff)
+                )
+                escaped_usable_m2 = float(surplus["usable_area_m2"].sum())
             rows.append(
                 {
                     "building_id": label.building_id,
@@ -528,10 +535,12 @@ def compare_labels(labels: pd.DataFrame, score: DetailedScore) -> pd.DataFrame:
                     "plane_agree": abs(diff) <= PLANE_AGREE_TOL,
                     "label_obstruction": label.label_obstruction,
                     "model_obstruction": model_obstruction,
-                    "obstruction_outcome": outcome,
+                    "obstruction_outcome": _obstruction_outcome(
+                        label.label_obstruction, model_obstruction
+                    ),
                     "large_planar_obstruction": flagged,
                     "extra_planes": diff if flagged else 0,
-                    "escaped_usable_m2": float(surplus["usable_area_m2"].sum()),
+                    "escaped_usable_m2": escaped_usable_m2,
                 }
             )
     return pd.DataFrame(rows)
