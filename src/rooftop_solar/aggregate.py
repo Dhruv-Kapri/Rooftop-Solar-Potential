@@ -87,9 +87,7 @@ def attach_equity(
     `equity_data_missing` (bool) rather than defaulted to 0 — a spurious 0 would corrupt the
     medians in `classify_equity` (ADR-0007).
     """
-    out = tracts_gdf.merge(acs, on="GEOID", how="left").merge(
-        energy_burden, on="GEOID", how="left"
-    )
+    out = tracts_gdf.merge(acs, on="GEOID", how="left").merge(energy_burden, on="GEOID", how="left")
 
     households = out["households"].replace(0, np.nan)
     population = out["population"].replace(0, np.nan)
@@ -127,9 +125,7 @@ def classify_equity(tracts_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
 
     out["potential_level"] = np.where(high_potential, "high", "low")
     out["burden_level"] = np.where(high_burden, "high", "low")
-    out["equity_class"] = (
-        out["potential_level"] + "_potential_" + out["burden_level"] + "_burden"
-    )
+    out["equity_class"] = out["potential_level"] + "_potential_" + out["burden_level"] + "_burden"
     out["is_priority"] = high_potential & high_burden
 
     out.loc[~classifiable, ["potential_level", "burden_level", "equity_class"]] = "unknown"

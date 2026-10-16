@@ -130,9 +130,7 @@ def test_run_city_scoring_bump_reuses_dsm_and_radiation(tmp_path, monkeypatch):
     # --- simulate a scoring-only version bump: only the manifest stamp changes; dsm_key/
     # radiation_key (and therefore the DSM/insolation sidecars) are untouched. ---
     real_scoring_key = pipeline.scoring_key
-    monkeypatch.setattr(
-        pipeline, "scoring_key", lambda **kw: real_scoring_key(**kw) + "-scorebump"
-    )
+    monkeypatch.setattr(pipeline, "scoring_key", lambda **kw: real_scoring_key(**kw) + "-scorebump")
 
     # Guard against the expensive work: neither a DSM network fetch nor a real r.sun pass may
     # run on a scoring-only rerun (footprints ARE legitimately re-fetched — cheap, not a cache

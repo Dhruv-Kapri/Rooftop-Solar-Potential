@@ -64,7 +64,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument(
-        "--directory", default=str(Path(__file__).resolve().parents[1] / "web"),
+        "--directory",
+        default=str(Path(__file__).resolve().parents[1] / "web"),
         help="directory to serve (default: web/)",
     )
     args = parser.parse_args()

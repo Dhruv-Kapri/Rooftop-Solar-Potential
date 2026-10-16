@@ -123,9 +123,7 @@ def test_map_renders_both_layers_without_console_errors(base_url):
             "window.__map.queryRenderedFeatures({layers:['roof-fill']}).length > 0",
             timeout=30000,
         )
-        n_roofs = page.evaluate(
-            "window.__map.queryRenderedFeatures({layers:['roof-fill']}).length"
-        )
+        n_roofs = page.evaluate("window.__map.queryRenderedFeatures({layers:['roof-fill']}).length")
         assert n_roofs > 0, "no roof features rendered from PMTiles"
         page.wait_for_timeout(400)
         page.screenshot(path=str(WEB_DIR / "screenshot-roofs.png"))

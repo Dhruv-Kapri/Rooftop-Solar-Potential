@@ -28,9 +28,22 @@ _BUFFERED = box(-77.0782, 38.9170, -77.0718, 38.9230)
 # The multiplane collapsed per-building schema (yield_pv.collapse_to_buildings) — the per-plane
 # uncertainty columns (inlier_ratio/n_px/poa_clear_sky_kwh_m2) are consumed inside the collapse.
 _EXPECTED_COLUMNS = {
-    "geometry", "building_id", "n_planes", "low_confidence", "tilt_deg", "aspect_deg",
-    "roof_class", "footprint_area_m2", "usable", "usable_area_m2", "poa_real_kwh_m2",
-    "capacity_kw", "annual_energy_kwh", "annual_co2_kg", "energy_density_kwh_m2", "suitability",
+    "geometry",
+    "building_id",
+    "n_planes",
+    "low_confidence",
+    "tilt_deg",
+    "aspect_deg",
+    "roof_class",
+    "footprint_area_m2",
+    "usable",
+    "usable_area_m2",
+    "poa_real_kwh_m2",
+    "capacity_kw",
+    "annual_energy_kwh",
+    "annual_co2_kg",
+    "energy_density_kwh_m2",
+    "suitability",
 }
 
 

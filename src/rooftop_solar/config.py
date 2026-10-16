@@ -40,7 +40,9 @@ def outputs_run_dir(area: str, label: str) -> Path:
 NLR_API_KEY = os.getenv("NLR_API_KEY")
 NLR_API_EMAIL = os.getenv("NLR_API_EMAIL")
 NLR_API_BASE = "https://developer.nlr.gov"  # renamed from developer.nrel.gov (2025-12-01)
-CENSUS_API_KEY = os.getenv("CENSUS_API_KEY")  # free key: https://api.census.gov/data/key_signup.html
+CENSUS_API_KEY = os.getenv(
+    "CENSUS_API_KEY"
+)  # free key: https://api.census.gov/data/key_signup.html
 
 # --- study area (Phase 1) ---
 STUDY_AREA = "Washington, DC"

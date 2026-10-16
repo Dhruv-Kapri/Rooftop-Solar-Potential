@@ -271,9 +271,7 @@ def recompute_city_suitability(city: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
 
 def _to_working_crs(geom_wgs84: BaseGeometry) -> BaseGeometry:
     """Reproject a WGS84 geometry into config.WORKING_CRS (metric)."""
-    to_working = Transformer.from_crs(
-        "EPSG:4326", config.WORKING_CRS, always_xy=True
-    ).transform
+    to_working = Transformer.from_crs("EPSG:4326", config.WORKING_CRS, always_xy=True).transform
     return shp_transform(to_working, geom_wgs84)
 
 
@@ -321,6 +319,7 @@ def render_choropleth(result: gpd.GeoDataFrame, path: str | Path) -> Path:
 # --------------------------------------------------------------------------- #
 # Stage 7 — census-tract aggregation + equity overlay (Phase 2, Part 2-1)     #
 # --------------------------------------------------------------------------- #
+
 
 def run_aggregation(
     *,
@@ -388,9 +387,7 @@ def run_aggregation(
             categorical=True,
             title=f"{area_name} — equity quadrant (per-household potential × energy burden)",
         )
-        render_potential_burden_scatter(
-            result, out_dir / EQUITY_SCATTER_NAME, area_name=area_name
-        )
+        render_potential_burden_scatter(result, out_dir / EQUITY_SCATTER_NAME, area_name=area_name)
 
     return result
 
@@ -494,12 +491,16 @@ def render_potential_burden_scatter(
     ax.scatter(
         df.loc[~priority, "potential_per_household"],
         df.loc[~priority, "energy_burden"],
-        c="tab:blue", alpha=0.7, label="other tracts",
+        c="tab:blue",
+        alpha=0.7,
+        label="other tracts",
     )
     ax.scatter(
         df.loc[priority, "potential_per_household"],
         df.loc[priority, "energy_burden"],
-        c="tab:red", alpha=0.9, label="priority (high × high)",
+        c="tab:red",
+        alpha=0.9,
+        label="priority (high × high)",
     )
     if len(df):
         ax.axvline(df["potential_per_household"].median(), color="grey", ls="--", lw=0.8)
@@ -884,9 +885,7 @@ def run_city(
     city = recompute_city_suitability(merge_tile_roofs(tile_frames[i] for i in sorted(tile_frames)))
 
     if write_outputs:
-        out_dir = (
-            Path(output_dir) if output_dir is not None else config.CALIBRATED_CITY_OUTPUTS_DIR
-        )
+        out_dir = Path(output_dir) if output_dir is not None else config.CALIBRATED_CITY_OUTPUTS_DIR
         _write_parquet(city, out_dir / CITY_ROOFS_PARQUET_NAME)
     return city
 

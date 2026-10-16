@@ -28,6 +28,7 @@ from rooftop_solar import config, tracts
 # parse_tracts — TIGER geometry → GEOID(str) + geometry in WORKING_CRS         #
 # --------------------------------------------------------------------------- #
 
+
 def _raw_tiger_gdf():
     """A minimal stand-in for a TIGER/Line tract shapefile read: zero-padded string GEOID,
     the usual extra attribute columns, geometry in NAD83 lon/lat (EPSG:4269)."""
@@ -72,6 +73,7 @@ def test_parse_tracts_zero_pads_a_coerced_geoid():
 # parse_acs — Census Data API array-of-arrays → tidy demographics             #
 # --------------------------------------------------------------------------- #
 
+
 def _raw_acs_rows():
     """The Census Data API returns a JSON array of arrays: a header row, then data rows whose
     trailing columns are the geography components (state, county, tract). GEOID must be built
@@ -104,6 +106,7 @@ def test_parse_acs_maps_negative_sentinel_to_nan():
 # --------------------------------------------------------------------------- #
 # aggregate_lead_burden — LEAD stratum microdata → overall per-tract burden    #
 # --------------------------------------------------------------------------- #
+
 
 def _raw_lead_strata():
     """Row-per-stratum LEAD microdata (the real DC file's shape): a tract key `FIP` (int in the

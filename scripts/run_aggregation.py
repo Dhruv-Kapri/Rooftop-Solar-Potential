@@ -50,20 +50,25 @@ def _report(result: gpd.GeoDataFrame) -> None:
     if len(classifiable):
         pph = classifiable["potential_per_household"]
         print("\n=== sanity (§7.2 — a smell test, NOT a gate) ===")
-        print(f"  per-household potential  : {pph.min():.0f} - {pph.max():.0f} kWh/hh/yr "
-              "(cross-check vs NREL/NLR rooftop technical potential, risks §15)")
+        print(
+            f"  per-household potential  : {pph.min():.0f} - {pph.max():.0f} kWh/hh/yr "
+            "(cross-check vs NREL/NLR rooftop technical potential, risks §15)"
+        )
 
-    print(f"\n  CAVEAT (§7.4): Glover Park spans {n_tracts} tracts, and the bbox AOI only "
-          "partially covers\n  edge tracts (few scored roofs ÷ full household count), so "
-          "per-household potential is\n  understated there and the quadrant medians are "
-          "near-degenerate. This run is a SMOKE TEST\n  of the machinery, not an equity finding — "
-          "that arrives at Part 2-2 (full-DC, whole tracts).\n")
+    print(
+        f"\n  CAVEAT (§7.4): Glover Park spans {n_tracts} tracts, and the bbox AOI only "
+        "partially covers\n  edge tracts (few scored roofs ÷ full household count), so "
+        "per-household potential is\n  understated there and the quadrant medians are "
+        "near-degenerate. This run is a SMOKE TEST\n  of the machinery, not an equity finding — "
+        "that arrives at Part 2-2 (full-DC, whole tracts).\n"
+    )
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
-        "--buildings", default=None,
+        "--buildings",
+        default=None,
         help="per-roof input GeoPackage (default: the Stage-1 outputs/glover_park/roofs.gpkg)",
     )
     parser.add_argument("--output-dir", default=None, help="where to write GeoPackage + PNGs")

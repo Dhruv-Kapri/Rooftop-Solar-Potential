@@ -110,7 +110,8 @@ def main() -> None:
     parser.add_argument("--tile-size-m", type=float, default=config.TILE_SIZE_M)
     parser.add_argument("--buffer-m", type=float, default=config.TILE_BUFFER_M)
     parser.add_argument(
-        "--day-range", default=None,
+        "--day-range",
+        default=None,
         help="comma day-of-year list (e.g. '172' for a fast smoke); default = calibrated 12-day",
     )
     parser.add_argument("--tiles-dir", default=None, help="per-tile cache + manifest dir")
