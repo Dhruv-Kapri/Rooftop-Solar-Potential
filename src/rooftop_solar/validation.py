@@ -408,6 +408,9 @@ def rescore_sample(sample: gpd.GeoDataFrame, tiles_dir: str | Path) -> DetailedS
 
 # A model plane count agrees with the hand label when within this many planes of it.
 PLANE_AGREE_TOL = 1
+# Hand labels above `roof_planes.MAX_PLANES` are clamped to it before comparing: the fitter
+# can never emit more, so such a roof tests the cap / merged footprints, not the fitter
+# (#23; docs/benchmarks/spot_check/README.md "Proposed scoring"). Raw agreement stays visible.
 # The labeller's opt-out: a roof whose `notes` start with this (any case) is left out of the
 # comparison -- e.g. "EXCLUDE (likely not a roof)" for a footprint/DSM mismatch.
 EXCLUDE_NOTE = "EXCLUDE"
@@ -489,9 +492,12 @@ def compare_labels(labels: pd.DataFrame, score: DetailedScore) -> pd.DataFrame:
     Buildings scored but not labelled are ignored. One row per (building, method), sorted
     by `building_id` then method order:
 
-    - `label_planes`, `model_planes` (`score.buildings.n_planes`, but 0 for an unfittable
-      roof -- NaN `tilt_deg`, where the fitter emits a placeholder `n_planes=1`),
-      `plane_diff` = model - label, `plane_agree` = `|plane_diff| <= PLANE_AGREE_TOL`.
+    - `label_planes` (raw), `label_planes_capped` (`min(label, roof_planes.MAX_PLANES)`, the
+      same cap for every method -- see the clamp note above :data:`PLANE_AGREE_TOL`),
+      `model_planes` (`score.buildings.n_planes`, but 0 for an unfittable roof -- NaN
+      `tilt_deg`, where the fitter emits a placeholder `n_planes=1`),
+      `plane_diff` = model - capped label, `plane_agree` = `|plane_diff| <= PLANE_AGREE_TOL`,
+      `plane_agree_raw` = the same rule against the unclamped label.
     - `label_obstruction`, `model_obstruction` (any `score.obstructions` row with area > 0),
       `obstruction_outcome`: "hit", "miss", "false_positive" or "true_negative".
     - `large_planar_obstruction`: the label says obstruction and the model fit more planes
@@ -512,7 +518,8 @@ def compare_labels(labels: pd.DataFrame, score: DetailedScore) -> pd.DataFrame:
             built = buildings.loc[key]
             model_planes = 0 if pd.isna(built["tilt_deg"]) else int(built["n_planes"])
             model_obstruction = key in obstructed
-            diff = model_planes - label.label_planes
+            label_capped = min(label.label_planes, roof_planes.MAX_PLANES)
+            diff = model_planes - label_capped
             flagged = label.label_obstruction and diff > 0
             escaped_usable_m2 = 0.0
             if flagged:
@@ -530,9 +537,11 @@ def compare_labels(labels: pd.DataFrame, score: DetailedScore) -> pd.DataFrame:
                     "building_id": label.building_id,
                     "method": method,
                     "label_planes": label.label_planes,
+                    "label_planes_capped": label_capped,
                     "model_planes": model_planes,
                     "plane_diff": diff,
                     "plane_agree": abs(diff) <= PLANE_AGREE_TOL,
+                    "plane_agree_raw": abs(model_planes - label.label_planes) <= PLANE_AGREE_TOL,
                     "label_obstruction": label.label_obstruction,
                     "model_obstruction": model_obstruction,
                     "obstruction_outcome": _obstruction_outcome(
@@ -550,7 +559,8 @@ def summarize_spot_check(comparison: pd.DataFrame) -> pd.DataFrame:
     """Per-method roll-up of :func:`compare_labels` -- the validation write-up table.
 
     Indexed by `method` (:data:`SPOT_CHECK_METHODS` order): `n_roofs`, `plane_agree` (count)
-    and `plane_agree_pct` (0-100), the four obstruction outcome counts,
+    and `plane_agree_pct` (0-100) against the clamped label, `plane_agree_raw` /
+    `plane_agree_raw_pct` against the raw label, the four obstruction outcome counts,
     `large_planar_obstructions` (flagged roofs) and their summed `escaped_usable_m2`.
     """
     rows = {}
@@ -561,6 +571,10 @@ def summarize_spot_check(comparison: pd.DataFrame) -> pd.DataFrame:
             "n_roofs": len(m),
             "plane_agree": int(m["plane_agree"].sum()),
             "plane_agree_pct": 100.0 * m["plane_agree"].mean() if len(m) else float("nan"),
+            "plane_agree_raw": int(m["plane_agree_raw"].sum()),
+            "plane_agree_raw_pct": (
+                100.0 * m["plane_agree_raw"].mean() if len(m) else float("nan")
+            ),
             "obstruction_hits": int((outcome == "hit").sum()),
             "obstruction_misses": int((outcome == "miss").sum()),
             "obstruction_false_positives": int((outcome == "false_positive").sum()),
