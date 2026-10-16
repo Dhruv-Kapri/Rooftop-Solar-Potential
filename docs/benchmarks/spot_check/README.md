@@ -26,9 +26,10 @@ This is an **indicative sample, not ground truth** (risks §14.4).
   hatches, skylights, dormers, chimneys, penthouses, cupolas, existing PV), otherwise `n`.
   Trees overhanging the roof are noted, not counted.
 
-## Proposed scoring for the stop rule (#23)
+## Scoring for the stop rule (#23)
 
-These rules are a **proposal, for the user to accept or reject in #23**. Plan step 7b's stop rule
+These rules were proposed here and **adopted in #23** (`validation.compare_labels`, which reports
+the unclamped agreement too). The tuning write-up is `tuning.md`. Plan step 7b's stop rule
 (±1 plane count on ≥~80%) names no exclusions or clamp. Under the raw rule, multiplane agrees on
 **53% of 19** roofs. With both rules below it agrees on **71% of 17**.
 
