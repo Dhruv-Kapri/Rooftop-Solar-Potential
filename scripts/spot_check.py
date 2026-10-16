@@ -8,7 +8,7 @@ baseline) so the
 roofs can be hand-labelled in ``labels.csv``. Comparing the labels against the pipeline
 is a later ticket; this script stops at the figures + labels template.
 
-    python scripts/spot_check.py --city outputs/dc/12day_gcr/roofs.parquet   # -> <city dir>/spot_check/
+    python scripts/spot_check.py --city outputs/dc/12day_gcr/roofs.parquet  # -> <city>/spot_check/
     python scripts/spot_check.py --city ... --areas glover_park --per-cell 2
     python scripts/spot_check.py --city ... --no-images  # data only, skip the figures
 
