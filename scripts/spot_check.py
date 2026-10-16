@@ -5,8 +5,8 @@ Draws the stratified spot-check sample from the city roofs (plan §6), re-scores
 multiplane and the single-plane baseline (`validation.SPOT_CHECK_METHODS`), and renders one
 comparison figure per building (DC 2023 orthophoto | DSM hillshade | multiplane | single-plane
 baseline) so the
-roofs can be hand-labelled in ``labels.csv``. Comparing the labels against the pipeline
-is a later ticket; this script stops at the figures + labels template.
+roofs can be hand-labelled in ``labels.csv``. Comparing the labels against the pipeline is
+``scripts/spot_check_compare.py``; this script stops at the figures + labels template.
 
     python scripts/spot_check.py --city outputs/dc/12day_gcr/roofs.parquet  # -> <city>/spot_check/
     python scripts/spot_check.py --city ... --areas glover_park --per-cell 2

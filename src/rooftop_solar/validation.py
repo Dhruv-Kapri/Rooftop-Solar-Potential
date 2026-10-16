@@ -402,3 +402,161 @@ def rescore_sample(sample: gpd.GeoDataFrame, tiles_dir: str | Path) -> DetailedS
             for f in dataclasses.fields(DetailedScore)
         }
     )
+
+
+# --- Spot-check comparison (Part 2-4 step 7b; plan §6, ADR-0013) ---------------------
+
+# A model plane count agrees with the hand label when within this many planes of it.
+PLANE_AGREE_TOL = 1
+# The labeller's opt-out: a roof whose `notes` start with this (any case) is left out of the
+# comparison -- e.g. "EXCLUDE (likely not a roof)" for a footprint/DSM mismatch.
+EXCLUDE_NOTE = "EXCLUDE"
+_OBSTRUCTION_WORDS = {
+    "y": True, "yes": True, "true": True, "1": True,
+    "n": False, "no": False, "false": False, "0": False,
+}  # fmt: skip
+
+
+def _parse_obstruction(value) -> bool | None:
+    """y/yes/true/1 -> True, n/no/false/0 -> False (case/whitespace-insensitive); else None."""
+    return _OBSTRUCTION_WORDS.get(str(value).strip().lower())
+
+
+def _parse_plane_count(value) -> int | None:
+    """An integer >= 1 (text or number), else None."""
+    number = pd.to_numeric(pd.Series([value]), errors="coerce").iloc[0]
+    if not np.isfinite(number) or number != int(number) or number < 1:
+        return None
+    return int(number)
+
+
+def _is_excluded(labels: pd.DataFrame) -> pd.Series:
+    """Rows whose `notes` start with :data:`EXCLUDE_NOTE` (any case, leading space ok)."""
+    if "notes" not in labels:
+        return pd.Series(False, index=labels.index)
+    return (
+        labels["notes"].fillna("").astype(str).str.strip().str.upper().str.startswith(EXCLUDE_NOTE)
+    )
+
+
+def excluded_labels(labels: pd.DataFrame) -> list[str]:
+    """The `building_id`s :func:`compare_labels` leaves out by their `notes` (sorted)."""
+    return sorted(labels.loc[_is_excluded(labels), "building_id"].astype(str).str.strip())
+
+
+def _parse_labels(labels: pd.DataFrame, scored_ids: set[str]) -> pd.DataFrame:
+    """Validated labels: `building_id` (str), `label_planes` (int), `label_obstruction` (bool).
+
+    Raises a `ValueError` naming the offending building_ids for duplicate ids, ids the
+    score does not contain, and blank/invalid `n_major_planes` / `has_obstruction`. Rows
+    whose `notes` start with :data:`EXCLUDE_NOTE` are dropped before any check.
+    """
+    labels = labels[~_is_excluded(labels)]
+    ids = labels["building_id"].astype(str).str.strip()
+    duplicated = sorted(set(ids[ids.duplicated()]))
+    if duplicated:
+        raise ValueError(f"duplicate building_id in labels: {duplicated}")
+    unknown = sorted(set(ids) - scored_ids)
+    if unknown:
+        raise ValueError(f"labelled building_id not in the re-score: {unknown}")
+    planes = [_parse_plane_count(v) for v in labels["n_major_planes"]]
+    obstruction = [_parse_obstruction(v) for v in labels["has_obstruction"]]
+    for column, parsed in (("n_major_planes", planes), ("has_obstruction", obstruction)):
+        bad = [i for i, p in zip(ids, parsed, strict=True) if p is None]
+        if bad:
+            raise ValueError(f"blank or invalid {column} (unfinished labels?) for: {bad}")
+    return pd.DataFrame(
+        {"building_id": ids.to_numpy(), "label_planes": planes, "label_obstruction": obstruction}
+    )
+
+
+def compare_labels(labels: pd.DataFrame, score: DetailedScore) -> pd.DataFrame:
+    """Score each hand-labelled roof against each :data:`SPOT_CHECK_METHODS` method.
+
+    `labels` is the raw hand-filled CSV frame (`LABEL_COLUMNS`; a `notes` starting with
+    :data:`EXCLUDE_NOTE` drops the roof, other notes are ignored);
+    `has_obstruction` takes y/yes/true/1 or n/no/false/0, `n_major_planes` an integer >= 1.
+    Buildings scored but not labelled are ignored. One row per (building, method), sorted
+    by `building_id` then method order:
+
+    - `label_planes`, `model_planes` (`score.buildings.n_planes`, but 0 for an unfittable
+      roof -- NaN `tilt_deg`, where the fitter emits a placeholder `n_planes=1`),
+      `plane_diff` = model - label, `plane_agree` = `|plane_diff| <= PLANE_AGREE_TOL`.
+    - `label_obstruction`, `model_obstruction` (any `score.obstructions` row with area > 0),
+      `obstruction_outcome`: "hit", "miss", "false_positive" or "true_negative".
+    - `large_planar_obstruction`: the label says obstruction and the model fit more planes
+      than labelled -- the obstruction was fit as its own facet and escaped subtraction
+      (ADR-0013). `extra_planes` is the surplus and `escaped_usable_m2` the usable area
+      those planes carry, i.e. roof counted that should have been subtracted. Assumes the
+      surplus planes are the smallest (by `plane_area_m2`, ties on `plane_id`), i.e. the
+      superstructures; 0 / 0.0 when not flagged.
+    """
+    buildings = score.buildings.set_index(["building_id", "method"])
+    parsed = _parse_labels(labels, set(score.buildings["building_id"].astype(str)))
+    real = score.obstructions[score.obstructions["obstruction_area_m2"] > 0]
+    obstructed = set(zip(real["building_id"], real["method"], strict=True))
+    rows = []
+    for label in parsed.sort_values("building_id").itertuples():
+        for method in SPOT_CHECK_METHODS:
+            key = (label.building_id, method)
+            built = buildings.loc[key]
+            model_planes = 0 if pd.isna(built["tilt_deg"]) else int(built["n_planes"])
+            model_obstruction = key in obstructed
+            diff = model_planes - label.label_planes
+            flagged = label.label_obstruction and diff > 0
+            surplus = (
+                score.planes[
+                    (score.planes["building_id"] == label.building_id)
+                    & (score.planes["method"] == method)
+                ]
+                .sort_values(["plane_area_m2", "plane_id"])
+                .head(diff if flagged else 0)
+            )
+            outcome = {
+                (True, True): "hit",
+                (True, False): "miss",
+                (False, True): "false_positive",
+                (False, False): "true_negative",
+            }[(label.label_obstruction, model_obstruction)]
+            rows.append(
+                {
+                    "building_id": label.building_id,
+                    "method": method,
+                    "label_planes": label.label_planes,
+                    "model_planes": model_planes,
+                    "plane_diff": diff,
+                    "plane_agree": abs(diff) <= PLANE_AGREE_TOL,
+                    "label_obstruction": label.label_obstruction,
+                    "model_obstruction": model_obstruction,
+                    "obstruction_outcome": outcome,
+                    "large_planar_obstruction": flagged,
+                    "extra_planes": diff if flagged else 0,
+                    "escaped_usable_m2": float(surplus["usable_area_m2"].sum()),
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def summarize_spot_check(comparison: pd.DataFrame) -> pd.DataFrame:
+    """Per-method roll-up of :func:`compare_labels` -- the validation write-up table.
+
+    Indexed by `method` (:data:`SPOT_CHECK_METHODS` order): `n_roofs`, `plane_agree` (count)
+    and `plane_agree_pct` (0-100), the four obstruction outcome counts,
+    `large_planar_obstructions` (flagged roofs) and their summed `escaped_usable_m2`.
+    """
+    rows = {}
+    for method in SPOT_CHECK_METHODS:
+        m = comparison[comparison["method"] == method]
+        outcome = m["obstruction_outcome"]
+        rows[method] = {
+            "n_roofs": len(m),
+            "plane_agree": int(m["plane_agree"].sum()),
+            "plane_agree_pct": 100.0 * m["plane_agree"].mean() if len(m) else float("nan"),
+            "obstruction_hits": int((outcome == "hit").sum()),
+            "obstruction_misses": int((outcome == "miss").sum()),
+            "obstruction_false_positives": int((outcome == "false_positive").sum()),
+            "obstruction_true_negatives": int((outcome == "true_negative").sum()),
+            "large_planar_obstructions": int(m["large_planar_obstruction"].sum()),
+            "escaped_usable_m2": float(m["escaped_usable_m2"].sum()),
+        }
+    return pd.DataFrame.from_dict(rows, orient="index").rename_axis("method")
