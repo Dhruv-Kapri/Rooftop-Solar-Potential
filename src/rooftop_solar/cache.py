@@ -99,3 +99,23 @@ def sidecar_matches(artifact_path: str | Path, key: str) -> bool:
         return record["sha256"] == _sha256(artifact)
     except OSError:  # missing, or vanished mid-hash (e.g. a concurrent rsync)
         return False
+
+
+def adopt_legacy_sidecar(artifact_path: str | Path) -> bool:
+    """Upgrade a pre-#18 plain-text sidecar to the current JSON format; True if it did.
+
+    The legacy sidecar's whole text is the key (the old writer did `write_text(key)`); the new
+    sidecar keeps it and adds the artifact's *current* sha256. A missing artifact, a missing
+    sidecar, or a sidecar already in the current format is left untouched (False). One-off,
+    for the issue #19 city cache, which predates the checksum format (ADR-0014 addendum).
+
+    Trust caveat: this vouches for the artifact's bytes AS THEY ARE NOW, so run it only on
+    the machine that produced the cache, before any handoff (#18) — never on a received copy,
+    where it would bless a truncated or swapped file.
+    """
+    artifact = Path(artifact_path)
+    sidecar = sidecar_path(artifact)
+    if not artifact.exists() or not sidecar.exists() or _read_sidecar(artifact) is not None:
+        return False
+    write_key_sidecar(artifact, sidecar.read_text())
+    return True
