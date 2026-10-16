@@ -159,6 +159,17 @@ don't over-claim precision.
   The VM is **shared** with another team's runs (load often above 8): check `uptime` first and run
   niced, but not at nice 19 — it starves under that load. Its checkout pulls from `origin`, so
   unpushed commits need a push or a `git bundle` before a run.
+- **Moving a city run between the Mac and the VM (#18):** stop the run, then
+  `scripts/sync_tiles.sh push` (Mac → VM) or `scripts/sync_tiles.sh pull` (VM → Mac), with `-n` for
+  a dry run. Then rerun the same `run_city` command on the other machine. It rsyncs the tile cache +
+  manifest (`data/tiles/`) only. Outputs are rebuilt by the merge, and there's no shared/cloud
+  storage. Completed tiles are reused. Anything partial, truncated, stale or from another GRASS
+  version is recomputed, because each cached artifact (DSM, insolation, roofs parquet) is reused
+  only when its `.key` sidecar matches both the current key and the file's sha256 (ADR-0014
+  addendum 2026-10-13). One machine owns the run at a time: the sent manifest replaces the
+  receiver's. No `--delete`: tiles only the receiver had re-score, but reuse their DSM and
+  insolation by sidecar. Both machines need GRASS even for a fully cached resume, because its
+  version is part of the radiation key. Without it, `run_city` fails fast with a clear error.
 - **Never commit data** — `data/`, `outputs/`, and all `*.tif/*.laz/*.las/*.copc.laz` are
   gitignored. LiDAR/DSM/imagery are huge.
 - Secrets in `.env` (gitignored); copy `.env.example` to start.
