@@ -150,6 +150,10 @@ Together these are the plan's "accuracy comparison vs the RANSAC baseline" — d
      GCR under a **new run label** (old `12day` outputs left untouched), on the office VM
      `graham-build` when reachable, else the Mac, with an rsync cache+manifest handoff between them;
      (3) step-7b tuning as **re-scores** (`SCORING_VERSION` bumps, ≤3 rounds) — DSM + radiation reused.
+   - **✓ GCR city run (#19, 2026-10-13):** `12day_gcr` on the VM, 66/66 tiles, ~3.9 h at `1 × 8`;
+     **2,302.7 MW / 2,734 GWh/yr, ~1.77× / ~1.71× NREL** (analytic ~1.7× held). DSM + radiation cache
+     tiers filled for every tile. `build_web` waits on step-7b tuning. Details in
+     `docs/benchmarks/stage-2-part2-dc-city-scale.md` ("Full-city GCR run").
 7. Validation: DSM self-consistency + the spot-check harness + your ~20 labels.
    - **⊙ partial (2026-09-08):** the DSM self-consistency **functions** are built + unit-tested
      (`validation.py`: `reconstruct_residuals`, `self_consistency`, `compare_self_consistency`;
