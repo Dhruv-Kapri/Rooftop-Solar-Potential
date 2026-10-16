@@ -16,8 +16,9 @@ setting. Follow-up: #30.
 - **Clamp accepted.** `validation.compare_labels` compares `min(label, roof_planes.MAX_PLANES)`
   with the model (`plane_agree`) and also reports the unclamped rule (`plane_agree_raw`). Six labels
   exceed the cap of 4. The fitter can never reach them, so unclamped they measure the cap and merged
-  footprints, not the fitter. `MAX_PLANES` is not a knob in this ticket. *This was the README's
-  proposal, adopted while running unattended; both numbers are reported so it is easy to reverse.*
+  footprints, not the fitter. `MAX_PLANES` is not a knob in this ticket. This was the README's
+  proposal. It was adopted while running unattended, then **confirmed by the user (2026-10-16)**.
+  Both numbers are still reported.
 - `EXCLUDE` rows (`7_2_594`, `6_4_34`) are left out, as in #21/#22.
 
 ## Rounds
