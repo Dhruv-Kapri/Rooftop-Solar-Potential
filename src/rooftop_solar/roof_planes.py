@@ -161,7 +161,11 @@ def roof_points(
 
 
 def fit_roof_planes(
-    footprints: gpd.GeoDataFrame, dsm_path: str | Path, method: str = "ransac"
+    footprints: gpd.GeoDataFrame,
+    dsm_path: str | Path,
+    method: str = "ransac",
+    *,
+    max_planes: int = MAX_PLANES,
 ) -> gpd.GeoDataFrame:
     """Fit one RANSAC roof plane per footprint and return the per-roof plane table.
 
@@ -205,6 +209,10 @@ def fit_roof_planes(
             facets per footprint, per-plane rows. "ml" (RoofN3D-trained inference demo,
             ADR-0011) and "block" (the LOD-1 fallback: one height/building, no per-roof
             pitch) are other stage contracts, not built here.
+        max_planes: cap on facets per footprint, "multiplane" only (ignored by "ransac").
+            The single-plane baseline hook: `max_planes=1` runs the same fitter and the
+            same multiplane schema/downstream chain with one facet per roof -- "N facets vs
+            1" through one code path, as `validation.compare_self_consistency` does.
     """
     if method == "ransac":
         fits = [fit_roof_plane(*roof_points(geom, dsm_path)) for geom in footprints.geometry]
@@ -232,7 +240,7 @@ def fit_roof_planes(
     for building_id, geom in enumerate(footprints.geometry):
         X, z = roof_points(geom, dsm_path)
         total_px = int(len(z))
-        planes = fit_planes_multi(X, z)
+        planes = fit_planes_multi(X, z, max_planes=max_planes)
 
         if not planes:
             # Unfittable: too few pixels, or no facet cleared MIN_PLANE_PX. One
