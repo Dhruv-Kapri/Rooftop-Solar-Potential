@@ -156,6 +156,20 @@ The ~3.9 h is a single run on a VM other teams share; tenant load wasn't logged.
 `run_log.txt`) are in `outputs/dc/12day_gcr/` on the VM (`~/rsp-19`) and copied to the Mac main
 checkout. The ~726 MB tile cache stays on the VM (`~/rsp-19/data/tiles`) until it is handed off (#18).
 
+**Handoff check (#18, 2026-10-16).** This cache predates the checksum sidecars, so it was first
+adopted in place on the VM (`scripts/adopt_legacy_sidecars.py`: 132 raster and 66 roofs sidecars;
+ADR-0014 addendum). It was then pulled to the Mac with `scripts/sync_tiles.sh pull` and tampered
+with: tile `6_7`'s insolation raster was truncated to half, tile `5_4`'s manifest entry was dropped
+(as if not yet done on the sender), and tile `2_3`'s roofs parquet was swapped for `2_4`'s.
+Resuming `run_city.py --workers 2 --nprocs 4` on the Mac reused 64 tiles from cache and re-scored
+`5_4` and `2_3` from their cached rasters (126 s wall-clock). Tile `6_7` was also dropped from the
+manifest so it would re-score. The run then recomputed its truncated insolation (r.sun) and reused its DSM
+(138 s). Every run reproduced 100,064 roofs, 2,302.7 MW and 2,734 GWh/yr exactly. The spot-check
+(`scripts/spot_check.py`, #20) then ran on the `12day_gcr` result against the handed-off cache. It
+sampled 19 roofs: Glover Park 3 × flat/gable/hip/complex, Farragut 1 gable, 3 hip and 3 complex. No
+Farragut roof landed in "flat". The dense downtown flat roofs split into several planes and are
+binned "complex", so the deferred facet-vs-obstruction finding (ADR-0013) shows up in the sample.
+
 ## 1-day vs 12-day — what fidelity changes (and what it doesn't)
 
 The comparison is the point: single-day vs 12-day calibrated is a **radiation-fidelity** difference.
