@@ -1,20 +1,20 @@
 building_id,n_major_planes,has_obstruction,notes
-7_2_1211,1,y,"Flat; one small roof hatch near the NW corner."
-7_2_1212,2,y,"Low-slope white main roof + red pitched strip on the NE edge; HVAC units on the west part. Lower west wing inside the footprint is ambiguous (not counted)."
-7_2_594,1,n,"EXCLUDE (likely not a roof): uniform flat dark-green surface (turf/green roof or covered reservoir?); may not be a conventional roof."
-7_2_1177,2,y,"Red-brown pitched strip along the west edge (front mansard?) + flat white roof with a vent/fan; the strip looks ≥10% of the roof; if it is smaller it would be 1. Heavy tree cover on the north half: low confidence."
-7_2_292,1,y,"Flat white roof with a small hatch/skylight near the centre; trees cover the east edge. Binned 'gable' by the model, but the imagery reads flat."
+7_2_1211,1,y,Flat; one small roof hatch near the NW corner.
+7_2_1212,2,y,Low-slope white main roof + red pitched strip on the NE edge; HVAC units on the west part. Lower west wing inside the footprint is ambiguous (not counted).
+7_2_594,1,n,EXCLUDE (likely not a roof): uniform flat dark-green surface (turf/green roof or covered reservoir?); may not be a conventional roof.
+7_2_1177,2,y,Red-brown pitched strip along the west edge (front mansard?) + flat white roof with a vent/fan; the strip looks ≥10% of the roof; if it is smaller it would be 1. Heavy tree cover on the north half: low confidence.
+7_2_292,2,y,"Flat white roof with a small hatch/skylight near the centre; trees cover the east edge. Binned 'gable' by the model, but the imagery reads flat."
 7_2_587,2,n,"Dark gable, N-S ridge (light W / dark E facets in the hillshade). The model fit 1 plane."
 7_2_103,1,y,"Several flat rowhouse roofs with many HVAC units; steps between units are small height changes, not facets. Binned 'hip' by the model."
 7_2_1300,2,y,"Pitched house roof, E-W ridge (N+S facets); light rectangle on the west facet (skylight or PV?). The east part of the footprint looks like a deck/stairs, not roof (not counted)."
-7_2_225,4,y,"Hip roof, 4 facets; ~6 light-blue dormers/skylights and chimneys count as obstructions, not planes; may have a small flat crown."
-7_2_364,1,y,"Flat white roof with skylights/HVAC mid-roof; trees overhang the north third (likely the model's extra planes)."
+7_2_225,10,y,"Hip roof, 4 facets; ~6 light-blue dormers/skylights and chimneys count as obstructions, not planes; may have a small flat crown."
+7_2_364,2,y,Flat white roof with skylights/HVAC mid-roof; trees overhang the north third (likely the model's extra planes).
 7_2_66,1,y,"Flat townhouse row with many HVAC units; units sit at slightly different heights, small rowhouse offsets that the convention doesn't count (a stricter reading gives 2-3)."
 7_2_882,1,y,"Flat roof split into strips by parapets/light wells, with HVAC; darker strip on the east may be a lower level; not counted because the height step isn't clear (would make it 2)."
-6_4_34,1,n,"EXCLUDE (likely not a roof): narrow low structure/alley in deep shadow between towers; can't check planes or obstructions. Possible footprint/DSM mismatch: very low confidence."
+6_4_34,1,n,EXCLUDE (likely not a roof): narrow low structure/alley in deep shadow between towers; can't check planes or obstructions. Possible footprint/DSM mismatch: very low confidence.
 6_4_246,2,y,"Flat: a lower perimeter ring + a raised V-shaped upper level; skylight grid, penthouse and HVAC. Binned 'hip' by the model."
 6_4_28,6,y,"Historic cross-gable (~4 facets) with a gold dome/cupola, plus flat-roofed annexes east and west. Rough count."
-6_4_42,5,n,"Hip roof (4 facets) + a flat white section in the south part of the footprint. Image is blurry: small vents may be missed."
-6_3_74,6,y,"Footprint is a whole block merging several flat-roofed buildings at different heights (~6 levels) plus penthouses/mechanical. Count is rough; footprint over-merge."
+6_4_42,5,n,Hip roof (4 facets) + a flat white section in the south part of the footprint. Image is blurry: small vents may be missed.
+6_3_74,6,y,Footprint is a whole block merging several flat-roofed buildings at different heights (~6 levels) plus penthouses/mechanical. Count is rough; footprint over-merge.
 6_4_55,6,y,"Whole-block footprint over several flat buildings at different heights (~6 levels), mechanical, existing PV arrays on the SW building."
 6_4_56,5,y,"Whole-block footprint: several flat buildings at different heights (~5 levels); large existing PV arrays on the north building, green roof on the south."

@@ -9,9 +9,11 @@ This is an **indicative sample, not ground truth** (risks §14.4).
 
 ## Provenance
 
-- **Drafted by Claude (2026-10-16) from the per-roof panels. It needs a human review pass before
-  #23 relies on it.** Labels came from the DC 2023 orthophoto and DSM hillshade. The model panels
-  are in the same image, so the drafter saw them; read the labels with that bias in mind.
+- Drafted by Claude (2026-10-16) from the per-roof panels, using the DC 2023 orthophoto and DSM
+  hillshade. The model panels are in the same image, so the drafter saw them.
+- **Human-reviewed by the user (2026-10-16).** They changed `7_2_292` 1→2, `7_2_364` 1→2 and
+  `7_2_225` 4→10. Where a row's `n_major_planes` disagrees with its `notes`, the number is the
+  reviewed label and the note is the original draft reasoning.
 - Low-confidence rows say so in `notes` (tree cover, deep shadow, blurry imagery, merged footprints).
 
 ## Conventions
@@ -28,13 +30,13 @@ This is an **indicative sample, not ground truth** (risks §14.4).
 
 These rules are a **proposal, for the user to accept or reject in #23**. Plan step 7b's stop rule
 (±1 plane count on ≥~80%) names no exclusions or clamp. Under the raw rule, multiplane agrees on
-**58% of 19** roofs. With both rules below it agrees on **71% of 17**.
+**53% of 19** roofs. With both rules below it agrees on **71% of 17**.
 
 - Leave out rows whose `notes` start with `EXCLUDE`: `7_2_594` and `6_4_34` look like a non-roof
   surface and a shadowed alley. Their `1,n` values are placeholders that keep the row filled,
   not labels. Score the other 17.
-- Compare `min(n_major_planes, roof_planes.MAX_PLANES)` (4) with the model's `n_planes`. Five rows
-  are labelled above the cap: `6_4_28`, `6_4_42`, `6_3_74`, `6_4_55`, `6_4_56`. Without the clamp
+- Compare `min(n_major_planes, roof_planes.MAX_PLANES)` (4) with the model's `n_planes`. Six rows
+  are labelled above the cap: `7_2_225`, `6_4_28`, `6_4_42`, `6_3_74`, `6_4_55`, `6_4_56`. Without the clamp
   they can never meet ±1, so they would count against tuning when the real problem is the cap or the
   merged footprint.
 - The ±1 tolerance covers the "would make it 2/1" ambiguities in `notes`.
