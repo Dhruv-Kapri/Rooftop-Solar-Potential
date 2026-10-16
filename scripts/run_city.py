@@ -139,13 +139,17 @@ def main() -> None:
     tiles_dir = Path(args.tiles_dir) if args.tiles_dir is not None else config.TILES_CACHE_DIR
     day_range = _parse_day_range(args.day_range)
     # Default deliverables to a run-labelled subdir (outputs/dc/<N>day), never outputs/ root.
-    # Built even under --output-dir so an unsafe --run-label is always rejected.
+    # Validated even under --output-dir so an unsafe --run-label is always rejected.
     label = args.run_label if args.run_label is not None else _run_label(day_range)
     try:
-        run_dir = config.outputs_run_dir("dc", label)
+        config.validate_run_label(label)
     except ValueError as exc:
         parser.error(f"--run-label: {exc}")
-    output_dir = Path(args.output_dir) if args.output_dir is not None else run_dir
+    output_dir = (
+        Path(args.output_dir)
+        if args.output_dir is not None
+        else config.outputs_run_dir("dc", label)
+    )
 
     started = time.perf_counter()
     city = pipeline.run_city(
