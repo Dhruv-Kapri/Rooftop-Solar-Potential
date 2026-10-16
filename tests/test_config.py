@@ -69,6 +69,16 @@ def test_outputs_run_dir_rejects_unsafe_label(label):
         config.outputs_run_dir("dc", label)
 
 
+@pytest.mark.parametrize("label", ["", ".", "..", "a/b", "a\\b"])
+def test_validate_run_label_rejects_unsafe_label(label):
+    with pytest.raises(ValueError, match="label"):
+        config.validate_run_label(label)
+
+
+def test_validate_run_label_accepts_plain_name():
+    assert config.validate_run_label("12day") is None
+
+
 def test_outputs_run_dir_nests_label_under_area():
     assert config.outputs_run_dir("dc", "12day") == config.OUTPUTS_DIR / "dc" / "12day"
 
