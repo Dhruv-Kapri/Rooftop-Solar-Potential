@@ -8,9 +8,9 @@ baseline) so the
 roofs can be hand-labelled in ``labels.csv``. Comparing the labels against the pipeline
 is a later ticket; this script stops at the figures + labels template.
 
-    python scripts/spot_check.py                         # all areas -> <city dir>/spot_check/
-    python scripts/spot_check.py --areas glover_park --per-cell 2
-    python scripts/spot_check.py --no-images             # data only, skip the figures
+    python scripts/spot_check.py --city outputs/dc/12day_gcr/roofs.parquet  # -> <city>/spot_check/
+    python scripts/spot_check.py --city ... --areas glover_park --per-cell 2
+    python scripts/spot_check.py --city ... --no-images  # data only, skip the figures
 
 Needs the per-tile DSM + insolation caches under ``--tiles-dir`` (ADR-0009/0014).
 """
@@ -183,7 +183,7 @@ def render_building(row, score, tiles_dir: Path, ortho_cache: Path, out_path: Pa
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
-        "--city", default=None, help="city roofs.parquet (default: calibrated run's roofs.parquet)"
+        "--city", required=True, help="city roofs.parquet, e.g. outputs/dc/12day_gcr/roofs.parquet"
     )
     parser.add_argument("--tiles-dir", default=None, help="tile cache dir (default: data/tiles)")
     parser.add_argument("--out-dir", default=None, help="default: <city parquet dir>/spot_check")
@@ -199,9 +199,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    city_path = (
-        Path(args.city) if args.city else config.CALIBRATED_CITY_OUTPUTS_DIR / "roofs.parquet"
-    )
+    city_path = Path(args.city)
     tiles_dir = Path(args.tiles_dir) if args.tiles_dir else config.TILES_CACHE_DIR
     out_dir = Path(args.out_dir) if args.out_dir else city_path.parent / "spot_check"
     ortho_cache = Path(args.ortho_cache) if args.ortho_cache else config.DATA_DIR / "ortho_2023"
