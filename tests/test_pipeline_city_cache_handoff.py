@@ -57,7 +57,7 @@ def test_truncated_roofs_parquet_recomputes_only_that_tile(tmp_path, monkeypatch
 
     assert len(second) == 1
     assert second[0] in first
-    assert victim.name == f"tile_{second[0][0]}_{second[0][1]}_roofs.parquet"
+    assert victim == pipeline.tile_cache_path(tmp_path, *second[0], "roofs")
     # the recomputed parquet is whole again, so the next run reuses everything
     assert _run_city(tmp_path, monkeypatch) == []
 
@@ -70,4 +70,4 @@ def test_done_tile_whose_parquet_has_no_sidecar_is_recomputed(tmp_path, monkeypa
     second = _run_city(tmp_path, monkeypatch)
 
     assert len(second) == 1
-    assert victim.name == f"tile_{second[0][0]}_{second[0][1]}_roofs.parquet"
+    assert victim == pipeline.tile_cache_path(tmp_path, *second[0], "roofs")

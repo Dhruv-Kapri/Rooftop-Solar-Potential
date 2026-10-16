@@ -23,7 +23,7 @@ from geopandas.testing import assert_geodataframe_equal
 from rasterio.transform import from_origin
 from shapely.geometry import box
 
-from rooftop_solar import config, pipeline, roof_planes, validation
+from rooftop_solar import cache, config, pipeline, roof_planes, validation
 
 ORIGIN_X = 320_000.0
 ORIGIN_Y = 4_307_100.0  # top edge of the grid
@@ -210,12 +210,20 @@ def test_multiplane_buildings_match_production_score_roofs(
     assert_geodataframe_equal(ours, production.sort_values("building_id").reset_index(drop=True))
 
 
+def _cache_raster(tiles, name, src):
+    """Copy `src` into the tile cache as `name`, with a current-format sidecar (ADR-0014)."""
+    path = tiles / name
+    path.write_bytes(src.read_bytes())
+    cache.write_key_sidecar(path, "any-key")
+    return path
+
+
 def _tiles_dir(tmp_path, rasters, *, with_insol=True):
     tiles = tmp_path / "tiles"
     tiles.mkdir()
-    (tiles / "tile_0_0_dsm.tif").write_bytes(rasters[0].read_bytes())
+    _cache_raster(tiles, "tile_0_0_dsm.tif", rasters[0])
     if with_insol:
-        (tiles / "tile_0_0_insolation.tif").write_bytes(rasters[1].read_bytes())
+        _cache_raster(tiles, "tile_0_0_insolation.tif", rasters[1])
     return tiles
 
 
@@ -234,8 +242,8 @@ def test_rescore_sample_matches_detailed_score(tmp_path, rasters, footprints, de
 
 def test_rescore_sample_concatenates_tiles(tmp_path, rasters, footprints):
     tiles = _tiles_dir(tmp_path, rasters)
-    (tiles / "tile_1_2_dsm.tif").write_bytes(rasters[0].read_bytes())
-    (tiles / "tile_1_2_insolation.tif").write_bytes(rasters[1].read_bytes())
+    _cache_raster(tiles, "tile_1_2_dsm.tif", rasters[0])
+    _cache_raster(tiles, "tile_1_2_insolation.tif", rasters[1])
     sample = footprints.assign(tile_row=[0, 1], tile_col=[0, 2])
 
     got = validation.rescore_sample(sample, tiles)
@@ -249,6 +257,23 @@ def test_rescore_sample_missing_raster_names_the_file(tmp_path, rasters, footpri
     tiles = _tiles_dir(tmp_path, rasters, with_insol=False)
 
     with pytest.raises(FileNotFoundError, match=r"tile_0_0_insolation\.tif.*run_city"):
+        validation.rescore_sample(_sample(footprints), tiles)
+
+
+def test_rescore_sample_truncated_raster_is_refused(tmp_path, rasters, footprints):
+    tiles = _tiles_dir(tmp_path, rasters)
+    dsm = tiles / "tile_0_0_dsm.tif"
+    dsm.write_bytes(dsm.read_bytes()[:100])  # e.g. an rsync that died mid-file; sidecar intact
+
+    with pytest.raises(ValueError, match=r"tile_0_0_dsm\.tif.*run_city"):
+        validation.rescore_sample(_sample(footprints), tiles)
+
+
+def test_rescore_sample_sidecarless_raster_is_refused(tmp_path, rasters, footprints):
+    tiles = _tiles_dir(tmp_path, rasters)
+    cache.sidecar_path(tiles / "tile_0_0_insolation.tif").unlink()
+
+    with pytest.raises(ValueError, match=r"tile_0_0_insolation\.tif.*run_city"):
         validation.rescore_sample(_sample(footprints), tiles)
 
 
