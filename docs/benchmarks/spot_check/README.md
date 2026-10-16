@@ -24,13 +24,19 @@ This is an **indicative sample, not ground truth** (risks §14.4).
   hatches, skylights, dormers, chimneys, penthouses, cupolas, existing PV), otherwise `n`.
   Trees overhanging the roof are noted, not counted.
 
-## Scoring against the stop rule (#23)
+## Proposed scoring for the stop rule (#23)
+
+These rules are a **proposal, for the user to accept or reject in #23**. Plan step 7b's stop rule
+(±1 plane count on ≥~80%) names no exclusions or clamp. Under the raw rule, multiplane agrees on
+**58% of 19** roofs. With both rules below it agrees on **71% of 17**.
 
 - Leave out rows whose `notes` start with `EXCLUDE`: `7_2_594` and `6_4_34` look like a non-roof
-  surface and a shadowed alley. Score the other 17.
-- Compare `min(n_major_planes, MAX_PLANES)` with the model's `n_planes`. Five rows are labelled above
-  the cap: `6_4_28`, `6_4_42`, `6_3_74`, `6_4_55`, `6_4_56`. Without the clamp they can never meet ±1, so they
-  would count against tuning when the real problem is the cap or the merged footprint.
+  surface and a shadowed alley. Their `1,n` values are placeholders that keep the row filled,
+  not labels. Score the other 17.
+- Compare `min(n_major_planes, roof_planes.MAX_PLANES)` (4) with the model's `n_planes`. Five rows
+  are labelled above the cap: `6_4_28`, `6_4_42`, `6_3_74`, `6_4_55`, `6_4_56`. Without the clamp
+  they can never meet ±1, so they would count against tuning when the real problem is the cap or the
+  merged footprint.
 - The ±1 tolerance covers the "would make it 2/1" ambiguities in `notes`.
 
 ## What the draft shows (input for #23)
