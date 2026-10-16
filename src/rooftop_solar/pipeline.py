@@ -22,7 +22,7 @@ import json
 import multiprocessing
 import os
 import warnings
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
@@ -624,6 +624,15 @@ def scoring_key(
     return json.dumps(payload, sort_keys=True)
 
 
+class DoneTile(NamedTuple):
+    """A manifest `"done"` entry: the tile's grid index, scoring stamp and roof count."""
+
+    row: int
+    col: int
+    stamp: str
+    n_roofs: int
+
+
 class TileManifest:
     """Per-tile status + scoring_key stamp, persisted as JSON under `config.TILES_CACHE_DIR`
     (ADR-0009/ADR-0014).
@@ -638,8 +647,8 @@ class TileManifest:
     Entries are keyed `"<row>_<col>"` (stable across runs because `Tile.row`/`Tile.col` are
     stable for a fixed `origin`/`tile_size_m` — ADR-0009's fixed-origin property) and hold
     `{"status": "done" | "failed", "stamp": str, "n_roofs": int}` (plus `"error"` for a
-    failed tile). Callers use `is_current`/`mark_done`/`mark_failed` — the dict itself is an
-    implementation detail, not part of the public contract.
+    failed tile). Callers use `is_current`/`mark_done`/`mark_failed`/`done_entries` — the dict
+    itself is an implementation detail, not part of the public contract.
     """
 
     def __init__(self, path: str | Path, entries: dict[str, dict[str, Any]] | None = None) -> None:
@@ -689,6 +698,14 @@ class TileManifest:
         if entry is None:
             return False
         return entry.get("status") == "done" and entry.get("stamp") == stamp
+
+    def done_entries(self) -> Iterator[DoneTile]:
+        """Every `"done"` tile (failed ones excluded), with its `"<row>_<col>"` key parsed back
+        to ints (`row`/`col` may be negative: the grid is anchored on a fixed origin)."""
+        for key, entry in self.entries.items():
+            if entry.get("status") == "done":
+                row, col = (int(i) for i in key.split("_"))
+                yield DoneTile(row, col, entry["stamp"], entry["n_roofs"])
 
     def mark_done(self, tile: tiling.Tile, stamp: str, n_roofs: int) -> None:
         """Record `tile` as successfully computed with `stamp`, having produced `n_roofs`."""
@@ -860,22 +877,11 @@ def run_city(
         }
         to_score.append(_TileJob(i, tile, sk, roofs_cache, score_kwargs))
 
-    def cache_tile_result(job: _TileJob, roofs_or_error: gpd.GeoDataFrame | str) -> None:
-        """Coordinator-only: write a tile's roofs parquet + manifest entry, or record its error
-        text (skip-and-continue: one bad tile must not abort a multi-hour batch, ADR-0009)."""
-        if isinstance(roofs_or_error, str):
-            manifest.mark_failed(job.tile, job.stamp, error=roofs_or_error)
-            manifest.save()
-            return
-        _write_parquet(roofs_or_error, job.roofs_cache)
-        cache.write_key_sidecar(job.roofs_cache, job.stamp)  # artifact first, then its sidecar
-        manifest.mark_done(job.tile, job.stamp, n_roofs=len(roofs_or_error))
-        manifest.save()
-        tile_frames[job.grid_index] = roofs_or_error
-
     if workers == 1:
         for job in to_score:
-            cache_tile_result(job, _score_tile_or_error(_score_tile, job.tile, **job.score_kwargs))
+            roofs_or_error = _score_tile_or_error(_score_tile, job.tile, **job.score_kwargs)
+            if (roofs := _cache_tile_result(manifest, job, roofs_or_error)) is not None:
+                tile_frames[job.grid_index] = roofs
     else:
         # spawn, not fork: fork is unsafe with GDAL threads on macOS and platform-dependent.
         # A worker process that dies outright (e.g. OOM-killed) breaks the whole pool: every
@@ -894,7 +900,9 @@ def run_city(
                     roofs_or_error = future.result()
                 except Exception as exc:  # the pool itself broke (`BrokenProcessPool`)
                     roofs_or_error = repr(exc)
-                cache_tile_result(futures[future], roofs_or_error)
+                job = futures[future]
+                if (roofs := _cache_tile_result(manifest, job, roofs_or_error)) is not None:
+                    tile_frames[job.grid_index] = roofs
 
     city = recompute_city_suitability(merge_tile_roofs(tile_frames[i] for i in sorted(tile_frames)))
 
@@ -902,6 +910,23 @@ def run_city(
         out_dir = Path(output_dir) if output_dir is not None else config.CALIBRATED_CITY_OUTPUTS_DIR
         _write_parquet(city, out_dir / CITY_ROOFS_PARQUET_NAME)
     return city
+
+
+def _cache_tile_result(
+    manifest: TileManifest, job: _TileJob, roofs_or_error: gpd.GeoDataFrame | str
+) -> gpd.GeoDataFrame | None:
+    """Coordinator-only: write a tile's roofs parquet, its sidecar and a done manifest entry,
+    returning the roofs; or record its error text and return None (skip-and-continue: one bad
+    tile must not abort a multi-hour batch, ADR-0009)."""
+    if isinstance(roofs_or_error, str):
+        manifest.mark_failed(job.tile, job.stamp, error=roofs_or_error)
+        manifest.save()
+        return None
+    _write_parquet(roofs_or_error, job.roofs_cache)
+    cache.write_key_sidecar(job.roofs_cache, job.stamp)  # artifact first, then its sidecar
+    manifest.mark_done(job.tile, job.stamp, n_roofs=len(roofs_or_error))
+    manifest.save()
+    return roofs_or_error
 
 
 def _score_tile_or_error(
