@@ -25,7 +25,7 @@ import warnings
 from collections.abc import Callable, Iterable
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, Literal, NamedTuple
 
 import geopandas as gpd
 import pandas as pd
@@ -724,11 +724,25 @@ CITY_ROOFS_PARQUET_NAME = "roofs.parquet"
 MANIFEST_NAME = "manifest.json"
 
 
-def tile_cache_path(tiles_dir: str | Path, row: int, col: int, kind: str) -> Path:
+TileArtifact = Literal["dsm", "insolation", "roofs"]
+_TILE_ARTIFACT_SUFFIX: dict[str, str] = {
+    "dsm": "dsm.tif",
+    "insolation": "insolation.tif",
+    "roofs": "roofs.parquet",
+}
+
+
+def tile_cache_path(tiles_dir: str | Path, row: int, col: int, kind: TileArtifact) -> Path:
     """A tile's cached artifact under `tiles_dir` (ADR-0009/0014): `kind` is "dsm" or
-    "insolation" (rasters) or "roofs" (the scored GeoParquet). The one naming source the city
-    run and the spot-check re-score (`validation.rescore_sample`) both read."""
-    suffix = {"dsm": "dsm.tif", "insolation": "insolation.tif", "roofs": "roofs.parquet"}[kind]
+    "insolation" (rasters) or "roofs" (the scored GeoParquet); anything else raises
+    `ValueError`. The one naming source the city run and the spot-check re-score
+    (`validation.rescore_sample`) both read."""
+    try:
+        suffix = _TILE_ARTIFACT_SUFFIX[kind]
+    except KeyError:
+        raise ValueError(
+            f"unknown tile artifact kind {kind!r}; expected one of {sorted(_TILE_ARTIFACT_SUFFIX)}"
+        ) from None
     return Path(tiles_dir) / f"tile_{row}_{col}_{suffix}"
 
 

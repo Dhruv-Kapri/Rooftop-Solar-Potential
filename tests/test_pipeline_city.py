@@ -9,6 +9,7 @@ ADR-0004 suitability percentile **city-wide** after the tiles are merged. Offlin
 from __future__ import annotations
 
 import geopandas as gpd
+import pytest
 from shapely.geometry import box
 
 from rooftop_solar import config, pipeline
@@ -60,3 +61,8 @@ def test_recompute_city_suitability_handles_empty_frame():
     out = pipeline.recompute_city_suitability(empty)
 
     assert len(out) == 0
+
+
+def test_tile_cache_path_rejects_unknown_kind(tmp_path):
+    with pytest.raises(ValueError, match="bogus"):
+        pipeline.tile_cache_path(tmp_path, 0, 1, "bogus")
