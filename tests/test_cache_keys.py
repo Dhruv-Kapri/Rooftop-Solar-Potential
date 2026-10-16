@@ -340,3 +340,57 @@ def test_sidecar_matches_false_when_artifact_vanishes_while_hashing(tmp_path: Pa
     monkeypatch.setattr(cache, "_sha256", vanished)
 
     assert cache.sidecar_matches(artifact, "key-1") is False
+
+
+# --- one-off adoption of pre-#18 plain-text sidecars (issue #19 cache) ---
+
+
+def test_adopt_legacy_sidecar_upgrades_plain_text_sidecar(tmp_path: Path):
+    artifact = tmp_path / "tile.tif"
+    artifact.write_bytes(b"fake raster")
+    cache.sidecar_path(artifact).write_text("key-1")  # pre-#18 format: the bare key
+
+    assert cache.adopt_legacy_sidecar(artifact) is True
+
+    assert cache.read_key_sidecar(artifact) == "key-1"
+    assert cache.sidecar_matches(artifact, "key-1") is True
+
+
+def test_adopted_sidecar_pins_the_artifact_bytes_from_then_on(tmp_path: Path):
+    artifact = tmp_path / "tile.tif"
+    artifact.write_bytes(b"fake raster")
+    cache.sidecar_path(artifact).write_text("key-1")
+    cache.adopt_legacy_sidecar(artifact)
+
+    artifact.write_bytes(b"fake")  # truncated after adoption
+
+    assert cache.sidecar_matches(artifact, "key-1") is False
+
+
+def test_adopt_legacy_sidecar_leaves_current_format_sidecar_untouched(tmp_path: Path):
+    artifact = tmp_path / "tile.tif"
+    artifact.write_bytes(b"fake raster")
+    cache.write_key_sidecar(artifact, "key-1")
+    before = cache.sidecar_path(artifact).read_text()
+
+    assert cache.adopt_legacy_sidecar(artifact) is False
+
+    assert cache.sidecar_path(artifact).read_text() == before
+
+
+def test_adopt_legacy_sidecar_false_without_artifact(tmp_path: Path):
+    artifact = tmp_path / "tile.tif"
+    cache.sidecar_path(artifact).write_text("key-1")
+
+    assert cache.adopt_legacy_sidecar(artifact) is False
+
+    assert cache.sidecar_path(artifact).read_text() == "key-1"
+
+
+def test_adopt_legacy_sidecar_false_without_sidecar(tmp_path: Path):
+    artifact = tmp_path / "tile.tif"
+    artifact.write_bytes(b"fake raster")
+
+    assert cache.adopt_legacy_sidecar(artifact) is False
+
+    assert not cache.sidecar_path(artifact).exists()
