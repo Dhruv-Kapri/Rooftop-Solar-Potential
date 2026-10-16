@@ -263,3 +263,16 @@ def test_summarize_spot_check_by_method():
     assert (rs["obstruction_hits"], rs["obstruction_misses"]) == (1, 1)
     assert (rs["obstruction_false_positives"], rs["obstruction_true_negatives"]) == (0, 3)
     assert rs["large_planar_obstructions"] == 0 and rs["escaped_usable_m2"] == 0.0
+
+
+@pytest.mark.parametrize(
+    ("label", "model", "outcome"),
+    [
+        (True, True, "hit"),
+        (True, False, "miss"),
+        (False, True, "false_positive"),
+        (False, False, "true_negative"),
+    ],
+)
+def test_obstruction_outcome_names_each_label_model_pair(label, model, outcome):
+    assert validation._obstruction_outcome(label, model) == outcome
