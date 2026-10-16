@@ -136,22 +136,16 @@ def main() -> None:
     )
     parser.add_argument("--no-aggregate", action="store_true", help="skip the tract equity map")
     args = parser.parse_args()
-    if args.run_label is not None and (
-        not args.run_label
-        or args.run_label in (".", "..")
-        or "/" in args.run_label
-        or "\\" in args.run_label
-    ):
-        parser.error("--run-label must be a plain dir name (no path separators, '.' or '..')")
-
     tiles_dir = Path(args.tiles_dir) if args.tiles_dir is not None else config.TILES_CACHE_DIR
     day_range = _parse_day_range(args.day_range)
     # Default deliverables to a run-labelled subdir (outputs/dc/<N>day), never outputs/ root.
-    output_dir = (
-        Path(args.output_dir)
-        if args.output_dir is not None
-        else config.outputs_run_dir("dc", args.run_label or _run_label(day_range))
-    )
+    # Built even under --output-dir so an unsafe --run-label is always rejected.
+    label = args.run_label if args.run_label is not None else _run_label(day_range)
+    try:
+        run_dir = config.outputs_run_dir("dc", label)
+    except ValueError as exc:
+        parser.error(f"--run-label: {exc}")
+    output_dir = Path(args.output_dir) if args.output_dir is not None else run_dir
 
     started = time.perf_counter()
     city = pipeline.run_city(
