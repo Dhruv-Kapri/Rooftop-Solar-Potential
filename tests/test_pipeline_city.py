@@ -8,6 +8,8 @@ ADR-0004 suitability percentile **city-wide** after the tiles are merged. Offlin
 
 from __future__ import annotations
 
+import dataclasses
+
 import geopandas as gpd
 import pytest
 from shapely.geometry import box
@@ -99,4 +101,5 @@ def test_cache_tile_result_error_marks_failed_writes_nothing_and_returns_none(tm
     reloaded = pipeline.TileManifest.load(tmp_path / pipeline.MANIFEST_NAME)
     assert not reloaded.is_current(job.tile, "stamp-1")
     assert list(reloaded.done_entries()) == []
-    assert "boom" in reloaded.entries["2_3"]["error"]
+    assert "boom" in reloaded.error_for(job.tile)
+    assert reloaded.error_for(dataclasses.replace(job.tile, row=9, col=9)) is None
