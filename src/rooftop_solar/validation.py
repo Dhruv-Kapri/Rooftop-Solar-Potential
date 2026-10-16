@@ -16,7 +16,7 @@ import numpy.typing as npt
 import pandas as pd
 from shapely.geometry.base import BaseGeometry
 
-from rooftop_solar import config, pipeline, radiation, roof_planes, usable_area, yield_pv
+from rooftop_solar import cache, config, pipeline, radiation, roof_planes, usable_area, yield_pv
 from rooftop_solar.roof_planes import fit_planes_multi, roof_points
 from rooftop_solar.tiling import tile_index
 
@@ -371,7 +371,10 @@ def rescore_sample(sample: gpd.GeoDataFrame, tiles_dir: str | Path) -> DetailedS
     `tile_{row}_{col}_dsm.tif` / `tile_{row}_{col}_insolation.tif`
     (`pipeline.tile_cache_path`, ADR-0009/0014); a missing one raises
     `FileNotFoundError` -- the cache is populated by the city run (issue #19), never here.
-    An empty `sample` raises `ValueError`. Per-tile results are concatenated.
+    A raster whose sidecar is absent, in the legacy format, or no longer matches the file's
+    bytes (a truncated or swapped copy after a cache handoff, issue #18) raises `ValueError`
+    rather than being read silently. An empty `sample` raises `ValueError`. Per-tile results
+    are concatenated.
     """
     if sample.empty:
         raise ValueError("rescore_sample: empty sample -- nothing to re-score")
@@ -385,6 +388,12 @@ def rescore_sample(sample: gpd.GeoDataFrame, tiles_dir: str | Path) -> DetailedS
                 raise FileNotFoundError(
                     f"{path} not found; the tile cache must be populated by "
                     "pipeline.run_city (issue #19)"
+                )
+            key = cache.read_key_sidecar(path)
+            if key is None or not cache.sidecar_matches(path, key):
+                raise ValueError(
+                    f"{path} does not match its cache sidecar (missing, legacy-format, "
+                    "truncated or swapped); re-run pipeline.run_city to rebuild it (ADR-0014)"
                 )
         scores.append(detailed_score(group, dsm_path, insol_path))
     return DetailedScore(
