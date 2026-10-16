@@ -647,7 +647,7 @@ class TileManifest:
     Entries are keyed `"<row>_<col>"` (stable across runs because `Tile.row`/`Tile.col` are
     stable for a fixed `origin`/`tile_size_m` — ADR-0009's fixed-origin property) and hold
     `{"status": "done" | "failed", "stamp": str, "n_roofs": int}` (plus `"error"` for a
-    failed tile). Callers use `is_current`/`mark_done`/`mark_failed`/`done_entries` — the dict
+    failed tile). Callers use `is_current`/`mark_done`/`mark_failed`/`done_entries`/`error_for` — the dict
     itself is an implementation detail, not part of the public contract.
     """
 
@@ -706,6 +706,14 @@ class TileManifest:
             if entry.get("status") == "done":
                 row, col = _parse_tile_key(key)
                 yield DoneTile(row, col, entry["stamp"], entry["n_roofs"])
+
+    def error_for(self, tile: tiling.Tile) -> str | None:
+        """The error text recorded by `mark_failed` for `tile`, else None (unknown or not
+        failed) (#29)."""
+        entry = self.entries.get(_tile_key(tile))
+        if entry is None or entry.get("status") != "failed":
+            return None
+        return entry["error"]
 
     def mark_done(self, tile: tiling.Tile, stamp: str, n_roofs: int) -> None:
         """Record `tile` as successfully computed with `stamp`, having produced `n_roofs`."""
