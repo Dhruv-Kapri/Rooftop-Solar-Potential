@@ -102,8 +102,10 @@ def write_roof_pmtiles(
         subprocess.run(
             [
                 "tippecanoe",
-                "-o", str(path),
-                "-l", layer,
+                "-o",
+                str(path),
+                "-l",
+                layer,
                 f"--minimum-zoom={minzoom}",
                 f"--maximum-zoom={maxzoom}",
                 "--drop-densest-as-needed",
