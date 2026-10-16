@@ -32,7 +32,14 @@ def outputs_area_dir(area: str) -> Path:
 
 
 def outputs_run_dir(area: str, label: str) -> Path:
-    """Output dir for a labelled run within a study area, e.g. outputs/dc/12day."""
+    """Output dir for a labelled run within a study area, e.g. outputs/dc/12day.
+
+    `label` must be a plain dir name (non-empty, no path separators, not '.' or '..') so a run
+    label can't escape `outputs/<area>/`; otherwise `ValueError`."""
+    if not label or label in (".", "..") or "/" in label or "\\" in label:
+        raise ValueError(
+            f"label must be a plain dir name (no path separators, '.' or '..'): {label!r}"
+        )
     return OUTPUTS_DIR / area / label
 
 
