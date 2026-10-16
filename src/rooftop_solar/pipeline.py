@@ -22,10 +22,10 @@ import json
 import multiprocessing
 import os
 import warnings
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, Literal, NamedTuple
 
 import geopandas as gpd
 import pandas as pd
@@ -271,9 +271,7 @@ def recompute_city_suitability(city: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
 
 def _to_working_crs(geom_wgs84: BaseGeometry) -> BaseGeometry:
     """Reproject a WGS84 geometry into config.WORKING_CRS (metric)."""
-    to_working = Transformer.from_crs(
-        "EPSG:4326", config.WORKING_CRS, always_xy=True
-    ).transform
+    to_working = Transformer.from_crs("EPSG:4326", config.WORKING_CRS, always_xy=True).transform
     return shp_transform(to_working, geom_wgs84)
 
 
@@ -321,6 +319,7 @@ def render_choropleth(result: gpd.GeoDataFrame, path: str | Path) -> Path:
 # --------------------------------------------------------------------------- #
 # Stage 7 — census-tract aggregation + equity overlay (Phase 2, Part 2-1)     #
 # --------------------------------------------------------------------------- #
+
 
 def run_aggregation(
     *,
@@ -388,9 +387,7 @@ def run_aggregation(
             categorical=True,
             title=f"{area_name} — equity quadrant (per-household potential × energy burden)",
         )
-        render_potential_burden_scatter(
-            result, out_dir / EQUITY_SCATTER_NAME, area_name=area_name
-        )
+        render_potential_burden_scatter(result, out_dir / EQUITY_SCATTER_NAME, area_name=area_name)
 
     return result
 
@@ -494,12 +491,16 @@ def render_potential_burden_scatter(
     ax.scatter(
         df.loc[~priority, "potential_per_household"],
         df.loc[~priority, "energy_burden"],
-        c="tab:blue", alpha=0.7, label="other tracts",
+        c="tab:blue",
+        alpha=0.7,
+        label="other tracts",
     )
     ax.scatter(
         df.loc[priority, "potential_per_household"],
         df.loc[priority, "energy_burden"],
-        c="tab:red", alpha=0.9, label="priority (high × high)",
+        c="tab:red",
+        alpha=0.9,
+        label="priority (high × high)",
     )
     if len(df):
         ax.axvline(df["potential_per_household"].median(), color="grey", ls="--", lw=0.8)
@@ -623,6 +624,15 @@ def scoring_key(
     return json.dumps(payload, sort_keys=True)
 
 
+class DoneTile(NamedTuple):
+    """A manifest `"done"` entry: the tile's grid index, scoring stamp and roof count."""
+
+    row: int
+    col: int
+    stamp: str
+    n_roofs: int
+
+
 class TileManifest:
     """Per-tile status + scoring_key stamp, persisted as JSON under `config.TILES_CACHE_DIR`
     (ADR-0009/ADR-0014).
@@ -637,8 +647,8 @@ class TileManifest:
     Entries are keyed `"<row>_<col>"` (stable across runs because `Tile.row`/`Tile.col` are
     stable for a fixed `origin`/`tile_size_m` — ADR-0009's fixed-origin property) and hold
     `{"status": "done" | "failed", "stamp": str, "n_roofs": int}` (plus `"error"` for a
-    failed tile). Callers use `is_current`/`mark_done`/`mark_failed` — the dict itself is an
-    implementation detail, not part of the public contract.
+    failed tile). Callers use `is_current`/`mark_done`/`mark_failed`/`done_entries` — the dict
+    itself is an implementation detail, not part of the public contract.
     """
 
     def __init__(self, path: str | Path, entries: dict[str, dict[str, Any]] | None = None) -> None:
@@ -689,6 +699,14 @@ class TileManifest:
             return False
         return entry.get("status") == "done" and entry.get("stamp") == stamp
 
+    def done_entries(self) -> Iterator[DoneTile]:
+        """Every `"done"` tile (failed ones excluded), with its `"<row>_<col>"` key parsed back
+        to ints (`row`/`col` may be negative: the grid is anchored on a fixed origin)."""
+        for key, entry in self.entries.items():
+            if entry.get("status") == "done":
+                row, col = _parse_tile_key(key)
+                yield DoneTile(row, col, entry["stamp"], entry["n_roofs"])
+
     def mark_done(self, tile: tiling.Tile, stamp: str, n_roofs: int) -> None:
         """Record `tile` as successfully computed with `stamp`, having produced `n_roofs`."""
         self.entries[_tile_key(tile)] = {
@@ -712,6 +730,12 @@ def _tile_key(tile: tiling.Tile) -> str:
     return f"{tile.row}_{tile.col}"
 
 
+def _parse_tile_key(key: str) -> tuple[int, int]:
+    """`_tile_key`'s inverse: `"<row>_<col>"` back to `(row, col)` (either may be negative)."""
+    row, col = key.split("_")
+    return int(row), int(col)
+
+
 # --------------------------------------------------------------------------- #
 # City runner — tile the District, score per tile, cache, merge (Part 2-2,    #
 # ADR-0009: per-tile cache, resumable/idempotent; tiles scored sequentially   #
@@ -723,11 +747,25 @@ CITY_ROOFS_PARQUET_NAME = "roofs.parquet"
 MANIFEST_NAME = "manifest.json"
 
 
-def tile_cache_path(tiles_dir: str | Path, row: int, col: int, kind: str) -> Path:
+TileArtifact = Literal["dsm", "insolation", "roofs"]
+_TILE_ARTIFACT_SUFFIX: dict[TileArtifact, str] = {
+    "dsm": "dsm.tif",
+    "insolation": "insolation.tif",
+    "roofs": "roofs.parquet",
+}
+
+
+def tile_cache_path(tiles_dir: str | Path, row: int, col: int, kind: TileArtifact) -> Path:
     """A tile's cached artifact under `tiles_dir` (ADR-0009/0014): `kind` is "dsm" or
-    "insolation" (rasters) or "roofs" (the scored GeoParquet). The one naming source the city
-    run and the spot-check re-score (`validation.rescore_sample`) both read."""
-    suffix = {"dsm": "dsm.tif", "insolation": "insolation.tif", "roofs": "roofs.parquet"}[kind]
+    "insolation" (rasters) or "roofs" (the scored GeoParquet); anything else raises
+    `ValueError`. The one naming source the city run and the spot-check re-score
+    (`validation.rescore_sample`) both read."""
+    try:
+        suffix = _TILE_ARTIFACT_SUFFIX[kind]
+    except KeyError:
+        raise ValueError(
+            f"unknown tile artifact kind {kind!r}; expected one of {sorted(_TILE_ARTIFACT_SUFFIX)}"
+        ) from None
     return Path(tiles_dir) / f"tile_{row}_{col}_{suffix}"
 
 
@@ -797,8 +835,8 @@ def run_city(
     """
     # Fail fast: the per-tile `except Exception` below would otherwise swallow these into an
     # all-failed batch.
-    _require_positive_int("nprocs", nprocs)
-    _require_positive_int("workers", workers)
+    radiation.require_positive_int("nprocs", nprocs)
+    radiation.require_positive_int("workers", workers)
     if aoi is None:
         from rooftop_solar import aoi as aoi_mod  # local import: `aoi` is a parameter name here
 
@@ -845,22 +883,11 @@ def run_city(
         }
         to_score.append(_TileJob(i, tile, sk, roofs_cache, score_kwargs))
 
-    def cache_tile_result(job: _TileJob, roofs_or_error: gpd.GeoDataFrame | str) -> None:
-        """Coordinator-only: write a tile's roofs parquet + manifest entry, or record its error
-        text (skip-and-continue: one bad tile must not abort a multi-hour batch, ADR-0009)."""
-        if isinstance(roofs_or_error, str):
-            manifest.mark_failed(job.tile, job.stamp, error=roofs_or_error)
-            manifest.save()
-            return
-        _write_parquet(roofs_or_error, job.roofs_cache)
-        cache.write_key_sidecar(job.roofs_cache, job.stamp)  # artifact first, then its sidecar
-        manifest.mark_done(job.tile, job.stamp, n_roofs=len(roofs_or_error))
-        manifest.save()
-        tile_frames[job.grid_index] = roofs_or_error
-
     if workers == 1:
         for job in to_score:
-            cache_tile_result(job, _score_tile_or_error(_score_tile, job.tile, **job.score_kwargs))
+            roofs_or_error = _score_tile_or_error(_score_tile, job.tile, **job.score_kwargs)
+            if (roofs := _cache_tile_result(manifest, job, roofs_or_error)) is not None:
+                tile_frames[job.grid_index] = roofs
     else:
         # spawn, not fork: fork is unsafe with GDAL threads on macOS and platform-dependent.
         # A worker process that dies outright (e.g. OOM-killed) breaks the whole pool: every
@@ -879,16 +906,33 @@ def run_city(
                     roofs_or_error = future.result()
                 except Exception as exc:  # the pool itself broke (`BrokenProcessPool`)
                     roofs_or_error = repr(exc)
-                cache_tile_result(futures[future], roofs_or_error)
+                job = futures[future]
+                if (roofs := _cache_tile_result(manifest, job, roofs_or_error)) is not None:
+                    tile_frames[job.grid_index] = roofs
 
     city = recompute_city_suitability(merge_tile_roofs(tile_frames[i] for i in sorted(tile_frames)))
 
     if write_outputs:
-        out_dir = (
-            Path(output_dir) if output_dir is not None else config.CALIBRATED_CITY_OUTPUTS_DIR
-        )
+        out_dir = Path(output_dir) if output_dir is not None else config.CALIBRATED_CITY_OUTPUTS_DIR
         _write_parquet(city, out_dir / CITY_ROOFS_PARQUET_NAME)
     return city
+
+
+def _cache_tile_result(
+    manifest: TileManifest, job: _TileJob, roofs_or_error: gpd.GeoDataFrame | str
+) -> gpd.GeoDataFrame | None:
+    """Coordinator-only: write a tile's roofs parquet, its sidecar and a done manifest entry,
+    returning the roofs; or record its error text and return None (skip-and-continue: one bad
+    tile must not abort a multi-hour batch, ADR-0009)."""
+    if isinstance(roofs_or_error, str):
+        manifest.mark_failed(job.tile, job.stamp, error=roofs_or_error)
+        manifest.save()
+        return None
+    _write_parquet(roofs_or_error, job.roofs_cache)
+    cache.write_key_sidecar(job.roofs_cache, job.stamp)  # artifact first, then its sidecar
+    manifest.mark_done(job.tile, job.stamp, n_roofs=len(roofs_or_error))
+    manifest.save()
+    return roofs_or_error
 
 
 def _score_tile_or_error(
@@ -905,12 +949,6 @@ def _score_tile_or_error(
         return score(tile, **kwargs)
     except Exception as exc:
         return repr(exc)
-
-
-def _require_positive_int(name: str, value: object) -> None:
-    """Reject a non-int (incl. bool) or < 1 `name` — shared by `nprocs` and `workers`."""
-    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-        raise ValueError(f"{name} must be an int >= 1, got {value!r}")
 
 
 def _score_tile(

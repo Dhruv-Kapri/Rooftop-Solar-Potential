@@ -48,10 +48,10 @@ def _buildings_gdf():
     """
     rows = [
         # geometry, usable, u_area, capacity, energy, co2, suit
-        (box(40.0, 40.0, 60.0, 60.0), True, 70.0, 14.0, 1000.0, 350.0, 80.0),   # →A
-        (box(10.0, 10.0, 30.0, 30.0), False, 0.0, 0.0, 0.0, 0.0, 0.0),          # →A unusable
-        (box(140.0, 40.0, 160.0, 60.0), True, 30.0, 6.0, 500.0, 175.0, 60.0),   # →B
-        (box(95.0, 40.0, 109.0, 60.0), True, 20.0, 4.0, 300.0, 105.0, 40.0),    # →B straddler
+        (box(40.0, 40.0, 60.0, 60.0), True, 70.0, 14.0, 1000.0, 350.0, 80.0),  # →A
+        (box(10.0, 10.0, 30.0, 30.0), False, 0.0, 0.0, 0.0, 0.0, 0.0),  # →A unusable
+        (box(140.0, 40.0, 160.0, 60.0), True, 30.0, 6.0, 500.0, 175.0, 60.0),  # →B
+        (box(95.0, 40.0, 109.0, 60.0), True, 20.0, 4.0, 300.0, 105.0, 40.0),  # →B straddler
     ]
     return gpd.GeoDataFrame(
         {
@@ -70,6 +70,7 @@ def _buildings_gdf():
 # --------------------------------------------------------------------------- #
 # aggregate_to_tracts — centroid roll-up + conservation                       #
 # --------------------------------------------------------------------------- #
+
 
 def test_aggregate_to_tracts_conserves_extensive_totals():
     buildings = _buildings_gdf()
@@ -154,6 +155,7 @@ def test_aggregate_to_tracts_boundary_centroid_assigned_once():
 # --------------------------------------------------------------------------- #
 # attach_equity — GEOID string join + normalization + missing flag            #
 # --------------------------------------------------------------------------- #
+
 
 def _tracts_for_equity():
     """Minimal post-aggregation tracts: GEOID (str) + extensive energy + geometry."""
@@ -247,6 +249,7 @@ def test_attach_equity_guards_zero_households():
 # --------------------------------------------------------------------------- #
 # classify_equity — 2×2 median split + priority + unknown                     #
 # --------------------------------------------------------------------------- #
+
 
 def _classify_input():
     """Five classifiable tracts spanning all four quadrants (one sitting exactly on both

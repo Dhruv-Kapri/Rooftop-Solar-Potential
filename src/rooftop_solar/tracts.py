@@ -177,9 +177,7 @@ def load_tracts(
     return parse_tracts(raw)
 
 
-def load_acs(
-    state_fips: str = config.DC_STATE_FIPS, year: int = config.ACS_YEAR
-) -> pd.DataFrame:
+def load_acs(state_fips: str = config.DC_STATE_FIPS, year: int = config.ACS_YEAR) -> pd.DataFrame:
     """Download (or reuse the cached) ACS 5-year Data API response and return it parsed.
 
     GETs `{config.CENSUS_API_BASE}/{year}/acs/acs5` for the variables in `ACS_VARIABLE_MAP`

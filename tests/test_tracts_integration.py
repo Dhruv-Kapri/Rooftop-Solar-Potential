@@ -75,6 +75,7 @@ def test_run_aggregation_end_to_end_glover_park(tmp_path):
     # Conservation: total scored energy is preserved through the roll-up (every roof that lands
     # in a DC tract contributes once; Glover Park is fully inside DC so nothing is lost).
     import numpy as np
+
     assert np.isclose(result["annual_energy_kwh"].sum(), roofs["annual_energy_kwh"].sum())
 
     assert "equity_class" in result.columns

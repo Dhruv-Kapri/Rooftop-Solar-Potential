@@ -25,7 +25,8 @@ from rooftop_solar import web_build
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
-        "--input", default=None,
+        "--input",
+        default=None,
         help="dir holding tracts.gpkg + roofs.parquet (default: outputs/dc/12day/ calibrated)",
     )
     parser.add_argument(

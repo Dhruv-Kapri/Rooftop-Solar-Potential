@@ -5,7 +5,7 @@ Issue #16 / Part 2-2 compute-cost item: `radiation.surface_irradiance(nprocs=N)`
 cached tile DSM for each N, timed wall-clock, and every output raster is compared against the
 first (lowest-N) run — the thread count must not change results (it is not part of any cache key).
 
-    python scripts/bench_rsun_threads.py data/tiles_12day/tile_9_2_dsm.tif
+    python scripts/bench_rsun_threads.py data/tiles/tile_9_2_dsm.tif
     python scripts/bench_rsun_threads.py <dsm.tif> --threads 1,4,8 --day-range 172   # fast check
 
 Default `--day-range` is the calibrated 12-day pass (ADR-0001), i.e. what one city tile costs.

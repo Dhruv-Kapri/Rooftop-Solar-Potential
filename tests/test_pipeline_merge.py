@@ -95,8 +95,7 @@ def test_seam_conservation_across_a_2x2_tile_block():
 
     tiles = tiling.make_grid(aoi, _SIZE, 3.0, _ORIGIN)
     partitions = [
-        pipeline.select_by_membership(fp, tiling.tile_membership(t, _SIZE, _ORIGIN))
-        for t in tiles
+        pipeline.select_by_membership(fp, tiling.tile_membership(t, _SIZE, _ORIGIN)) for t in tiles
     ]
     city = pipeline.merge_tile_roofs(partitions)
 

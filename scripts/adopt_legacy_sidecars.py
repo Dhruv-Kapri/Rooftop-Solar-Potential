@@ -5,7 +5,7 @@ The #19 cache predates ADR-0014's checksum addendum: its DSM / insolation `.key`
 plain-text keys (now read as absent) and its roofs parquets have no sidecar at all. Re-using
 it beats a ~3.9 h r.sun recompute: this rewrites each legacy raster sidecar in the JSON format
 (same key, plus the file's sha256) and gives every manifest-`done` roofs parquet a sidecar
-under its manifest stamp (the key `pipeline.cache_tile_result` would have written).
+under its manifest stamp (the key `pipeline._cache_tile_result` would have written).
 
     python scripts/adopt_legacy_sidecars.py                     # data/tiles
     python scripts/adopt_legacy_sidecars.py --tiles-dir /path/to/tiles
@@ -41,13 +41,10 @@ def adopt_tile_cache(tiles_dir: str | Path) -> Adopted:
     )
     manifest = pipeline.TileManifest.load(tiles_dir / pipeline.MANIFEST_NAME)
     roofs = 0
-    for key, entry in manifest.entries.items():
-        if entry.get("status") != "done":
-            continue
-        row, col = (int(i) for i in key.split("_"))
-        path = pipeline.tile_cache_path(tiles_dir, row, col, "roofs")
+    for done in manifest.done_entries():
+        path = pipeline.tile_cache_path(tiles_dir, done.row, done.col, "roofs")
         if path.exists() and cache.read_key_sidecar(path) is None:
-            cache.write_key_sidecar(path, entry["stamp"])
+            cache.write_key_sidecar(path, done.stamp)
             roofs += 1
     return Adopted(rasters, roofs)
 

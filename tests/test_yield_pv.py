@@ -64,9 +64,7 @@ def test_suitability_score_averages_ties():
 
 
 def test_suitability_score_single_usable_roof_tops_out():
-    scores = yield_pv.suitability_score(
-        np.array([42.0, 5.0]), np.array([1.0, 0.0])
-    )
+    scores = yield_pv.suitability_score(np.array([42.0, 5.0]), np.array([1.0, 0.0]))
     assert scores[0] == 100.0  # the lone usable roof
     assert scores[1] == 0.0  # unusable, pinned
 

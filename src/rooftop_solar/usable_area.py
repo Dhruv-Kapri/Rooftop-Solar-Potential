@@ -206,8 +206,7 @@ def usable_area(
         roofs = roof_planes.copy()
         roofs["footprint_area_m2"] = roofs.geometry.area
         roofs["roof_class"] = [
-            classify_roof(t, a)
-            for t, a in zip(roofs["tilt_deg"], roofs["aspect_deg"], strict=True)
+            classify_roof(t, a) for t, a in zip(roofs["tilt_deg"], roofs["aspect_deg"], strict=True)
         ]
         roofs["usable"] = [
             is_usable(t, a, poa)

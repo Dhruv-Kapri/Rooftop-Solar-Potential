@@ -56,6 +56,12 @@ def test_surface_irradiance_rejects_nprocs_below_one(tmp_path):
         radiation.surface_irradiance(tmp_path / "dsm.tif", nprocs=0)
 
 
+@pytest.mark.parametrize("bad", [True, 2.5])
+def test_surface_irradiance_rejects_non_int_nprocs(tmp_path, bad):
+    with pytest.raises(ValueError, match="nprocs"):
+        radiation.surface_irradiance(tmp_path / "dsm.tif", nprocs=bad)
+
+
 def test_surface_irradiance_forwards_nprocs_to_run_r_sun(tmp_path, monkeypatch):
     import contextlib
 

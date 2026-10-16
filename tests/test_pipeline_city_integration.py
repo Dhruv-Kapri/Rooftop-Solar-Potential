@@ -18,7 +18,7 @@ from pyproj import Transformer
 from shapely.geometry import box
 from shapely.ops import transform as shp_transform
 
-from rooftop_solar import config, dsm, pipeline, radiation
+from rooftop_solar import cache, config, dsm, pipeline, radiation
 
 # The Stage-1 smoke box (known 3DEP + building coverage), ~550 m x ~670 m — big enough to
 # straddle several cells of a deliberately small 300 m test grid, so the run is genuinely
@@ -118,21 +118,19 @@ def test_run_city_scoring_bump_reuses_dsm_and_radiation(tmp_path, monkeypatch):
     insol_mtimes_before: dict[str, int] = {}
     for key in done_nonempty:
         row, col = key.split("_")
-        dsm_tif = tiles_dir / f"tile_{row}_{col}_dsm.tif"
-        insol_tif = tiles_dir / f"tile_{row}_{col}_insolation.tif"
+        dsm_tif = pipeline.tile_cache_path(tiles_dir, int(row), int(col), "dsm")
+        insol_tif = pipeline.tile_cache_path(tiles_dir, int(row), int(col), "insolation")
         assert dsm_tif.exists()
-        assert (tiles_dir / f"tile_{row}_{col}_dsm.tif.key").exists()
+        assert cache.sidecar_path(dsm_tif).exists()
         assert insol_tif.exists()
-        assert (tiles_dir / f"tile_{row}_{col}_insolation.tif.key").exists()
+        assert cache.sidecar_path(insol_tif).exists()
         dsm_mtimes_before[key] = dsm_tif.stat().st_mtime_ns
         insol_mtimes_before[key] = insol_tif.stat().st_mtime_ns
 
     # --- simulate a scoring-only version bump: only the manifest stamp changes; dsm_key/
     # radiation_key (and therefore the DSM/insolation sidecars) are untouched. ---
     real_scoring_key = pipeline.scoring_key
-    monkeypatch.setattr(
-        pipeline, "scoring_key", lambda **kw: real_scoring_key(**kw) + "-scorebump"
-    )
+    monkeypatch.setattr(pipeline, "scoring_key", lambda **kw: real_scoring_key(**kw) + "-scorebump")
 
     # Guard against the expensive work: neither a DSM network fetch nor a real r.sun pass may
     # run on a scoring-only rerun (footprints ARE legitimately re-fetched — cheap, not a cache
@@ -152,8 +150,8 @@ def test_run_city_scoring_bump_reuses_dsm_and_radiation(tmp_path, monkeypatch):
 
     for key in done_nonempty:
         row, col = key.split("_")
-        dsm_tif = tiles_dir / f"tile_{row}_{col}_dsm.tif"
-        insol_tif = tiles_dir / f"tile_{row}_{col}_insolation.tif"
+        dsm_tif = pipeline.tile_cache_path(tiles_dir, int(row), int(col), "dsm")
+        insol_tif = pipeline.tile_cache_path(tiles_dir, int(row), int(col), "insolation")
         assert dsm_tif.stat().st_mtime_ns == dsm_mtimes_before[key], "DSM was rebuilt, not reused"
         assert insol_tif.stat().st_mtime_ns == insol_mtimes_before[key], (
             "insolation raster was rebuilt, not reused"
