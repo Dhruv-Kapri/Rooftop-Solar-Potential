@@ -28,7 +28,7 @@ This is an **indicative sample, not ground truth** (risks §14.4).
 
 ## Scoring for the stop rule (#23)
 
-These rules were proposed here and **adopted in #23** (`validation.compare_labels`, which reports
+These rules were proposed here and **adopted in #23**, confirmed by the user (`validation.compare_labels`, which reports
 the unclamped agreement too). The tuning write-up is `tuning.md`. Plan step 7b's stop rule
 (±1 plane count on ≥~80%) names no exclusions or clamp. Under the raw rule, multiplane agrees on
 **53% of 19** roofs. With both rules below it agrees on **71% of 17**.
