@@ -647,8 +647,8 @@ class TileManifest:
     Entries are keyed `"<row>_<col>"` (stable across runs because `Tile.row`/`Tile.col` are
     stable for a fixed `origin`/`tile_size_m` — ADR-0009's fixed-origin property) and hold
     `{"status": "done" | "failed", "stamp": str, "n_roofs": int}` (plus `"error"` for a
-    failed tile). Callers use `is_current`/`mark_done`/`mark_failed`/`done_entries`/`error_for` — the dict
-    itself is an implementation detail, not part of the public contract.
+    failed tile). Callers use `is_current`/`mark_done`/`mark_failed`/`done_entries`/`error_for` —
+    the dict itself is an implementation detail, not part of the public contract.
     """
 
     def __init__(self, path: str | Path, entries: dict[str, dict[str, Any]] | None = None) -> None:
