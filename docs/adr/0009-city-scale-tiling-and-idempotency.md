@@ -65,3 +65,18 @@ Facts that shaped it (verified against the code):
   the re-run promise. The params-stamp fixes it.
 - **Parallel from the start** — deferred: per-worker GRASS-session isolation cost; sequential +
   resumable is enough first, with parallelism the documented escape hatch if runtime bites.
+
+## Addendum (2026-10-13) — tile-level worker processes (#27)
+Multi-core `r.sun` (`--nprocs`, #16) reached only ~3.6× on 8 threads, so the deferred parallelism
+escape hatch is now open: `run_city(workers=K)` / `run_city.py --workers K` scores K tiles at once.
+**Decisions:** (1) **processes, not threads** — GRASS session setup mutates `os.environ`, so per-worker
+isolation is a separate interpreter, with its own throwaway GRASS location (as before). (2) **spawn**,
+not fork (fork is unsafe with GDAL threads on macOS and platform-dependent). (3) **The coordinator
+alone writes the manifest and the roofs parquet**; workers only return roofs or raise. The merge
+stays in grid order, so the city result and the manifest are identical to a one-worker run.
+(4) `workers` is speed-only, like `nprocs`, and **in no cache key**. `workers=1` (default) keeps the
+in-process sequential path. Skip-and-continue still holds. A worker *process* that dies outright
+(e.g. OOM-killed) breaks the pool, so every unfinished tile is recorded failed; the batch completes
+and a resumed run retries them. Rebuilding the pool after a crash was not built: it is more
+machinery than a rare event needs, given resume. Measured splits and the chosen `workers × nprocs`
+defaults: `docs/benchmarks/stage-2-part2-dc-city-scale.md`.
