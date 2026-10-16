@@ -30,7 +30,6 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
-import pandas as pd  # noqa: E402
 import rasterio  # noqa: E402
 import requests  # noqa: E402
 from rasterio.windows import from_bounds  # noqa: E402
@@ -185,21 +184,6 @@ def render_building(row, score, tiles_dir: Path, ortho_cache: Path, out_path: Pa
     plt.close(fig)
 
 
-def load_fixed_sample(spot_dir: Path) -> gpd.GeoDataFrame:
-    """Rebuild the sample of an earlier spot-check dir (#23): ``sample.csv`` rows, in order, with
-    footprints from the ``multiplane`` rows of its ``buildings.parquet``. Raises on a missing id."""
-    sample = pd.read_csv(spot_dir / "sample.csv", dtype={"building_id": str})
-    buildings = gpd.read_parquet(spot_dir / "buildings.parquet")
-    footprints = buildings[buildings["method"] == "multiplane"].set_index("building_id").geometry
-    missing = sorted(set(sample["building_id"]) - set(footprints.index))
-    if missing:
-        raise ValueError(
-            f"no footprint geometry in {spot_dir / 'buildings.parquet'} for: {missing}"
-        )
-    geometry = footprints.loc[sample["building_id"]].to_numpy()
-    return gpd.GeoDataFrame(sample, geometry=geometry, crs=buildings.crs)
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     source = parser.add_mutually_exclusive_group(required=True)
@@ -235,8 +219,7 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     if args.sample:
-        sample = load_fixed_sample(Path(args.sample))
-        sample.drop(columns="geometry").to_csv(out_dir / "sample.csv", index=False)
+        sample = validation.load_spot_check_sample(args.sample)
         print(f"reusing {len(sample)} sampled roofs from {args.sample}")
     else:
         city = gpd.read_parquet(args.city)
@@ -249,7 +232,6 @@ def main() -> None:
         }
         sample = validation.select_spot_check_sample(areas=areas, city=city, per_cell=args.per_cell,
                                                      seed=args.seed)  # fmt: skip
-        sample.drop(columns="geometry").to_csv(out_dir / "sample.csv", index=False)
         print(sample.groupby(["area", "roof_type"]).size().rename("n").to_string())
 
         try:
@@ -257,6 +239,8 @@ def main() -> None:
             print(f"wrote labels template: {labels}")
         except FileExistsError:
             print(f"labels.csv already exists in {out_dir}; kept untouched")
+
+    sample.drop(columns="geometry").to_csv(out_dir / "sample.csv", index=False)
 
     score = validation.rescore_sample(sample, tiles_dir)
     frames = {

@@ -244,6 +244,22 @@ def write_labels_template(sample: gpd.GeoDataFrame | pd.DataFrame, path: str | P
     return path
 
 
+def load_spot_check_sample(spot_dir: str | Path) -> gpd.GeoDataFrame:
+    """Rebuild the sample of an earlier spot-check dir (#23): ``sample.csv`` rows, in order, with
+    footprints from the ``multiplane`` rows of its ``buildings.parquet``. Raises on a missing id."""
+    spot_dir = Path(spot_dir)
+    sample = pd.read_csv(spot_dir / "sample.csv", dtype={"building_id": str})
+    buildings = gpd.read_parquet(spot_dir / "buildings.parquet")
+    footprints = buildings[buildings["method"] == "multiplane"].set_index("building_id").geometry
+    missing = sorted(set(sample["building_id"]) - set(footprints.index))
+    if missing:
+        raise ValueError(
+            f"no footprint geometry in {spot_dir / 'buildings.parquet'} for: {missing}"
+        )
+    geometry = footprints.loc[sample["building_id"]].to_numpy()
+    return gpd.GeoDataFrame(sample, geometry=geometry, crs=buildings.crs)
+
+
 # --- Spot-check detailed re-score (Part 2-4 step 7b; plan §6, ADR-0011/0013) ---------
 
 # Method label -> `max_planes` for the re-score. "ransac" is the single-plane BASELINE fit
@@ -407,10 +423,11 @@ def rescore_sample(sample: gpd.GeoDataFrame, tiles_dir: str | Path) -> DetailedS
 # --- Spot-check comparison (Part 2-4 step 7b; plan §6, ADR-0013) ---------------------
 
 # A model plane count agrees with the hand label when within this many planes of it.
-PLANE_AGREE_TOL = 1
 # Hand labels above `roof_planes.MAX_PLANES` are clamped to it before comparing: the fitter
 # can never emit more, so such a roof tests the cap / merged footprints, not the fitter
-# (#23; docs/benchmarks/spot_check/README.md "Proposed scoring"). Raw agreement stays visible.
+# (#23; docs/benchmarks/spot_check/README.md "Scoring for the stop rule"). Raw agreement
+# stays visible.
+PLANE_AGREE_TOL = 1
 # The labeller's opt-out: a roof whose `notes` start with this (any case) is left out of the
 # comparison -- e.g. "EXCLUDE (likely not a roof)" for a footprint/DSM mismatch.
 EXCLUDE_NOTE = "EXCLUDE"
