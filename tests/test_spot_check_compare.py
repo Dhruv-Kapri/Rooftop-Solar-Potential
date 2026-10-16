@@ -189,6 +189,7 @@ def test_notes_starting_exclude_drop_the_roof_even_if_unlabelled():
     labels.loc[labels["building_id"] == "e", "notes"] = "not EXCLUDE-prefixed"
     c = validation.compare_labels(labels, _score())
     assert list(c["building_id"].unique()) == ["a", "b", "e"]
+    assert validation.excluded_labels(labels) == ["c", "d"]
 
 
 def test_label_parsing_accepts_bools_ints_and_ints_as_text():
@@ -211,6 +212,7 @@ def test_label_parsing_accepts_bools_ints_and_ints_as_text():
         ("n_major_planes", "0"),
         ("n_major_planes", "2.5"),
         ("n_major_planes", "two"),
+        ("n_major_planes", "inf"),
         ("has_obstruction", ""),
         ("has_obstruction", "maybe"),
     ],

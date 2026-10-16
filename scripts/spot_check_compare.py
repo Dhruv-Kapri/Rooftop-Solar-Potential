@@ -54,7 +54,7 @@ def main() -> None:
     labels = pd.read_csv(labels_path, dtype={"building_id": str})
 
     comparison = validation.compare_labels(labels, load_score(spot_dir))
-    excluded = sorted(set(labels["building_id"]) - set(comparison["building_id"]))
+    excluded = validation.excluded_labels(labels)
     if excluded:
         print(f"excluded by notes ({validation.EXCLUDE_NOTE}...): {excluded}")
     summary = validation.summarize_spot_check(comparison)

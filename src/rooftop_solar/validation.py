@@ -425,9 +425,23 @@ def _parse_obstruction(value) -> bool | None:
 def _parse_plane_count(value) -> int | None:
     """An integer >= 1 (text or number), else None."""
     number = pd.to_numeric(pd.Series([value]), errors="coerce").iloc[0]
-    if pd.isna(number) or number != int(number) or number < 1:
+    if not np.isfinite(number) or number != int(number) or number < 1:
         return None
     return int(number)
+
+
+def _is_excluded(labels: pd.DataFrame) -> pd.Series:
+    """Rows whose `notes` start with :data:`EXCLUDE_NOTE` (any case, leading space ok)."""
+    if "notes" not in labels:
+        return pd.Series(False, index=labels.index)
+    return (
+        labels["notes"].fillna("").astype(str).str.strip().str.upper().str.startswith(EXCLUDE_NOTE)
+    )
+
+
+def excluded_labels(labels: pd.DataFrame) -> list[str]:
+    """The `building_id`s :func:`compare_labels` leaves out by their `notes` (sorted)."""
+    return sorted(labels.loc[_is_excluded(labels), "building_id"].astype(str).str.strip())
 
 
 def _parse_labels(labels: pd.DataFrame, scored_ids: set[str]) -> pd.DataFrame:
@@ -437,9 +451,7 @@ def _parse_labels(labels: pd.DataFrame, scored_ids: set[str]) -> pd.DataFrame:
     score does not contain, and blank/invalid `n_major_planes` / `has_obstruction`. Rows
     whose `notes` start with :data:`EXCLUDE_NOTE` are dropped before any check.
     """
-    if "notes" in labels:
-        excluded = labels["notes"].fillna("").astype(str).str.strip().str.upper()
-        labels = labels[~excluded.str.startswith(EXCLUDE_NOTE)]
+    labels = labels[~_is_excluded(labels)]
     ids = labels["building_id"].astype(str).str.strip()
     duplicated = sorted(set(ids[ids.duplicated()]))
     if duplicated:
@@ -491,7 +503,7 @@ def compare_labels(labels: pd.DataFrame, score: DetailedScore) -> pd.DataFrame:
             model_planes = 0 if pd.isna(built["tilt_deg"]) else int(built["n_planes"])
             model_obstruction = key in obstructed
             diff = model_planes - label.label_planes
-            flagged = bool(label.label_obstruction) and diff > 0
+            flagged = label.label_obstruction and diff > 0
             surplus = (
                 score.planes[
                     (score.planes["building_id"] == label.building_id)
@@ -505,7 +517,7 @@ def compare_labels(labels: pd.DataFrame, score: DetailedScore) -> pd.DataFrame:
                 (True, False): "miss",
                 (False, True): "false_positive",
                 (False, False): "true_negative",
-            }[(bool(label.label_obstruction), model_obstruction)]
+            }[(label.label_obstruction, model_obstruction)]
             rows.append(
                 {
                     "building_id": label.building_id,
@@ -514,7 +526,7 @@ def compare_labels(labels: pd.DataFrame, score: DetailedScore) -> pd.DataFrame:
                     "model_planes": model_planes,
                     "plane_diff": diff,
                     "plane_agree": abs(diff) <= PLANE_AGREE_TOL,
-                    "label_obstruction": bool(label.label_obstruction),
+                    "label_obstruction": label.label_obstruction,
                     "model_obstruction": model_obstruction,
                     "obstruction_outcome": outcome,
                     "large_planar_obstruction": flagged,
