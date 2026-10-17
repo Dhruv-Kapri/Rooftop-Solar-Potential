@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import importlib.util
+import sys
+from pathlib import Path
+
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -10,6 +14,8 @@ from shapely.geometry import box
 
 from rooftop_solar import validation as v
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+CRS = "EPSG:6347"
 ORIGIN = (1000.0, 2000.0)
 TILE = 100.0
 KW = {"tile_size_m": TILE, "origin": ORIGIN}
@@ -160,3 +166,60 @@ def test_write_labels_template_refuses_overwrite(tmp_path):
     with pytest.raises(FileExistsError):
         v.write_labels_template(s, path)
     assert path.read_text() == "hand entered"
+
+
+def _spot_dir(tmp_path: Path, building_ids=("7_2_103", "3_1_5")) -> Path:
+    """Two sample rows (7_2_103 first); buildings.parquet has both methods per id, with the
+    multiplane footprint distinct from the ransac one so the right rows are provably picked."""
+    pd.DataFrame(
+        {
+            "building_id": ["7_2_103", "3_1_5"],
+            "area": ["glover_park", "downtown"],
+            "roof_type": ["gable", "flat"],
+            "tile_row": [7, 3],
+            "tile_col": [2, 1],
+            "tile_building_id": [103, 5],
+            "n_planes": [2, 1],
+            "roof_class": ["gable", "flat"],
+            "footprint_area_m2": [100.0, 400.0],
+        }
+    ).to_csv(tmp_path / "sample.csv", index=False)
+    rows = []
+    for i, bid in enumerate(building_ids):
+        rows.append({"building_id": bid, "method": "multiplane", "geometry": box(i, 0, i + 1, 1)})
+        rows.append({"building_id": bid, "method": "ransac", "geometry": box(i, 5, i + 1, 6)})
+    gpd.GeoDataFrame(rows, crs=CRS).to_parquet(tmp_path / "buildings.parquet")
+    return tmp_path
+
+
+def test_load_spot_check_sample_keeps_csv_order_columns_and_multiplane_geometry(tmp_path):
+    sample = v.load_spot_check_sample(_spot_dir(tmp_path))
+
+    assert isinstance(sample, gpd.GeoDataFrame)
+    assert list(sample["building_id"]) == ["7_2_103", "3_1_5"]
+    assert list(sample["tile_row"]) == [7, 3]
+    assert list(sample["tile_col"]) == [2, 1]
+    assert sample.crs == CRS
+    assert sample.geometry.iloc[0].equals(box(0, 0, 1, 1))
+    assert sample.geometry.iloc[1].equals(box(1, 0, 2, 1))
+
+
+def test_load_spot_check_sample_raises_naming_ids_without_geometry(tmp_path):
+    spot = _spot_dir(tmp_path, building_ids=("7_2_103",))
+
+    with pytest.raises(ValueError, match="3_1_5"):
+        v.load_spot_check_sample(spot)
+
+
+def test_spot_check_cli_sample_without_out_dir_is_an_argparse_error(monkeypatch, tmp_path):
+    spec = importlib.util.spec_from_file_location(
+        "spot_check_script", REPO_ROOT / "scripts/spot_check.py"
+    )
+    script = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(script)
+    monkeypatch.setattr(sys, "argv", ["spot_check.py", "--sample", str(tmp_path)])
+
+    with pytest.raises(SystemExit) as exc:
+        script.main()
+
+    assert exc.value.code == 2
