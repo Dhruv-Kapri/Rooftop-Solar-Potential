@@ -15,7 +15,7 @@ import pandas as pd
 import pytest
 from shapely.geometry import box
 
-from rooftop_solar import validation
+from rooftop_solar import roof_planes, validation
 
 FOOT = box(0, 0, 10, 10)
 
@@ -125,6 +125,32 @@ def test_plane_counts_diff_and_tolerance():
         and not _row(c, "c", "multiplane")["plane_agree"]
     )
     assert _row(c, "a", "multiplane")["label_planes"] == 2
+
+
+def test_label_above_the_plane_cap_is_clamped_but_raw_agreement_is_kept():
+    labels = _labels()
+    labels.loc[labels["building_id"] == "b", "n_major_planes"] = "7"  # above MAX_PLANES (4)
+    c = validation.compare_labels(labels, _score())
+    r = _row(c, "b", "multiplane")  # model fit 4 planes = the cap
+    assert roof_planes.MAX_PLANES == 4
+    assert (r["label_planes"], r["label_planes_capped"]) == (7, 4)
+    assert r["plane_diff"] == 0 and r["plane_agree"]  # clamped: agrees
+    assert not r["plane_agree_raw"]  # raw: |4 - 7| = 3
+    # no longer flagged: the clamped diff is 0, so no surplus planes
+    assert not r["large_planar_obstruction"] and r["extra_planes"] == 0
+    # the cap applies to every method: ransac 1 vs capped 4 is -3 either way
+    r = _row(c, "b", "ransac")
+    assert (r["label_planes_capped"], r["plane_diff"], r["plane_agree"]) == (4, -3, False)
+
+
+def test_label_at_or_below_the_cap_is_unchanged_by_the_clamp():
+    c = validation.compare_labels(_labels(), _score())
+    assert (c["label_planes"] == c["label_planes_capped"]).all()
+    assert (c["plane_agree"] == c["plane_agree_raw"]).all()
+    boundary = _labels()
+    boundary.loc[boundary["building_id"] == "b", "n_major_planes"] = "4"  # exactly the cap
+    r = _row(validation.compare_labels(boundary, _score()), "b", "multiplane")
+    assert (r["label_planes_capped"], r["plane_diff"]) == (4, 0)
 
 
 def test_unfittable_roof_counts_zero_model_planes():
@@ -246,6 +272,19 @@ def test_label_for_unscored_building_raises():
     )  # fmt: skip
     with pytest.raises(ValueError, match="'nope'"):
         validation.compare_labels(labels, _score())
+
+
+def test_summary_counts_clamped_and_raw_agreement():
+    labels = _labels()
+    labels.loc[labels["building_id"] == "b", "n_major_planes"] = "7"
+    summary = validation.summarize_spot_check(validation.compare_labels(labels, _score()))
+    mp = summary.loc["multiplane"]
+    # clamped: a,b,d,e agree (c is +2) -> 4/5; raw: b is |4 - 7| = 3 -> a,d,e -> 3/5
+    assert (mp["plane_agree"], mp["plane_agree_pct"]) == (4, 80.0)
+    assert (mp["plane_agree_raw"], mp["plane_agree_raw_pct"]) == (3, 60.0)
+    assert list(summary.columns)[1:5] == [
+        "plane_agree", "plane_agree_pct", "plane_agree_raw", "plane_agree_raw_pct",
+    ]  # fmt: skip
 
 
 def test_summarize_spot_check_by_method():

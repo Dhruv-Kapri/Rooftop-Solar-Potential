@@ -11,6 +11,10 @@ roofs can be hand-labelled in ``labels.csv``. Comparing the labels against the p
     python scripts/spot_check.py --city outputs/dc/12day_gcr/roofs.parquet  # -> <city>/spot_check/
     python scripts/spot_check.py --city ... --areas glover_park --per-cell 2
     python scripts/spot_check.py --city ... --no-images  # data only, skip the figures
+    python scripts/spot_check.py --sample outputs/dc/12day_gcr/spot_check --out-dir ...  # #23
+
+``--sample DIR`` re-scores the fixed sample of an earlier spot-check dir instead of drawing one,
+so tuning rounds (#23) are all scored against the same hand-labelled roofs.
 
 Needs the per-tile DSM + insolation caches under ``--tiles-dir`` (ADR-0009/0014).
 """
@@ -182,11 +186,19 @@ def render_building(row, score, tiles_dir: Path, ortho_cache: Path, out_path: Pa
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument(
-        "--city", required=True, help="city roofs.parquet, e.g. outputs/dc/12day_gcr/roofs.parquet"
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument(
+        "--city", help="city roofs.parquet, e.g. outputs/dc/12day_gcr/roofs.parquet"
+    )
+    source.add_argument(
+        "--sample", help="earlier spot-check dir whose fixed sample to re-score (needs --out-dir)"
     )
     parser.add_argument("--tiles-dir", default=None, help="tile cache dir (default: data/tiles)")
-    parser.add_argument("--out-dir", default=None, help="default: <city parquet dir>/spot_check")
+    parser.add_argument(
+        "--out-dir",
+        default=None,
+        help="default: <city parquet dir>/spot_check; required with --sample",
+    )
     parser.add_argument("--per-cell", type=int, default=3, help="buildings per (area, roof_type)")
     parser.add_argument("--seed", type=int, default=20)
     parser.add_argument(
@@ -198,31 +210,37 @@ def main() -> None:
         "--ortho-cache", default=None, help="orthophoto PNG cache (default: data/ortho_2023)"
     )
     args = parser.parse_args()
+    if args.sample and not args.out_dir:
+        parser.error("--sample requires --out-dir (don't overwrite the earlier spot-check dir)")
 
-    city_path = Path(args.city)
     tiles_dir = Path(args.tiles_dir) if args.tiles_dir else config.TILES_CACHE_DIR
-    out_dir = Path(args.out_dir) if args.out_dir else city_path.parent / "spot_check"
+    out_dir = Path(args.out_dir) if args.out_dir else Path(args.city).parent / "spot_check"
     ortho_cache = Path(args.ortho_cache) if args.ortho_cache else config.DATA_DIR / "ortho_2023"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    city = gpd.read_parquet(city_path)
-    names = args.areas or list(config.SPOT_CHECK_AREAS_WGS84)
-    areas = {
-        n: gpd.GeoSeries([box(*config.SPOT_CHECK_AREAS_WGS84[n])], crs="EPSG:4326")
-        .to_crs(city.crs)
-        .iloc[0]
-        for n in names
-    }
-    sample = validation.select_spot_check_sample(areas=areas, city=city, per_cell=args.per_cell,
-                                                 seed=args.seed)  # fmt: skip
-    sample.drop(columns="geometry").to_csv(out_dir / "sample.csv", index=False)
-    print(sample.groupby(["area", "roof_type"]).size().rename("n").to_string())
+    if args.sample:
+        sample = validation.load_spot_check_sample(args.sample)
+        print(f"reusing {len(sample)} sampled roofs from {args.sample}")
+    else:
+        city = gpd.read_parquet(args.city)
+        names = args.areas or list(config.SPOT_CHECK_AREAS_WGS84)
+        areas = {
+            n: gpd.GeoSeries([box(*config.SPOT_CHECK_AREAS_WGS84[n])], crs="EPSG:4326")
+            .to_crs(city.crs)
+            .iloc[0]
+            for n in names
+        }
+        sample = validation.select_spot_check_sample(areas=areas, city=city, per_cell=args.per_cell,
+                                                     seed=args.seed)  # fmt: skip
+        print(sample.groupby(["area", "roof_type"]).size().rename("n").to_string())
 
-    try:
-        labels = validation.write_labels_template(sample, out_dir / "labels.csv")
-        print(f"wrote labels template: {labels}")
-    except FileExistsError:
-        print(f"labels.csv already exists in {out_dir}; kept untouched")
+        try:
+            labels = validation.write_labels_template(sample, out_dir / "labels.csv")
+            print(f"wrote labels template: {labels}")
+        except FileExistsError:
+            print(f"labels.csv already exists in {out_dir}; kept untouched")
+
+    sample.drop(columns="geometry").to_csv(out_dir / "sample.csv", index=False)
 
     score = validation.rescore_sample(sample, tiles_dir)
     frames = {
@@ -243,7 +261,10 @@ def main() -> None:
             )
         print(f"wrote {len(sample)} figures to {out_dir / 'images'}")
 
-    print(f"\nNext: fill {out_dir / 'labels.csv'} (n_major_planes, has_obstruction y/n, notes).")
+    if not args.sample:
+        print(
+            f"\nNext: fill {out_dir / 'labels.csv'} (n_major_planes, has_obstruction y/n, notes)."
+        )
 
 
 if __name__ == "__main__":

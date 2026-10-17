@@ -167,6 +167,11 @@ Together these are the plan's "accuracy comparison vs the RANSAC baseline" — d
      leads (plane count ±1 on ≥~80%, low obstruction false positives), ≤3 tuning rounds; the city ÷ NREL
      ratio is **reported, not targeted**. Facet-vs-obstruction: tune knobs only; a structural fix becomes a
      follow-up issue if the spot-check shows it matters. ML demo (step 8) split into its own spec.
+   - **✓ spot-check tuning (#23, 2026-10-16):** one round. `OBSTRUCTION_TAU_M` 0.75→0.5,
+     `SCORING_VERSION` `2-4.2`; city re-score from the cached tiers (rasters verified unchanged):
+     **2,237.6 MW / 2,658 GWh/yr, ~1.72× / ~1.66× NREL**. Plane-count stop rule not met (12/17 ±1 with
+     the `MAX_PLANES` clamp); `MIN_PLANE_PX` has no headroom, so the structural rule is follow-up #30.
+     Write-up: `docs/benchmarks/spot_check/tuning.md`.
 8. The ML demo: `method="ml"` adapter (integration) + the comparison notebook (best-effort).
 
 **Delegation note:** steps 1–4 (deterministic, clear contracts) are strong Sonnet-subagent TDD tasks,
