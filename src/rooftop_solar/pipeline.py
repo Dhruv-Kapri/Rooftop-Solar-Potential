@@ -531,10 +531,11 @@ def render_potential_burden_scatter(
 #   RADIATION_VERSION — the r.sun radiation model changes (e.g. Part 2-5 shadow/horizon wiring)
 #   SCORING_VERSION   — anything downstream of r.sun (roof planes / usable area / yield)
 # SCORING_VERSION carries forward the retired single-stamp generation "2-4.1" (the GCR baseline);
-# "2-4.2" is the #23 spot-check tuning (OBSTRUCTION_TAU_M 0.75 -> 0.5).
+# "2-4.2" is the #23 spot-check tuning (OBSTRUCTION_TAU_M 0.75 -> 0.5); "2-4.3" is the #30
+# superstructure rule (roof_planes.SUPERSTRUCTURE_MAX_PX, ADR-0013 addendum).
 DSM_VERSION = "1"
 RADIATION_VERSION = "1"
-SCORING_VERSION = "2-4.2"
+SCORING_VERSION = "2-4.3"
 
 # The city path always scores via the Part 2-4 multiplane production chain (plan §3); this
 # single source keeps the scoring_key's `method` field and the actual _score_roofs call in sync.
