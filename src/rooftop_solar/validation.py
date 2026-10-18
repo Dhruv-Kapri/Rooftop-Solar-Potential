@@ -584,6 +584,8 @@ def compare_labels(labels: pd.DataFrame, score: DetailedScore) -> pd.DataFrame:
       `model_planes` (`score.buildings.n_planes`, but 0 for an unfittable roof -- NaN
       `tilt_deg`, where the fitter emits a placeholder `n_planes=1`),
       `plane_diff` = model - capped label, `plane_agree` = `|plane_diff| <= PLANE_AGREE_TOL`,
+      `plane_exact` = `model_planes == label_planes_capped` (#30: reported next to the +/-1
+      rule so a change that collapses a 2-plane gable to 1 can't score as a win),
       `plane_agree_raw` = the same rule against the unclamped label.
     - `label_obstruction`, `model_obstruction` (any `score.obstructions` row with area > 0),
       `obstruction_outcome`: "hit", "miss", "false_positive" or "true_negative".
@@ -628,6 +630,7 @@ def compare_labels(labels: pd.DataFrame, score: DetailedScore) -> pd.DataFrame:
                     "model_planes": model_planes,
                     "plane_diff": diff,
                     "plane_agree": abs(diff) <= PLANE_AGREE_TOL,
+                    "plane_exact": model_planes == label_capped,
                     "plane_agree_raw": abs(model_planes - label.label_planes) <= PLANE_AGREE_TOL,
                     "label_obstruction": label.label_obstruction,
                     "model_obstruction": model_obstruction,
@@ -646,7 +649,8 @@ def summarize_spot_check(comparison: pd.DataFrame) -> pd.DataFrame:
     """Per-method roll-up of :func:`compare_labels` -- the validation write-up table.
 
     Indexed by `method` (:data:`SPOT_CHECK_METHODS` order): `n_roofs`, `plane_agree` (count)
-    and `plane_agree_pct` (0-100) against the clamped label, `plane_agree_raw` /
+    and `plane_agree_pct` (0-100) against the clamped label, `plane_exact` / `plane_exact_pct`
+    (same, exact match -- #30), `plane_agree_raw` /
     `plane_agree_raw_pct` against the raw label, the four obstruction outcome counts,
     `large_planar_obstructions` (flagged roofs) and their summed `escaped_usable_m2`.
     """
@@ -658,6 +662,8 @@ def summarize_spot_check(comparison: pd.DataFrame) -> pd.DataFrame:
             "n_roofs": len(m),
             "plane_agree": int(m["plane_agree"].sum()),
             "plane_agree_pct": 100.0 * m["plane_agree"].mean() if len(m) else float("nan"),
+            "plane_exact": int(m["plane_exact"].sum()),
+            "plane_exact_pct": 100.0 * m["plane_exact"].mean() if len(m) else float("nan"),
             "plane_agree_raw": int(m["plane_agree_raw"].sum()),
             "plane_agree_raw_pct": (
                 100.0 * m["plane_agree_raw"].mean() if len(m) else float("nan")

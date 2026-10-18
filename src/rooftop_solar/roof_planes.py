@@ -35,6 +35,11 @@ MAX_PLANES = 4
 MIN_PLANE_PX = 8
 # RANSAC inlier band for the multi-plane fit — reuses the single-plane fit_roof_plane value.
 RESIDUAL_THRESHOLD_M = 0.5
+# A later plane smaller than this (px; ~100 m² at the 2 m DSM) AND raised above the dominant
+# plane is an HVAC / penthouse / bulkhead / overhanging-tree-sized superstructure, not a
+# facet (#30 / ADR-0013). Larger raised planes are real roof levels (e.g. whole-block
+# footprints) and are kept.
+SUPERSTRUCTURE_MAX_PX = 25
 
 
 def _fit_ransac(X: npt.NDArray[np.float64], z: npt.NDArray[np.float64]) -> RANSACRegressor:
@@ -83,6 +88,25 @@ def fit_roof_plane(X: npt.NDArray[np.float64], z: npt.NDArray[np.float64]) -> di
     }
 
 
+def _is_superstructure(
+    plane: dict[str, object],
+    dominant: dict[str, object],
+    X: npt.NDArray[np.float64],
+    z: npt.NDArray[np.float64],
+) -> bool:
+    """True if `plane` is a small raised block on the `dominant` plane (#30 / ADR-0013).
+
+    Small (`n_px < SUPERSTRUCTURE_MAX_PX`) and its inliers' median height above the dominant
+    plane exceeds `RESIDUAL_THRESHOLD_M`. Above-only: a plane below the dominant one (a gable's
+    far facet, a sunken well) is never a superstructure.
+    """
+    if plane["n_px"] >= SUPERSTRUCTURE_MAX_PX:
+        return False
+    a, b, c = dominant["coef"]
+    idx = plane["inlier_idx"]
+    return bool(np.median(z[idx] - (a * X[idx, 0] + b * X[idx, 1] + c)) > RESIDUAL_THRESHOLD_M)
+
+
 def fit_planes_multi(
     X: npt.NDArray[np.float64], z: npt.NDArray[np.float64], max_planes: int = MAX_PLANES
 ) -> list[dict[str, object]]:
@@ -105,6 +129,12 @@ def fit_planes_multi(
     remaining-points subset); ``n_px``; ``tilt_deg``; ``aspect_deg``. Sorted by `n_px`
     descending, so index 0 is always the dominant (largest) facet. Returns `[]` if
     `len(z) < MIN_PX` to begin with, or the very first fit can't clear `MIN_PLANE_PX`.
+
+    Raised superstructures are dropped (#30 / ADR-0013): any later plane that is small
+    (`SUPERSTRUCTURE_MAX_PX`) and sits above the dominant plane (median residual >
+    `RESIDUAL_THRESHOLD_M`) is removed from the result, no refit — its pixels fall to the
+    nearest kept plane downstream and anything well above it becomes an obstruction. The
+    dominant plane is never dropped.
     """
     remaining = np.arange(len(z))
     planes: list[dict[str, object]] = []
@@ -131,6 +161,9 @@ def fit_planes_multi(
         )
         remaining = remaining[~mask]
     planes.sort(key=lambda p: p["n_px"], reverse=True)
+    if planes:
+        dominant = planes[0]
+        planes = [dominant] + [p for p in planes[1:] if not _is_superstructure(p, dominant, X, z)]
     return planes
 
 
