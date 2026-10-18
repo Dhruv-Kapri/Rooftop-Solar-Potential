@@ -83,9 +83,9 @@ def test_outputs_run_dir_nests_label_under_area():
     assert config.outputs_run_dir("dc", "12day") == config.OUTPUTS_DIR / "dc" / "12day"
 
 
-def test_calibrated_city_label_is_12day():
-    assert config.CALIBRATED_CITY_LABEL == "12day"
+def test_calibrated_city_label_is_tuned_run():
+    assert config.CALIBRATED_CITY_LABEL == "12day_tuned"
 
 
 def test_calibrated_city_outputs_dir_resolves_via_helper():
-    assert config.CALIBRATED_CITY_OUTPUTS_DIR == config.outputs_run_dir("dc", "12day")
+    assert config.CALIBRATED_CITY_OUTPUTS_DIR == config.outputs_run_dir("dc", "12day_tuned")

@@ -7,7 +7,7 @@
 
 <p align="center">
   <a href="https://dhruv-kapri.github.io/Rooftop-Solar-Potential/"><img alt="live web map" src="https://img.shields.io/badge/%E2%96%B6%20live-web%20map-2C6C8A"></a>
-  <img alt="status" src="https://img.shields.io/badge/status-Phase%202%20%C2%B7%20Part%202--3%20%C2%B7%20web%20map%20live-2F7D5B">
+  <img alt="status" src="https://img.shields.io/badge/status-Phase%202%20%C2%B7%20Part%202--4%20%C2%B7%20tuned%20map%20live-2F7D5B">
   <img alt="focus" src="https://img.shields.io/badge/focus-geospatial%20ML-2C6C8A">
   <img alt="data" src="https://img.shields.io/badge/data-public%20%2F%20open--source-2F7D5B">
   <img alt="delivery" src="https://img.shields.io/badge/delivery-interactive%20web%20map-6B7686">
@@ -22,20 +22,22 @@ from **public data and APIs**, modelled in **open-source Python**, and delivered
 web map**. The Esri stack is *one supported deployment target, not a dependency*.
 
 > **Status: Phase 1 MVP complete; Phase 2 in progress — Parts 2-1 (census-tract aggregation + equity
-> overlay), 2-2 (city-scale tiling), and 2-3 (deployed web map —
-> [live](https://dhruv-kapri.github.io/Rooftop-Solar-Potential/)) built + tested.** The full per-roof pipeline — footprints → DSM →
+> overlay), 2-2 (city-scale tiling), 2-3 (deployed web map —
+> [live](https://dhruv-kapri.github.io/Rooftop-Solar-Potential/)) and the classical core of 2-4
+> (multi-plane roofs + obstruction-aware usable area) built, run city-wide and validated.** The full per-roof pipeline — footprints → DSM →
 > shaded radiation → roof planes → usable area → PV yield — runs end-to-end in
 > [`src/rooftop_solar/`](src/rooftop_solar/) for Glover Park and passes the Esri benchmark
 > ([see the result below](#stage-1-result--glover-park-benchmarked-against-esri)).
 > Part 2-1 rolls those per-roof results up to **US Census tracts with an energy-burden equity overlay**
 > — `python scripts/run_aggregation.py` (ADR-0006/0007/0008). Part 2-2 scales the same spine over the
-> **whole District** by tiling it — `python scripts/run_city.py` (ADR-0009); the code is green at both
-> test tiers, and the expensive full-DC batch that produces the *populated, city-wide* equity map is
-> deferred (a multi-hour job, run when ready). The [walkthrough notebooks](notebooks/) remain the
-> plain-language tour. **Part 2-3 — the deployed web map — is now live:
-> [dhruv-kapri.github.io/Rooftop-Solar-Potential](https://dhruv-kapri.github.io/Rooftop-Solar-Potential/)**
-> (static MapLibre GL JS + PMTiles on GitHub Pages, serving the calibrated 12-day data).
-> Next: ML roof segmentation and fidelity passes (see the [roadmap](docs/roadmap.md)).
+> **whole District** by tiling it — `python scripts/run_city.py` (ADR-0009); the full-DC batch has run,
+> producing the *populated, city-wide* equity map. Part 2-4 replaced the single roof plane with
+> multi-plane fits and subtracts rooftop obstructions (ADR-0011/0012/0013); the
+> [validation write-up](docs/benchmarks/stage-2-part4-validation.md) reports the evidence and its limits.
+> The [walkthrough notebooks](notebooks/) remain the plain-language tour. **The deployed web map is
+> [live](https://dhruv-kapri.github.io/Rooftop-Solar-Potential/)** (static MapLibre GL JS + PMTiles on
+> GitHub Pages), now serving the tuned Part 2-4 numbers.
+> Next: the ML roof-segmentation demo and Part 2-5 fidelity passes (see the [roadmap](docs/roadmap.md)).
 
 ## Lineage — from a hackathon prototype to a city pipeline
 
@@ -104,10 +106,12 @@ fully static: **MapLibre GL JS + PMTiles vector tiles on GitHub Pages**, no back
   zoom past level 13 for the <strong>100,064 individual rooftops</strong> coloured by suitability.</em></sub>
 </p>
 
-> **Calibrated radiation; capacity still approximate.** The map serves the calibrated 12-day run — the
-> fleet specific yield (~1,124 kWh/kWp) matches Stage-1's Esri-validated benchmark. Absolute
-> capacity/energy still run high vs published estimates (a flat usable-area derate + merged footprints;
-> the obstruction-aware fix is Part 2-4). Rebuild the served tiles with `python scripts/build_web.py`
+> **Calibrated radiation; capacity still approximate.** The map serves the tuned 12-day run (Part 2-4,
+> multi-plane roofs + obstruction-aware usable area): 2,237.6 MW / 2,658 GWh/yr across 100,064 roofs.
+> The fleet specific yield (~1,188 kWh/kWp) is stable and close to Stage-1's Esri-validated
+> ~1,162. Capacity still runs about 1.72× NREL's published estimate (1.66× for energy) — a usable-area
+> over-estimate, not a radiation one; reported, not targeted
+> ([validation](docs/benchmarks/stage-2-part4-validation.md)). Rebuild the served tiles with `python scripts/build_web.py`
 > (preview locally with `python scripts/serve_web.py` — a Range-capable static server, since PMTiles
 > needs byte-range requests).
 

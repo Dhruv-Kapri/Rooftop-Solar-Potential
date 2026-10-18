@@ -131,7 +131,7 @@ def build_web(
     Reads the aggregation tract GeoPackage (``tracts.gpkg``, layer ``tracts``) + the city roof
     GeoParquet (``roofs.parquet``) from ``input_dir`` and writes ``tracts.geojson`` (inline layer),
     ``roofs.pmtiles`` (vector tiles) and ``scatter.png`` (the about-panel chart, copied) into
-    ``output_dir``. Defaults ``input_dir`` to the calibrated run (``outputs/dc/12day/``,
+    ``output_dir``. Defaults ``input_dir`` to the calibrated run (``outputs/dc/12day_tuned/``,
     ``config.CALIBRATED_CITY_OUTPUTS_DIR``); point it at ``outputs/dc/1day/`` for a dev build
     (plan §4/§7).
 

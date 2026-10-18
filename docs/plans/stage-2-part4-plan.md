@@ -1,14 +1,14 @@
 # Stage 2 · Part 2-4 plan — roof-geometry refinement (classical multi-plane + obstructions; ML demo)
 
-> **STATUS: classical core built — steps 1–5 done via `/tdd` (2026-09-08); steps 6–8 remaining.**
-> The classical, training-free geometry upgrade (ADR-0011/0012/0013) is built, unit-tested (TDD, +23
-> tests; 110→133 green, ruff clean) and wired into the pipeline (`method="multiplane"` is the production
-> default; `PIPELINE_VERSION` bumped `2-2.0`→`2-4.0` to invalidate the tile cache; `ransac` kept as the
-> §6 baseline). **Remaining:** step 6 (city re-run + `build_web`), step 7 (validation: DSM
-> self-consistency + the ~20-roof spot-check + your labels), step 8 (the ML demo). One build finding is
-> **deferred-and-recorded**: a large planar obstruction (≥ `MIN_PLANE_PX` inlier px) is fit as its own
-> plane and escapes obstruction subtraction — the facet-vs-obstruction knob to tune on the spot-check
-> (ADR-0013 Consequences, risks §14 item 7).
+> **STATUS: steps 1–7 done; step 8 (the ML demo) remaining.**
+> The classical, training-free geometry upgrade (ADR-0011/0012/0013) is built, unit-tested and wired in
+> (`method="multiplane"` is the production default; `ransac` kept as the §6 baseline) — steps 1–5
+> (2026-09-08). Step 6: GCR city run `12day_gcr` (#19, 2026-10-13), spot-check tuning to
+> `SCORING_VERSION` `2-4.2` (#23, 2026-10-16), then the map refresh (#25, 2026-10-18) — `build_web` from
+> `12day_tuned`. Step 7: validation write-up (#24, 2026-10-18,
+> [`stage-2-part4-validation.md`](../benchmarks/stage-2-part4-validation.md)). **Remaining:** step 8 (the
+> ML demo). The facet-vs-obstruction finding (a large planar obstruction is fit as its own plane and
+> escapes subtraction; ADR-0013, risks §14 item 7) is follow-up #30.
 >
 > Grilled to a full decision set (grill 2026-09-08, grounded on two fact-finds: the per-roof contract map
 > + the ML-model landscape) and recorded in
@@ -133,17 +133,17 @@ Together these are the plan's "accuracy comparison vs the RANSAC baseline" — d
 4. **✓** Per-plane yield (`plane_yields`) → per-building collapse (`collapse_to_buildings`) + `suitability`
    recompute; downstream regression against `aggregate`/`web_build` (unit).
 5. **✓** Wire `pipeline._score_roofs` (+ `run_stage1`/`run_city`) to the `"multiplane"` path; bump
-   `PIPELINE_VERSION`; Stage-1 integration smoke updated to the collapsed schema (integration, GRASS-gated).
-6. City re-run (Part 2-2's caching re-invoked) → `build_web` + commit `web/assets/` (no app rebuild).
+   the pipeline version stamp (since split into component versions, ADR-0014); Stage-1 integration smoke updated to the collapsed schema (integration, GRASS-gated).
+6. **✓** City re-run (Part 2-2's caching re-invoked) → `build_web` + commit `web/assets/` (no app rebuild).
    - **⊙ deferred (2026-09-15):** added a **flat-roof GCR** calibration (`FLAT_ROOF_GCR = 0.50` in
      `usable_area.py`, multiplane path only) — flat roofs are 84% of usable capacity and were modelled at
-     0.85 packing with no tilted-array inter-row spacing. `PIPELINE_VERSION` bumped `2-4.0`→`2-4.1`.
+     0.85 packing with no tilted-array inter-row spacing. pipeline version bumped `2-4.0`→`2-4.1` (the stamp later became `SCORING_VERSION`, ADR-0014).
      Analytically (no re-run) this pulls the city over-estimate from **2.9× → ~1.7× NREL** (3.83→~2.23 GW).
      Power-density was *not* touched (200 W/m² is right for modern modules; cutting it would break the
      calibrated specific yield). **The full 10–15 h city re-run is deferred and bundled with step 7b's
      obstruction/setback-knob tuning** — run the expensive batch ONCE with both calibrations, not twice.
      Code + version bump are committed to the working tree; `outputs/12day/` + `web/assets/` still hold the
-     pre-GCR numbers until that batch runs. See risks note on r.sun caching below.
+     pre-GCR numbers until that batch runs (resolved: #19/#25). See risks note on r.sun caching below.
    - **⊙ re-sequenced (grill 2026-10-12):** the tiered cache (ADR-0014) removed the reason to bundle.
      Now: (1) multi-core `r.sun` (`nprocs`, measured on one tile; tile-level process pool only if <~4×
      on 8 cores) + GRASS version in `radiation_key` + log-noise cleanup; (2) **one** full-city run with
@@ -154,7 +154,7 @@ Together these are the plan's "accuracy comparison vs the RANSAC baseline" — d
      **2,302.7 MW / 2,734 GWh/yr, ~1.77× / ~1.71× NREL** (analytic ~1.7× held). DSM + radiation cache
      tiers filled for every tile. `build_web` waits on step-7b tuning. Details in
      `docs/benchmarks/stage-2-part2-dc-city-scale.md` ("Full-city GCR run").
-7. Validation: DSM self-consistency + the spot-check harness + your ~20 labels.
+7. **✓** Validation: DSM self-consistency + the spot-check harness + your ~20 labels.
    - **⊙ partial (2026-09-08):** the DSM self-consistency **functions** are built + unit-tested
      (`validation.py`: `reconstruct_residuals`, `self_consistency`, `compare_self_consistency`;
      `fit_planes_multi` gained a `max_planes` param for the single-plane baseline). The **actual
@@ -172,6 +172,13 @@ Together these are the plan's "accuracy comparison vs the RANSAC baseline" — d
      **2,237.6 MW / 2,658 GWh/yr, ~1.72× / ~1.66× NREL**. Plane-count stop rule not met (12/17 ±1 with
      the `MAX_PLANES` clamp); `MIN_PLANE_PX` has no headroom, so the structural rule is follow-up #30.
      Write-up: `docs/benchmarks/spot_check/tuning.md`.
+   - **✓ map refresh (#25, 2026-10-18):** `build_web` from `outputs/dc/12day_tuned/`, `web/assets/`
+     committed — a data swap only, no app rebuild. `CALIBRATED_CITY_LABEL` now names `12day_tuned`.
+   - **✓ validation (#24, 2026-10-18):** write-up
+     [`stage-2-part4-validation.md`](../benchmarks/stage-2-part4-validation.md). Multiplane halves the
+     median DSM reconstruction RMSE (1.79→0.85 m); spot-check ±1 plane-count 12/17 vs 11/17 (a tie),
+     exact 9/17 vs 4/17; city 1.72× / 1.66× NREL (reported, not targeted). Verdict: better surface
+     geometry, not proven better structure; structural facet-vs-obstruction rule is follow-up #30.
 8. The ML demo: `method="ml"` adapter (integration) + the comparison notebook (best-effort).
 
 **Delegation note:** steps 1–4 (deterministic, clear contracts) are strong Sonnet-subagent TDD tasks,
@@ -183,9 +190,11 @@ closer to hand.
 - `fit_roof_planes(method="multiplane")` + pixel membership; per-plane zonal POA; `detect_obstructions` +
   obstruction-aware `usable_area(obstructions=…)`; per-building collapse — all unit-tested (§4/§7).
 - `method="ml"` inference adapter + a ML-vs-classical comparison notebook (best-effort).
-- A refreshed city dataset + `web/assets/` (re-run `build_web`, commit — no app rebuild).
-- The validation write-up: DSM self-consistency (multi-plane vs single) + the ~20-roof spot-check, with
-  uncertainty stated — the honest "is it better than RANSAC" story.
+- **✓** A refreshed city dataset (`outputs/dc/12day_tuned/`) + `web/assets/` (`build_web`, committed — no
+  app rebuild; #25).
+- **✓** The validation write-up: DSM self-consistency (multi-plane vs single) + the 17-roof spot-check, with
+  uncertainty stated — the honest "is it better than RANSAC" story
+  ([`stage-2-part4-validation.md`](../benchmarks/stage-2-part4-validation.md), #24).
 - ADR-0001-style follow-ups already recorded: ADR-0011/0012/0013; glossary updated.
 
 ## 10. Risks / dependencies
@@ -197,14 +206,10 @@ closer to hand.
 - **Compute** — largely dissolves for the classical core: the re-run is Part 2-2's cost ≈ unchanged (the
   `r.sun` pass dominates, not plane-fitting). Only the **ML demo** wants a GPU, and it's inference-only on
   the M1. (The 12-day-timing figure just confirms the re-run cost; it's not a blocker.)
-- **[Superseded by ADR-0014 (2026-09-16): r.sun is now cached per tile; downstream-only changes are re-scores.]** ~~**r.sun is NOT cached, so a full city re-run is a ~10–15 h batch, not minutes** (corrected 2026-09-15).~~ Historical note below kept for context.
-  The per-tile cache holds only the DSM + the collapsed roofs.parquet; `radiation.surface_irradiance`
-  (r.sun) re-runs on every tile recompute, and a `PIPELINE_VERSION` bump invalidates *whole* tiles. So a
-  change purely downstream of r.sun (GCR here; Part 2-5's yield tweaks) still pays the full r.sun cost.
-  **Design smell (surface separately):** caching the r.sun raster per tile, keyed on DSM + r.sun params
-  (not downstream `pipeline_version`), would make 2-4/2-5 downstream-only re-runs cost minutes — matching
-  stage-2-overview §3's "incremental, not from scratch" intent. NB: the old log's "846s / 12.8s-per-tile"
-  is a resume/merge figure, not from-scratch compute cost.
+- **Resolved — r.sun is cached per tile (ADR-0014).** The design smell the earlier "r.sun is NOT cached"
+  note raised (downstream-only changes paying the full r.sun cost) was fixed: DSM + insolation are cached
+  with sha256-verified `.key` sidecars, so downstream changes are re-scores. Measured on the VM: cold full
+  city ~3.9 h; re-score ~85 min (validation write-up §4).
 - **ML demo may not run cleanly** (unofficial, unmaintained code) — hence best-effort with fallbacks (§5).
 - **Validation is honest, not conclusive** — no DC ground truth (risks §14.4); the spot-check is
   indicative. Said plainly, not papered over (Q2 / ADR-0011).
