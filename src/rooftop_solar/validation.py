@@ -379,8 +379,10 @@ def detailed_score(
     )
 
 
-def _checked_cache_raster(tiles_dir: Path, row: int, col: int, kind: str) -> Path:
-    """A tile's cached raster path, after proving it is present and matches its sidecar.
+def _checked_cache_artifact(
+    tiles_dir: Path, row: int, col: int, kind: pipeline.TileArtifact
+) -> Path:
+    """A tile's cached artifact path (raster or roofs parquet), proven present and sidecar-matched.
 
     Missing -> `FileNotFoundError` (the cache is populated by `pipeline.run_city`, issue #19,
     never here). Sidecar absent, legacy-format, or not matching the file's bytes (a truncated
@@ -418,8 +420,8 @@ def rescore_sample(sample: gpd.GeoDataFrame, tiles_dir: str | Path) -> DetailedS
     tiles_dir = Path(tiles_dir)
     scores = []
     for (row, col), group in sample.groupby(["tile_row", "tile_col"]):
-        dsm_path = _checked_cache_raster(tiles_dir, row, col, "dsm")
-        insol_path = _checked_cache_raster(tiles_dir, row, col, "insolation")
+        dsm_path = _checked_cache_artifact(tiles_dir, row, col, "dsm")
+        insol_path = _checked_cache_artifact(tiles_dir, row, col, "insolation")
         scores.append(detailed_score(group, dsm_path, insol_path))
     return DetailedScore(
         **{
@@ -433,22 +435,18 @@ def tile_self_consistency(tiles_dir: str | Path, row: int, col: int) -> gpd.GeoD
     """DSM self-consistency (:func:`compare_self_consistency`) over one cached city tile.
 
     Reads `tile_{row}_{col}_roofs.parquet` (the production per-building output) and the
-    tile's DSM from the `pipeline.run_city` cache; the DSM must pass the same sidecar check
-    as :func:`rescore_sample` (`FileNotFoundError` / `ValueError`). A missing roofs parquet
-    is a `FileNotFoundError`. Returns compare's rows (same order as the parquet) plus
+    tile's DSM from the `pipeline.run_city` cache; both must pass the same presence and
+    sidecar check as :func:`rescore_sample` (`FileNotFoundError` / `ValueError`, ADR-0014),
+    so a missing roofs parquet is a `FileNotFoundError` and a swapped or sidecarless one a
+    `ValueError`. Returns compare's rows (same order as the parquet) plus
     `tile_row`, `tile_col`, `roof_id` (:func:`spot_check_id` over the parquet's own
     `building_id`, which also overwrites compare's positional `building_id`), `roof_class`
     (from the parquet) and `roof_type` (:func:`roof_type` over compare's `n_planes`).
     Plan §6, risks §14.4, #24.
     """
     tiles_dir = Path(tiles_dir)
-    roofs_path = pipeline.tile_cache_path(tiles_dir, row, col, "roofs")
-    if not roofs_path.exists():
-        raise FileNotFoundError(
-            f"{roofs_path} not found; the tile cache must be populated by pipeline.run_city "
-            "(issue #19)"
-        )
-    dsm_path = _checked_cache_raster(tiles_dir, row, col, "dsm")
+    roofs_path = _checked_cache_artifact(tiles_dir, row, col, "roofs")
+    dsm_path = _checked_cache_artifact(tiles_dir, row, col, "dsm")
     roofs = gpd.read_parquet(roofs_path)
     out = compare_self_consistency(roofs, dsm_path)
     out["building_id"] = roofs["building_id"].to_numpy()
