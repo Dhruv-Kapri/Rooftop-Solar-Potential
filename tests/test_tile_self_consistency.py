@@ -62,7 +62,9 @@ def tiles(tmp_path: Path) -> Path:
     dsm = tiles / "tile_2_5_dsm.tif"
     _write_gable_dsm(dsm)
     cache.write_key_sidecar(dsm, "any-key")
-    _roofs().to_parquet(tiles / "tile_2_5_roofs.parquet")
+    roofs = tiles / "tile_2_5_roofs.parquet"
+    _roofs().to_parquet(roofs)
+    cache.write_key_sidecar(roofs, "any-key")
     return tiles
 
 
@@ -84,6 +86,19 @@ def test_tile_self_consistency_tags_rows_and_keeps_compare_columns(tiles):
 def test_tile_self_consistency_missing_roofs_raises(tiles):
     (tiles / "tile_2_5_roofs.parquet").unlink()
     with pytest.raises(FileNotFoundError, match="roofs"):
+        validation.tile_self_consistency(tiles, 2, 5)
+
+
+def test_tile_self_consistency_sidecarless_roofs_refused(tiles):
+    cache.sidecar_path(tiles / "tile_2_5_roofs.parquet").unlink()
+    with pytest.raises(ValueError, match="sidecar"):
+        validation.tile_self_consistency(tiles, 2, 5)
+
+
+def test_tile_self_consistency_swapped_roofs_refused(tiles):
+    # bytes replaced after the sidecar was written (the #18 swapped-parquet scenario)
+    _roofs().iloc[:1].to_parquet(tiles / "tile_2_5_roofs.parquet")
+    with pytest.raises(ValueError, match="sidecar"):
         validation.tile_self_consistency(tiles, 2, 5)
 
 
