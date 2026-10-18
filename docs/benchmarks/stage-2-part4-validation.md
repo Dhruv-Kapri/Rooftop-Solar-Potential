@@ -25,8 +25,8 @@ model their structure better.**
   one plane. The gain is largest on hip and complex roofs. But this check **cannot lose by
   construction**, and it rewards spurious planes (HVAC fit as "facets") as much as real ones.
 - **Spot-check (17 roofs):** ±1 plane-count agreement is **12/17 (71%) vs 11/17 (65%)**, which is a
-  statistical tie. Exact agreement is **9/17 vs 4/17**. Multiplane gets the multi-facet roofs right
-  and over-splits flat roofs with HVAC (ADR-0013, follow-up #30).
+  statistical tie. Exact agreement is **9/17 vs 4/17**. Multiplane reaches the cap on the six roofs
+  labelled above it, where one plane can't, and over-splits flat roofs with HVAC (ADR-0013, follow-up #30).
 - **City total vs NREL:** **2.9× → 1.77× → 1.72×** capacity (pre-GCR → GCR → tuned). The tuned
   run is **2,237.6 MW / 2,658 GWh/yr, 1.72× / 1.66×** NREL's ~1.3 GW / ~1.6 TWh. This is reported,
   not targeted.
@@ -96,7 +96,7 @@ provenance are in the [`spot_check/README.md`](spot_check/README.md). Metrics ar
 | ransac (single plane) | 11/17 (65%) | 41–83% | 11/17 (65%) | 4/17 (24%) | 10–47% | 13 / 2 / 2 / 0 | — | — |
 
 ² Wilson score intervals, n = 17.
-³ A heuristic upper bound (it assumes the surplus planes are the smallest ones). Read it as an
+³ A heuristic estimate (it assumes the surplus planes are the smallest ones). Read it as an
 order of magnitude.
 
 **What the paired roofs show.** The two methods disagree on ±1 for 11 roofs.
@@ -107,8 +107,9 @@ order of magnitude.
   `7_2_882`) plus `7_2_364` and `6_4_246`, which multiplane splits into 3–4 planes. This is the
   ADR-0013 facet-vs-obstruction gap.
 
-On exact agreement, multiplane wins 8 roofs and ransac 3. A two-sided sign test gives p ≈ 0.23 for
-exact and p = 1.0 for ±1. **Neither difference is significant at n = 17.** One roof is ~6 points of
+On exact agreement, multiplane wins 8 roofs and ransac 3. A two-sided exact sign test on the discordant
+pairs (`scipy.stats.binomtest(3, 11)` and `binomtest(5, 11)`) gives p ≈ 0.23 for exact and p = 1.0
+for ±1. **Neither difference is significant at n = 17.** One roof is ~6 points of
 agreement.
 
 **Uncertainty, stated plainly.**
