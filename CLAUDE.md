@@ -25,27 +25,33 @@ results up to census tracts with an equity overlay (`scripts/run_aggregation.py`
 Part 2-2 scales the spine over the **whole District** by tiling: `tiling.py` (fixed-origin grid + `floor`
 membership) + `pipeline.run_city` (per-tile GeoParquet cache, resumable manifest/params-stamp, city-wide
 merge + suitability recompute; `scripts/run_city.py`; ADR-0009). Both test tiers are green (unit +
-network/GRASS integration smoke). The **expensive full-DC batch run and its real deliverables (the
-populated equity map, sanity write-up, compute-cost run-log) are deferred** — 66 tiles @ 2 km, a ~10–15 h
-job, run when ready via `scripts/run_city.py`.
+network/GRASS integration smoke). The full-DC batch (66 tiles @ 2 km, `scripts/run_city.py`) has since run —
+see Part 2-4 below. Deliverables are run-labelled under `outputs/dc/<label>/`; `12day_tuned` is the
+calibrated default (`config.CALIBRATED_CITY_LABEL`).
 **Part 2-3 — the deployed web map — is built and live** at
 <https://dhruv-kapri.github.io/Rooftop-Solar-Potential/>: a static MapLibre GL JS + PMTiles map on
 GitHub Pages (`web/`, `scripts/build_web.py`; ADR-0010), ETL unit-tested with build + browser smokes
-green, PMTiles range-requests on Pages confirmed. It serves the **calibrated 12-day** numbers
-(specific yield ~1,124 kWh/kWp, validated); absolute capacity/energy still overstate vs NREL — a
-usable-area/footprint over-estimate, the Part 2-4 target.
-**Part 2-4 — roof-geometry refinement (classical multi-plane + obstructions) — classical core built +
-wired (2026-09-08).** Reframed from "ML segmentation" to a classical, training-free upgrade
+green, PMTiles range-requests on Pages confirmed. It now serves the **tuned Part 2-4 run** (below): 2,237.6 MW /
+2,658 GWh/yr, specific yield ~1,188 kWh/kWp (Stage-1 Esri-validated ~1,162); capacity/energy still
+overstate NREL (1.72× / 1.66×) — a usable-area over-estimate, reported not targeted.
+**Part 2-4 — roof-geometry refinement (classical multi-plane + obstructions) — steps 1–7 done
+(2026-10-18).** Reframed from "ML segmentation" to a classical, training-free upgrade
 (ADR-0011/0012/0013): multi-plane sequential RANSAC (`fit_roof_planes(method="multiplane")`), per-plane
 POA (`radiation.plane_poa`), obstruction-aware usable area (`detect_obstructions` +
-`usable_area(obstructions=…)`), per-plane yield → per-building collapse (`yield_pv.collapse_to_buildings`).
-Steps 1–5 done via `/tdd` (unit-tested, 133 green; `method="multiplane"` is the production default,
-`PIPELINE_VERSION` `2-2.0`→`2-4.0`; `"ransac"` kept as the §6 baseline). **Remaining:** step 6 (city
-re-run + `build_web`), step 7 (validation: DSM self-consistency + the ~20-roof spot-check), step 8 (the ML
-**demo** — `method="ml"`, bounded inference-only, no longer the production path). A build finding is
-**deferred-and-recorded**: a large planar obstruction (≥ `MIN_PLANE_PX` px) is fit as its own plane and
-escapes subtraction — the facet-vs-obstruction knob to tune on the spot-check (ADR-0013, risks §14 item 7).
-**Phase 2 is planned in `docs/plans/stage-2-overview.md`** (5 parts; **Part 2-4 steps 6–8 + Part 2-5
+`usable_area(obstructions=…)`), per-plane yield → per-building collapse (`yield_pv.collapse_to_buildings`);
+`method="multiplane"` is the production default, `"ransac"` the §6 baseline. Step 6: the GCR city run
+(`12day_gcr`, #19; `FLAT_ROOF_GCR = 0.50`) on a **tiered per-tile cache** (ADR-0014: DSM + `r.sun`
+insolation tiers with sha256 `.key` sidecars, so downstream-only changes are re-scores), spot-check
+tuning (#23, `OBSTRUCTION_TAU_M` 0.5, `SCORING_VERSION` `2-4.2`), and the map refresh (#25) — the map
+serves the tuned run `12day_tuned`: 2,237.6 MW / 2,658 GWh/yr, 1.72× / 1.66× NREL. Step 7: validation
+(#24, [`docs/benchmarks/stage-2-part4-validation.md`](docs/benchmarks/stage-2-part4-validation.md)) —
+multiplane halves median DSM reconstruction RMSE (1.79→0.85 m); spot-check ±1 plane-count 12/17 vs 11/17
+(a tie). Cache/version stamps are component versions (`SCORING_VERSION` etc., `pipeline.py`), not a single
+`PIPELINE_VERSION`. **Remaining:** step 8 (the ML **demo** — `method="ml"`, bounded inference-only, no
+longer the production path). Open finding: a large planar obstruction (≥ `MIN_PLANE_PX` px) is fit as its
+own plane and escapes subtraction — structural facet-vs-obstruction rule is follow-up #30 (ADR-0013,
+risks §14 item 7).
+**Phase 2 is planned in `docs/plans/stage-2-overview.md`** (5 parts; **Part 2-4 step 8 + Part 2-5
 (fidelity) are next**).
 See `docs/roadmap.md` for phase boundaries/exit criteria and `docs/benchmarks/` for the benchmark
 write-up.
@@ -103,17 +109,17 @@ All modules above are implemented and tested. Part 2-1 (Phase 2) filled `aggrega
 `tracts.py`; `pipeline.run_aggregation` rolls per-roof results up to census tracts with an equity
 overlay (see `docs/plans/stage-2-part1-plan.md`, ADR-0006/0007/0008). Part 2-2 added `tiling.py` and
 `pipeline.run_city` — the same spine tiled over the whole District, idempotent/resumable per-tile
-(ADR-0009). Both tiers green; the full-DC batch + real deliverables are deferred (see Status).
+(ADR-0009). Both tiers green; the full-DC batch has run (see Status).
 Part 2-3 added `web_build.py` + `scripts/build_web.py` (the static web-map ETL: tracts → GeoJSON,
 usable roofs → PMTiles via `tippecanoe`) and the buildless `web/` MapLibre map, deployed live on
-GitHub Pages (ADR-0010; ETL unit-tested, build + browser smokes green). The one open item is the
-calibrated data-swap (step 6), which waits on the deferred full-DC batch. Part 2-4 (roof-geometry
+GitHub Pages (ADR-0010; ETL unit-tested, build + browser smokes green). The map now serves
+the tuned city run (#25). Part 2-4 (roof-geometry
 refinement, ADR-0011/0012/0013) then upgraded `roof_planes.py` (multi-plane `fit_planes_multi` /
 `fit_roof_planes(method="multiplane")`), `radiation.py` (`plane_poa`), `usable_area.py`
 (`detect_obstructions` + obstruction-aware `usable_area`), `yield_pv.py` (`plane_yields` +
 `collapse_to_buildings`), and wired `pipeline._score_roofs` to the multiplane chain — classical core
-built + unit-tested (steps 1–5); the city re-run, validation, and ML demo (steps 6–8) remain (see
-Status). **Part 2-4 steps 6–8 + Part 2-5 (fidelity) are next.**
+built + unit-tested (steps 1–5), then run city-wide (GCR, tiered cache, tuning) and validated
+(steps 6–7; see Status). **Part 2-4 step 8 (ML demo) + Part 2-5 (fidelity) are next.**
 
 ## Correctness invariants — the shading traps (risks §8; easy to get wrong, hard to notice)
 
