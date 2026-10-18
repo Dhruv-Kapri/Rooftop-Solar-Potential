@@ -16,10 +16,10 @@ Esri.
 
 ## Status
 
-**Phase 1 MVP complete (2026-09-07); Phase 2 in progress — Parts 2-1 (aggregation + equity) and 2-2
-(city-scale tiling) built + tested (2026-09-07).** The full spine — footprints → DSM → shaded `r.sun`
-radiation → RANSAC roof planes → usable area → PV yield + suitability — runs end-to-end for Glover Park
-(`scripts/run_stage1.py`) and passes the ADR-0005 benchmark gate. Part 2-1 fills the last stub
+**Phase 1 MVP complete (2026-09-07); Phase 2 in progress — Parts 2-1 (aggregation + equity), 2-2
+(city-scale tiling) and 2-3 (web map) built; Part 2-4 steps 1–7 done (2026-10-18).** The full spine —
+footprints → DSM → shaded `r.sun` radiation → roof planes → usable area → PV yield + suitability — runs
+end-to-end for Glover Park (`scripts/run_stage1.py`) and passes the ADR-0005 benchmark gate. Part 2-1 fills the last stub
 (`aggregate.py`), adds the census/equity data-access module (`tracts.py`), and rolls per-roof
 results up to census tracts with an equity overlay (`scripts/run_aggregation.py`; ADR-0006/0007/0008).
 Part 2-2 scales the spine over the **whole District** by tiling: `tiling.py` (fixed-origin grid + `floor`
@@ -39,15 +39,12 @@ overstate NREL (1.72× / 1.66×) — a usable-area over-estimate, reported not t
 (ADR-0011/0012/0013): multi-plane sequential RANSAC (`fit_roof_planes(method="multiplane")`), per-plane
 POA (`radiation.plane_poa`), obstruction-aware usable area (`detect_obstructions` +
 `usable_area(obstructions=…)`), per-plane yield → per-building collapse (`yield_pv.collapse_to_buildings`);
-`method="multiplane"` is the production default, `"ransac"` the §6 baseline. Step 6: the GCR city run
-(`12day_gcr`, #19; `FLAT_ROOF_GCR = 0.50`) on a **tiered per-tile cache** (ADR-0014: DSM + `r.sun`
-insolation tiers with sha256 `.key` sidecars, so downstream-only changes are re-scores), spot-check
-tuning (#23, `OBSTRUCTION_TAU_M` 0.5, `SCORING_VERSION` `2-4.2`), and the map refresh (#25) — the map
-serves the tuned run `12day_tuned`: 2,237.6 MW / 2,658 GWh/yr, 1.72× / 1.66× NREL. Step 7: validation
-(#24, [`docs/benchmarks/stage-2-part4-validation.md`](docs/benchmarks/stage-2-part4-validation.md)) —
-multiplane halves median DSM reconstruction RMSE (1.79→0.85 m); spot-check ±1 plane-count 12/17 vs 11/17
-(a tie). Cache/version stamps are component versions (`SCORING_VERSION` etc., `pipeline.py`), not a single
-`PIPELINE_VERSION`. **Remaining:** step 8 (the ML **demo** — `method="ml"`, bounded inference-only, no
+`method="multiplane"` is the production default, `"ransac"` the §6 baseline. Step 6 ran the city with
+a flat-roof GCR (`12day_gcr`, #19) on the **tiered per-tile cache** (ADR-0014: DSM + `r.sun` tiers with
+sha256 `.key` sidecars, keyed by component versions such as `SCORING_VERSION`), so downstream-only
+changes are re-scores; #23 tuned it (`2-4.2`, run `12day_tuned`, now on the map, #25). Step 7's
+validation is [`docs/benchmarks/stage-2-part4-validation.md`](docs/benchmarks/stage-2-part4-validation.md)
+(#24). **Remaining:** step 8 (the ML **demo** — `method="ml"`, bounded inference-only, no
 longer the production path). Open finding: a large planar obstruction (≥ `MIN_PLANE_PX` px) is fit as its
 own plane and escapes subtraction — structural facet-vs-obstruction rule is follow-up #30 (ADR-0013,
 risks §14 item 7).
