@@ -74,22 +74,22 @@ BIPV (§10) enters here as a stretch.
   `floor` membership) + `pipeline.run_city` (per-tile GeoParquet cache · resumable manifest/params-stamp
   · city-wide merge + suitability recompute) + `scripts/run_city.py`; ADR-0009. Both tiers green — seam
   conservation + idempotency verified on a real multi-tile DC run. DC = 66 tiles @ 2 km. The **full-DC
-  batch run (~10–15 h) and its real deliverables (populated equity map, sanity write-up, run-log) are
-  deferred** — run when ready.
+  batch run has since run** (Part 2-4 step 6, #19; ~3.9 h cold on the VM with the ADR-0014 tiered
+  cache) and its populated equity map is what the live map serves.
 - **Part 2-3 — deployed web app — built + live (2026-09-08).** A static MapLibre GL JS + PMTiles map on
   GitHub Pages ([live](https://dhruv-kapri.github.io/Rooftop-Solar-Potential/); `web/`,
   `scripts/build_web.py`; ADR-0010) — tract equity choropleth + 100k-roof drill-down. ETL unit-tested,
-  build + browser smokes green, PMTiles range-requests on Pages confirmed. Serves the 1-day preliminary
-  numbers until the calibrated data-swap (step 6).
-- **Part 2-4 — roof-geometry refinement (classical multi-plane + obstructions) — classical core built +
-  wired (2026-09-08).** Reframed from "ML segmentation" to a classical, training-free upgrade
+  build + browser smokes green, PMTiles range-requests on Pages confirmed. Serves the tuned Part 2-4
+  city run since #25 (2026-10-18).
+- **Part 2-4 — roof-geometry refinement (classical multi-plane + obstructions) — steps 1–7 done
+  (2026-10-18).** Reframed from "ML segmentation" to a classical, training-free upgrade
   (ADR-0011/0012/0013): multi-plane sequential RANSAC + per-plane POA + obstruction-aware usable area +
   per-building collapse, across `roof_planes.py` / `radiation.py` / `usable_area.py` / `yield_pv.py`, wired
-  into `pipeline._score_roofs` (`method="multiplane"` default; `PIPELINE_VERSION` `2-2.0`→`2-4.0`). Steps
-  1–5 done via `/tdd` (unit-tested, 133 green; `"ransac"` kept as the baseline). **Remaining:** the city
-  re-run + `build_web` (step 6), validation — DSM self-consistency + the ~20-roof spot-check (step 7), and
-  the **bounded inference-only ML demo** (step 8; `method="ml"`). **Part 2-4 steps 6–8 + Part 2-5
-  (fidelity) next.**
+  into `pipeline._score_roofs` (`method="multiplane"` default; `"ransac"` kept as the baseline). City
+  re-run with flat-roof GCR (#19), spot-check tuning (#23, `SCORING_VERSION` `2-4.2`), validation (#24,
+  [write-up](benchmarks/stage-2-part4-validation.md)) and the map refresh (#25): 2,237.6 MW /
+  2,658 GWh/yr, 1.72× / 1.66× NREL. **Remaining:** the **bounded inference-only ML demo** (step 8;
+  `method="ml"`). **Part 2-4 step 8 + Part 2-5 (fidelity) next.**
 
 ## Phase 3 · India — re-version via modular adapters · stretch
 

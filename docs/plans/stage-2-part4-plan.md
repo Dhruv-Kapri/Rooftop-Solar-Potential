@@ -135,7 +135,7 @@ Together these are the plan's "accuracy comparison vs the RANSAC baseline" — d
 5. **✓** Wire `pipeline._score_roofs` (+ `run_stage1`/`run_city`) to the `"multiplane"` path; bump
    the pipeline version stamp (since split into component versions, ADR-0014); Stage-1 integration smoke updated to the collapsed schema (integration, GRASS-gated).
 6. **✓** City re-run (Part 2-2's caching re-invoked) → `build_web` + commit `web/assets/` (no app rebuild).
-   - **⊙ deferred (2026-09-15):** added a **flat-roof GCR** calibration (`FLAT_ROOF_GCR = 0.50` in
+   - **⊙ deferred (2026-09-15; superseded by the re-sequencing below — done in #19/#23/#25):** added a **flat-roof GCR** calibration (`FLAT_ROOF_GCR = 0.50` in
      `usable_area.py`, multiplane path only) — flat roofs are 84% of usable capacity and were modelled at
      0.85 packing with no tilted-array inter-row spacing. pipeline version bumped `2-4.0`→`2-4.1` (the stamp later became `SCORING_VERSION`, ADR-0014).
      Analytically (no re-run) this pulls the city over-estimate from **2.9× → ~1.7× NREL** (3.83→~2.23 GW).
@@ -143,7 +143,7 @@ Together these are the plan's "accuracy comparison vs the RANSAC baseline" — d
      calibrated specific yield). **The full 10–15 h city re-run is deferred and bundled with step 7b's
      obstruction/setback-knob tuning** — run the expensive batch ONCE with both calibrations, not twice.
      Code + version bump are committed to the working tree; `outputs/12day/` + `web/assets/` still hold the
-     pre-GCR numbers until that batch runs (resolved: #19/#25). See risks note on r.sun caching below.
+     pre-GCR numbers until that batch runs. See risks note on r.sun caching below.
    - **⊙ re-sequenced (grill 2026-10-12):** the tiered cache (ADR-0014) removed the reason to bundle.
      Now: (1) multi-core `r.sun` (`nprocs`, measured on one tile; tile-level process pool only if <~4×
      on 8 cores) + GRASS version in `radiation_key` + log-noise cleanup; (2) **one** full-city run with
@@ -174,6 +174,9 @@ Together these are the plan's "accuracy comparison vs the RANSAC baseline" — d
      Write-up: `docs/benchmarks/spot_check/tuning.md`.
    - **✓ map refresh (#25, 2026-10-18):** `build_web` from `outputs/dc/12day_tuned/`, `web/assets/`
      committed — a data swap only, no app rebuild. `CALIBRATED_CITY_LABEL` now names `12day_tuned`.
+     Assembled from the #23 re-score (run `--no-aggregate` into `outputs/dc/tune23/round1/`): its
+     `roofs.parquet` + `run_log.txt` copied in, then `pipeline.run_aggregation(…, area_name="Washington,
+     DC")` wrote `tracts.gpkg` + the choropleths beside them.
    - **✓ validation (#24, 2026-10-18):** write-up
      [`stage-2-part4-validation.md`](../benchmarks/stage-2-part4-validation.md). Multiplane halves the
      median DSM reconstruction RMSE (1.79→0.85 m); spot-check ±1 plane-count 12/17 vs 11/17 (a tie),
