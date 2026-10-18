@@ -379,6 +379,27 @@ def detailed_score(
     )
 
 
+def _checked_cache_raster(tiles_dir: Path, row: int, col: int, kind: str) -> Path:
+    """A tile's cached raster path, after proving it is present and matches its sidecar.
+
+    Missing -> `FileNotFoundError` (the cache is populated by `pipeline.run_city`, issue #19,
+    never here). Sidecar absent, legacy-format, or not matching the file's bytes (a truncated
+    or swapped copy after a cache handoff, issue #18) -> `ValueError` (ADR-0014).
+    """
+    path = pipeline.tile_cache_path(tiles_dir, row, col, kind)
+    if not path.exists():
+        raise FileNotFoundError(
+            f"{path} not found; the tile cache must be populated by pipeline.run_city (issue #19)"
+        )
+    key = cache.read_key_sidecar(path)
+    if key is None or not cache.sidecar_matches(path, key):
+        raise ValueError(
+            f"{path} does not match its cache sidecar (missing, legacy-format, "
+            "truncated or swapped); re-run pipeline.run_city to rebuild it (ADR-0014)"
+        )
+    return path
+
+
 def rescore_sample(sample: gpd.GeoDataFrame, tiles_dir: str | Path) -> DetailedScore:
     """:func:`detailed_score` over a spot-check sample, one tile raster pair at a time.
 
@@ -397,20 +418,8 @@ def rescore_sample(sample: gpd.GeoDataFrame, tiles_dir: str | Path) -> DetailedS
     tiles_dir = Path(tiles_dir)
     scores = []
     for (row, col), group in sample.groupby(["tile_row", "tile_col"]):
-        dsm_path = pipeline.tile_cache_path(tiles_dir, row, col, "dsm")
-        insol_path = pipeline.tile_cache_path(tiles_dir, row, col, "insolation")
-        for path in (dsm_path, insol_path):
-            if not path.exists():
-                raise FileNotFoundError(
-                    f"{path} not found; the tile cache must be populated by "
-                    "pipeline.run_city (issue #19)"
-                )
-            key = cache.read_key_sidecar(path)
-            if key is None or not cache.sidecar_matches(path, key):
-                raise ValueError(
-                    f"{path} does not match its cache sidecar (missing, legacy-format, "
-                    "truncated or swapped); re-run pipeline.run_city to rebuild it (ADR-0014)"
-                )
+        dsm_path = _checked_cache_raster(tiles_dir, row, col, "dsm")
+        insol_path = _checked_cache_raster(tiles_dir, row, col, "insolation")
         scores.append(detailed_score(group, dsm_path, insol_path))
     return DetailedScore(
         **{
@@ -418,6 +427,69 @@ def rescore_sample(sample: gpd.GeoDataFrame, tiles_dir: str | Path) -> DetailedS
             for f in dataclasses.fields(DetailedScore)
         }
     )
+
+
+def tile_self_consistency(tiles_dir: str | Path, row: int, col: int) -> gpd.GeoDataFrame:
+    """DSM self-consistency (:func:`compare_self_consistency`) over one cached city tile.
+
+    Reads `tile_{row}_{col}_roofs.parquet` (the production per-building output) and the
+    tile's DSM from the `pipeline.run_city` cache; the DSM must pass the same sidecar check
+    as :func:`rescore_sample` (`FileNotFoundError` / `ValueError`). A missing roofs parquet
+    is a `FileNotFoundError`. Returns compare's rows (same order as the parquet) plus
+    `tile_row`, `tile_col`, `roof_id` (:func:`spot_check_id` over the parquet's own
+    `building_id`, which also overwrites compare's positional `building_id`), `roof_class`
+    (from the parquet) and `roof_type` (:func:`roof_type` over compare's `n_planes`).
+    Plan §6, risks §14.4, #24.
+    """
+    tiles_dir = Path(tiles_dir)
+    roofs_path = pipeline.tile_cache_path(tiles_dir, row, col, "roofs")
+    if not roofs_path.exists():
+        raise FileNotFoundError(
+            f"{roofs_path} not found; the tile cache must be populated by pipeline.run_city "
+            "(issue #19)"
+        )
+    dsm_path = _checked_cache_raster(tiles_dir, row, col, "dsm")
+    roofs = gpd.read_parquet(roofs_path)
+    out = compare_self_consistency(roofs, dsm_path)
+    out["building_id"] = roofs["building_id"].to_numpy()
+    out["tile_row"] = row
+    out["tile_col"] = col
+    out["roof_id"] = [spot_check_id(row, col, b) for b in roofs["building_id"]]
+    out["roof_class"] = roofs["roof_class"].to_numpy()
+    out["roof_type"] = [
+        roof_type(n, c) for n, c in zip(out["n_planes"], out["roof_class"], strict=True)
+    ]
+    return out
+
+
+_SUMMARY_METRICS = {
+    "rmse_multiplane_median": ("rmse_multiplane", 0.5),
+    "rmse_ransac_median": ("rmse_ransac", 0.5),
+    "rmse_improvement_median": ("rmse_improvement", 0.5),
+    "rmse_improvement_p90": ("rmse_improvement", 0.9),
+    "pct_within_multiplane_median": ("pct_within_multiplane", 0.5),
+    "pct_within_ransac_median": ("pct_within_ransac", 0.5),
+}
+
+
+def summarize_self_consistency(per_roof: pd.DataFrame) -> pd.DataFrame:
+    """Per-roof-type rollup of :func:`tile_self_consistency` rows (plan §6, #24).
+
+    One row per type in `ROOF_TYPES` order, then ``"all"``; index named `roof_type`.
+    `n_roofs` counts every row in the bin, `n_unfittable` those with NaN `rmse_multiplane`;
+    the median / p90 metrics are over fittable rows only. A type with no rows still appears,
+    with zero counts and NaN metrics.
+    """
+    rows = {}
+    for name in (*ROOF_TYPES, "all"):
+        group = per_roof if name == "all" else per_roof[per_roof["roof_type"] == name]
+        fit = group[group["rmse_multiplane"].notna()]
+        row = {"n_roofs": len(group), "n_unfittable": len(group) - len(fit)}
+        for col, (src, q) in _SUMMARY_METRICS.items():
+            # Series.quantile of an empty series is NaN without a numpy warning
+            row[col] = float(fit[src].quantile(q))
+        rows[name] = row
+    return pd.DataFrame.from_dict(rows, orient="index").rename_axis("roof_type")
 
 
 # --- Spot-check comparison (Part 2-4 step 7b; plan §6, ADR-0013) ---------------------
