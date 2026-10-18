@@ -106,3 +106,50 @@ python scripts/spot_check_compare.py --spot-dir outputs/dc/tune23/round1/spot_ch
 python scripts/run_city.py --tiles-dir <copy of the 12day_gcr cache> --output-dir <out> \
     --no-aggregate --workers 4 --nprocs 2
 ```
+
+## #30 — structural facet-vs-obstruction rule (2026-10-18)
+
+**Rule:** drop a later plane with fewer than `SUPERSTRUCTURE_MAX_PX` (25) inliers whose median sits
+more than 0.5 m above the dominant plane. Its pixels then fall to the kept planes and are subtracted
+as obstruction. `SCORING_VERSION` `2-4.2` → **`2-4.3`**. The rule, the swept alternatives and its
+known cost (the `7_2_1177` mansard) are in the ADR-0013 addendum (2026-10-18).
+`validation.compare_labels` now reports **exact** agreement (`plane_exact`) next to ±1.
+
+| `SCORING_VERSION` | ±1 agree (clamped / raw) | exact (clamped) | obstr. hit / miss / FP / TN | large-planar flags | escaped usable m² | unfittable (spot-check) | city capacity | ÷ NREL | city energy | ÷ NREL |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2-4.2 (#23) | 12 / 8 of 17 | 9/17 | 14 / 1 / 2 / 0 | 6 | 739.5 | 0 | 2,237.6 MW | 1.72× | 2,658 GWh/yr | 1.66× |
+| **2-4.3 (#30)** | **14 / 10 of 17** | **10/17** | 14 / 1 / 2 / 0 | **4** | **589.9** | 0 | **2,196.1 MW** | **1.69×** | **2,607 GWh/yr** | **1.63×** |
+
+The single-plane baseline is unchanged (11/17 ±1, 4/17 exact). The plane-count stop rule (±1 on
+~80%) **is now met: 14/17 = 82%**, with the label caveats below and in #23.
+
+**City re-score.** Run on the VM from a copy of the `2-4.2` tuning cache (`run_city.py
+--tiles-dir <copy> --no-aggregate --workers 4 --nprocs 2`), 66/66 tiles in 38 min. All 132 cached
+`*_dsm.tif` / `*_insolation.tif` were byte-identical (sha256) before and after. The log's only `r.sun`
+mention is its thread-count line, and all 66 manifest stamps moved to `2-4.3`.
+
+| city | 2-4.2 | 2-4.3 |
+|---|---|---|
+| roofs / with usable area / unfittable | 100,064 / 67,044 / 8,393 | 100,064 / **65,779** / 8,393 |
+| usable area | 11.19 km² | 10.98 km² (−1.9%) |
+| mean planes per roof | 2.09 | 1.95 |
+| roofs with 1 / 2 / 3 / 4 planes | 34,904 / 36,157 / 13,733 / 15,270 | 41,472 / 33,742 / 12,997 / 11,853 |
+| capacity: complex / hip / gable / flat | 1,257 / 480 / 321 / 180 MW | 1,218 / 422 / 342 / 215 MW |
+| `low_confidence` roofs | 27,788 | 33,678 |
+
+- **No new unfittable roofs.** The dominant plane is never dropped.
+- **1,265 roofs lose all usable area.** Most likely their only usable plane was a dropped raised one (an
+  HVAC or tree plane fit as a sun-facing "facet"), which now counts as obstruction. That is the
+  intent, but these roofs weren't inspected one by one.
+- **5,890 more roofs are `low_confidence`.** A dropped plane's pixels no longer count as inliers, so
+  roofs that are mostly raised clutter now fall under the 50% inlier fraction. This is expected,
+  not a regression.
+- The type bins shift because `roof_type` reads the model's plane count. About 4,150 roofs leave the
+  hip and complex bins (29,003 → 24,850).
+- The ÷ NREL ratio moved 1.72× → 1.69× as a by-product. It was **not** a target.
+
+**Still open.** These are the #23 caveats: the labels aren't blind, and only 2 scored roofs are
+obstruction-free. A blind relabel of a subset and more `has_obstruction=n` roofs (human work)
+should confirm the rule before any further tuning.
+
+Reproduce: the #23 commands above, with `--out-dir`/`--output-dir` pointing at a `2-4.3` location.

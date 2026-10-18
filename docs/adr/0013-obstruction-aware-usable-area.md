@@ -55,3 +55,64 @@ unchanged and now applied **per plane**.
   checkpoint, unvalidatable; the DSM-residual approach needs none of that.
 - **A finer flat fraction** (e.g. `× 0.80`) — rejected: still a blind constant; it moves the number
   without measuring the actual obstructed area that varies hugely roof to roof.
+
+## Addendum (2026-10-18) — structural facet-vs-obstruction rule (#30)
+
+The Consequences gap above still mattered after the #23 tuning: flat rowhouse roofs with HVAC fit
+as 3–4 planes, and `MIN_PLANE_PX` can't close it because the same threshold gates a roof's *first*
+plane (raising it makes real gables unfittable; `spot_check/tuning.md`).
+
+**Rule (`roof_planes.fit_planes_multi`).** After the sequential fit, a **later** plane (not the
+dominant, largest one) is a raised superstructure, and is dropped, when both hold:
+
+- its inliers' **median** residual against the **dominant** plane is more than
+  `RESIDUAL_THRESHOLD_M` (0.5 m, the RANSAC inlier band, equal to τ = `OBSTRUCTION_TAU_M`), i.e. it
+  sits above the dominant plane's band over its own footprint; and
+- it has fewer than `SUPERSTRUCTURE_MAX_PX` = **25** inliers (≈100 m² at the 2 m DSM).
+
+Any tilt counts. The spot-check's HVAC and overhanging-tree "planes" are fit steep (22–45°), not
+flat. There is no refit: the dropped plane's pixels fall to the nearest kept plane in
+`obstruction_pixels`, so anything more than τ above it is subtracted as an obstruction. The
+dominant plane is never dropped, so the rule can't make a roof unfittable. A convex roof's other
+facets (gable, hip) sit *below* the dominant facet's extension, so they never trigger it. Raised
+planes of 25 px or more are real raised roof levels (the whole-block Farragut footprints) and are
+kept. `SCORING_VERSION` `2-4.2` → `2-4.3`.
+
+**Evidence.** Chosen on the 17 scored spot-check roofs, with ±1 *and* exact agreement reported
+(`validation.compare_labels` gains `plane_exact`). Candidates were swept over the cached DSMs in
+seconds per setting:
+
+| rule (later planes) | ±1 agree (clamped) | exact | obstr. hit / miss / FP / TN | large-planar flags | escaped m² | unfittable |
+|---|---|---|---|---|---|---|
+| none (2-4.2) | 12/17 | 9/17 | 14 / 1 / 2 / 0 | 6 | 739 | 0 |
+| **raised > 0.5 m, < 25 px (chosen)** | **14/17 (82%)** | **10/17** | 14 / 1 / 2 / 0 | 4 | 590 | 0 |
+| raised > 0.5 m, < 40 px | 14/17 | 10/17 | 14 / 1 / 2 / 0 | 3 | 252 | 0 |
+| raised > 0.5 m, any size | 13/17 | 7/17 | 14 / 1 / 2 / 0 | 3 | 252 | 0 |
+| raised > 1.0 m, < 25 px | 14/17 | 9/17 | 14 / 1 / 2 / 0 | 5 | 641 | 0 |
+| raised, near-flat (< 10°) only | 13/17 | 9/17 | 14 / 1 / 2 / 0 | 6 | 401 | 0 |
+| relative size < 0.3 × dominant | 15/17 | 11/17 | 13 / 2 / 2 / 0 | 3 | 478 | 0 |
+| raised < 25 px + relative < 0.15 | 15/17 | 10/17 | 14 / 1 / 2 / 0 | 4 | 597 | 0 |
+
+- The chosen rule is the smallest one that improves ±1 and exact together without losing an
+  obstruction hit. It reuses the inlier band, so its only new constant is the 25 px size cap.
+- 40 px scores the same, but it starts collapsing large raised levels: `6_4_246` and `6_4_28`
+  each go 4 → 2. 25 px is the conservative cap.
+- The ticket's "near-flat" variant misses the steep HVAC and tree planes.
+- A relative-size gate scores higher, but it collapses labelled 2-plane roofs and loses an
+  obstruction hit (`7_2_1212`'s pitched strip at 0.3). Added to the raised rule at 0.15, its whole
+  gain is one roof (`7_2_66`). It is recorded here, not adopted.
+- **Known cost:** the front mansard strip on `7_2_1177` (a real facet, 10 px, raised 1.6 m) is
+  dropped, 2 → 1 plane. That loses an exact agreement but stays within ±1.
+- **Side effects, by construction:**
+  - A dropped plane no longer counts toward a building's inlier fraction, so `low_confidence`
+    (inliers < 50%) can newly flag roofs that are mostly raised clutter.
+  - A dropped plane still used one of the `MAX_PLANES` fit slots.
+
+**City re-score** (cached DSM + radiation tiers, no `r.sun` reruns): **2,196.1 MW / 2,607 GWh/yr,
+1.69× / 1.63×** NREL (was 1.72× / 1.66× at `2-4.2`). Reported, not targeted. No new unfittable roofs.
+1,265 roofs lose all usable area (likely: their only usable "facet" was a raised plane), and 5,890 more are
+`low_confidence`. Detail in `spot_check/tuning.md` "#30".
+
+**Not settled.** The labels aren't blind (the drafter saw the model panels), only 2 scored roofs
+are `has_obstruction=n`, and with 17 roofs one roof is ~6 points. A blind relabel of a subset and
+more obstruction-free roofs should confirm the rule before it is tuned further (#23 caveats).
