@@ -53,9 +53,27 @@ def test_run_label_sets_output_dir(run_cli):
     assert recorded["output_dir"] == config.outputs_run_dir("dc", "foo")
 
 
-def test_default_label_is_calibrated_tuned_run(run_cli):
+def test_default_label_is_version_stamped_calibrated_run(run_cli):
     recorded = run_cli()
-    assert recorded["output_dir"] == config.outputs_run_dir("dc", "12day_tuned")
+    assert recorded["output_dir"] == config.outputs_run_dir(
+        "dc", f"12day_{pipeline.SCORING_VERSION}"
+    )
+
+
+def test_scoring_version_bump_gets_a_fresh_default_dir(run_cli, monkeypatch):
+    """#32: a SCORING_VERSION bump must never default onto the previous run's outputs."""
+    before = run_cli()["output_dir"]
+    monkeypatch.setattr(pipeline, "SCORING_VERSION", "9-9.9")
+    after = run_cli()["output_dir"]
+    assert after == config.outputs_run_dir("dc", "12day_9-9.9")
+    assert after != before
+
+
+def test_custom_day_default_label_is_version_stamped(run_cli):
+    recorded = run_cli("--day-range", "172")
+    assert recorded["output_dir"] == config.outputs_run_dir(
+        "dc", f"1day_{pipeline.SCORING_VERSION}"
+    )
 
 
 def test_output_dir_beats_run_label(run_cli, tmp_path):

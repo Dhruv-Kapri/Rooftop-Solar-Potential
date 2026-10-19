@@ -4,11 +4,12 @@
 Thin wrapper over ``web_build.build_web``: reads ``tracts.gpkg`` (the aggregation tract
 layer) + ``roofs.parquet`` (the city per-roof layer) from an input dir and writes
 ``web/assets/{tracts.geojson, roofs.pmtiles, scatter.png}`` — the inline tract layer, the
-100k-roof vector tiles, and the about-panel chart (plan §4). Defaults ``--input`` to the calibrated
-run (``outputs/dc/12day_tuned/``); point it at ``outputs/dc/1day/`` for a dev build.
+100k-roof vector tiles, and the about-panel chart (plan §4). Defaults ``--input`` to the published
+run (``outputs/dc/12day_2-4.3/``, ``config.PUBLISHED_CITY_OUTPUTS_DIR``); point it at
+``outputs/dc/1day_<SCORING_VERSION>/`` for a dev build.
 
-    python scripts/build_web.py                          # outputs/dc/12day_tuned/ -> web/assets/
-    python scripts/build_web.py --input outputs/dc/1day   # dev build off the 1-day pass
+    python scripts/build_web.py                          # outputs/dc/12day_2-4.3/ -> web/assets/
+    python scripts/build_web.py --input outputs/dc/1day_2-4.3   # dev build off a 1-day pass
     python scripts/build_web.py --output /tmp/assets       # write elsewhere
 
 Requires ``tippecanoe`` on PATH (a system dep, ADR-0010).
@@ -27,7 +28,7 @@ def main() -> None:
     parser.add_argument(
         "--input",
         default=None,
-        help="dir with tracts.gpkg + roofs.parquet (default: calibrated outputs/dc/12day_tuned/)",
+        help="dir with tracts.gpkg + roofs.parquet (default: published outputs/dc/12day_2-4.3/)",
     )
     parser.add_argument(
         "--output", default=None, help="web assets output dir (default: web/assets/)"
