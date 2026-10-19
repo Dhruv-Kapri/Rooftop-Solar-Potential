@@ -73,11 +73,12 @@ def test_roof_type_truth_table(n, cls, expected):
 
 
 @pytest.mark.parametrize("cls", ["flat", "pitched_sun_facing"])
-def test_roof_type_rejects_unfittable(cls):
-    # #31: n_planes 0 (unfittable) has no archetype; refuse it rather than mislabel it
+@pytest.mark.parametrize("n", [0, float("nan")])
+def test_roof_type_rejects_unfittable(n, cls):
+    # #31: n_planes 0 or NaN (unfittable) has no archetype; refuse it rather than mislabel it
     # flat/gable. Production n_planes is always >= 1, so the spot-check sample is unaffected.
     with pytest.raises(ValueError, match="unfittable"):
-        v.roof_type(0, cls)
+        v.roof_type(n, cls)
 
 
 def test_spot_check_id_format():
