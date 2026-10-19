@@ -115,11 +115,12 @@ TILE_BUFFER_M = AOI_BUFFER_M
 TILES_CACHE_DIR = DATA_DIR / "tiles"
 
 # City-run deliverables land in outputs/<area>/<label> (e.g. outputs/dc/1day preview,
-# outputs/dc/12day calibrated) so a run never dumps into OUTPUTS_DIR root alongside the
+# outputs/dc/12day_tuned calibrated) so a run never dumps into OUTPUTS_DIR root alongside the
 # Stage-1 Glover Park files. `outputs_run_dir` is the single source of truth for that layout.
-# The 12-day mid-month sample (ADR-0001) is the calibrated production run — what the default
-# `build_web` reads.
-CALIBRATED_CITY_LABEL = "12day"
+# The calibrated production run is the 12-day mid-month sample (ADR-0001), scored by the tuned
+# Part 2-4 chain (multiplane + obstructions, SCORING_VERSION 2-4.2; #25) — what the default
+# `build_web` reads and `run_city` writes. Earlier runs (12day, 12day_gcr) keep their own labels.
+CALIBRATED_CITY_LABEL = "12day_tuned"
 CALIBRATED_CITY_OUTPUTS_DIR = outputs_run_dir("dc", CALIBRATED_CITY_LABEL)
 
 # --- spot-check validation (Part 2-4 step 7b — plan §6) ---

@@ -53,9 +53,9 @@ def test_run_label_sets_output_dir(run_cli):
     assert recorded["output_dir"] == config.outputs_run_dir("dc", "foo")
 
 
-def test_default_label_is_calibrated_12day(run_cli):
+def test_default_label_is_calibrated_tuned_run(run_cli):
     recorded = run_cli()
-    assert recorded["output_dir"] == config.outputs_run_dir("dc", "12day")
+    assert recorded["output_dir"] == config.outputs_run_dir("dc", "12day_tuned")
 
 
 def test_output_dir_beats_run_label(run_cli, tmp_path):

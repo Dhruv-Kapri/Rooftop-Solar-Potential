@@ -822,7 +822,7 @@ def run_city(
             (queried once per run) also feeds `radiation_key`, so a GRASS upgrade recomputes.
         tiles_dir: per-tile parquet cache + manifest (default `config.TILES_CACHE_DIR`).
         output_dir: where the city per-roof GeoParquet goes (default
-            `config.CALIBRATED_CITY_OUTPUTS_DIR`, `outputs/dc/12day/`).
+            `config.CALIBRATED_CITY_OUTPUTS_DIR`, `outputs/dc/12day_tuned/`).
         resume: skip tiles already recorded done under the tile's current `scoring_key` whose
             roofs parquet still matches its checksum sidecar (idempotent re-run; a truncated,
             swapped or sidecar-less parquet after a cross-machine rsync handoff is recomputed
