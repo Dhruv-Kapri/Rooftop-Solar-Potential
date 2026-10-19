@@ -18,7 +18,7 @@ import numpy.typing as npt
 import pytest
 from sklearn.exceptions import UndefinedMetricWarning
 
-from rooftop_solar import roof_planes
+from rooftop_solar import roof_planes, usable_area
 
 # Compass azimuth (deg) of the direction each synthetic roof *faces* (downslope).
 _FACING_AZIMUTH = {"north": 0.0, "east": 90.0, "south": 180.0, "west": 270.0}
@@ -321,3 +321,9 @@ def test_multiplane_keeps_small_plane_below_dominant():
     X, z = _flat_roof_with_block((4, 5), dz=-2.0)
 
     assert len(roof_planes.fit_planes_multi(X, z)) == 2
+
+
+def test_superstructure_band_matches_obstruction_tau():
+    # #30 / ADR-0013 addendum: a dropped superstructure's pixels are subtracted as obstruction
+    # only above tau, so the drop band must stay equal to tau if either is retuned.
+    assert roof_planes.RESIDUAL_THRESHOLD_M == usable_area.OBSTRUCTION_TAU_M

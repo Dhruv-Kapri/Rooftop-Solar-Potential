@@ -74,7 +74,9 @@ Any tilt counts. The spot-check's HVAC and overhanging-tree "planes" are fit ste
 flat. There is no refit: the dropped plane's pixels fall to the nearest kept plane in
 `obstruction_pixels`, so anything more than τ above it is subtracted as an obstruction. The
 dominant plane is never dropped, so the rule can't make a roof unfittable. A convex roof's other
-facets (gable, hip) sit *below* the dominant facet's extension, so they never trigger it. Raised
+facets (gable, hip) sit *below* the dominant facet's extension, so they never trigger it. A
+non-convex roof's small facet that rises away from the dominant one (a valley, butterfly or
+sawtooth roof) *does* sit above that extension, and is dropped like a superstructure. Raised
 planes of 25 px or more are real raised roof levels (the whole-block Farragut footprints) and are
 kept. `SCORING_VERSION` `2-4.2` → `2-4.3`.
 
@@ -103,10 +105,18 @@ seconds per setting:
   gain is one roof (`7_2_66`). It is recorded here, not adopted.
 - **Known cost:** the front mansard strip on `7_2_1177` (a real facet, 10 px, raised 1.6 m) is
   dropped, 2 → 1 plane. That loses an exact agreement but stays within ±1.
+- **Known cost, not measured:** a small rising facet on a non-convex roof (valley, butterfly,
+  sawtooth) is dropped the same way (above). No spot-check roof has one. A synthetic valley roof
+  (a 200 px facet plus a 20 px facet rising away from it) fits 2 planes without the rule and 1 with it.
 - **Side effects, by construction:**
-  - A dropped plane no longer counts toward a building's inlier fraction, so `low_confidence`
-    (inliers < 50%) can newly flag roofs that are mostly raised clutter.
+  - `low_confidence` changes meaning at `2-4.3`. A dropped plane no longer counts toward a
+    building's inlier fraction, so the flag (inliers < 50%) now also fires on a well-fit dominant
+    plane carrying raised clutter. It isn't comparable across `2-4.2` and `2-4.3` runs.
+  - Only the dropped plane's pixels that sit more than τ above their nearest kept plane become
+    obstruction. The rule tests the *median*, so up to half of them stay usable on the kept plane.
   - A dropped plane still used one of the `MAX_PLANES` fit slots.
+  - The drop band is `RESIDUAL_THRESHOLD_M` and the obstruction band is `OBSTRUCTION_TAU_M`. The
+    rule relies on them being equal, and a unit test pins that.
 
 **City re-score** (cached DSM + radiation tiers, no `r.sun` reruns): **2,196.1 MW / 2,607 GWh/yr,
 1.69× / 1.63×** NREL (was 1.72× / 1.66× at `2-4.2`). Reported, not targeted. No new unfittable roofs.
