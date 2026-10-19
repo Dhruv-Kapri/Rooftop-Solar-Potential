@@ -838,7 +838,7 @@ def run_city(
         tiles_dir: per-tile parquet cache + manifest (default `config.TILES_CACHE_DIR`).
         output_dir: where the city per-roof GeoParquet goes (default
             `config.outputs_run_dir("dc", city_run_label(day_range))`, e.g.
-            `outputs/dc/12day_2-4.3/` — version-stamped so a SCORING_VERSION bump never
+            `outputs/dc/12day_<SCORING_VERSION>/` — version-stamped so a SCORING_VERSION bump never
             overwrites an earlier run, #32).
         resume: skip tiles already recorded done under the tile's current `scoring_key` whose
             roofs parquet still matches its checksum sidecar (idempotent re-run; a truncated,
