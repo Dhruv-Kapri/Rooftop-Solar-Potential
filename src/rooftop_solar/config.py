@@ -25,10 +25,36 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = REPO_ROOT / "data"
 OUTPUTS_DIR = REPO_ROOT / "outputs"
 
+
+def outputs_area_dir(area: str) -> Path:
+    """Output dir for a study area, e.g. outputs/glover_park (single source of truth)."""
+    return OUTPUTS_DIR / area
+
+
+def validate_run_label(label: str) -> None:
+    """Raise `ValueError` unless `label` is a plain dir name (non-empty, no path separators,
+    not '.' or '..'), so a run label can't escape `outputs/<area>/` (#29)."""
+    if not label or label in (".", "..") or "/" in label or "\\" in label:
+        raise ValueError(
+            f"label must be a plain dir name (no path separators, '.' or '..'): {label!r}"
+        )
+
+
+def outputs_run_dir(area: str, label: str) -> Path:
+    """Output dir for a labelled run within a study area, e.g. outputs/dc/12day.
+
+    `label` must pass :func:`validate_run_label`, else `ValueError`."""
+    validate_run_label(label)
+    return OUTPUTS_DIR / area / label
+
+
 # --- secrets (see .env.example) ---
 NLR_API_KEY = os.getenv("NLR_API_KEY")
 NLR_API_EMAIL = os.getenv("NLR_API_EMAIL")
 NLR_API_BASE = "https://developer.nlr.gov"  # renamed from developer.nrel.gov (2025-12-01)
+CENSUS_API_KEY = os.getenv(
+    "CENSUS_API_KEY"
+)  # free key: https://api.census.gov/data/key_signup.html
 
 # --- study area (Phase 1) ---
 STUDY_AREA = "Washington, DC"
@@ -49,3 +75,59 @@ AOI_BBOX_WGS84 = (-77.0825, 38.9130, -77.0680, 38.9280)
 # (the inter-building-shading trap — risks §8, trap 2). Keep >= the r.sun shadow search
 # distance used in radiation.py so no relevant caster is clipped away.
 AOI_BUFFER_M = 300.0
+
+# --- census / equity aggregation (Phase 2, Part 2-1 — ADR-0006/0007) ---
+# GEOID is a ZERO-PADDED STRING everywhere (DC tracts start "11001…"); integer coercion
+# silently drops the leading "11" (§6, §11). FIPS "11" = District of Columbia.
+DC_STATE_FIPS = "11"
+# All three equity sources are aligned to 2020 tracts (ADR-0006) — no 2010/2020 vintage mix.
+TIGER_TRACT_YEAR = 2020  # TIGER/Line tract geometry vintage
+ACS_YEAR = 2023  # ACS 5-year demographics vintage
+LEAD_YEAR = 2022  # DOE LEAD energy-burden vintage
+# Data endpoints (fetched once, then cached under data/ — gitignored).
+CENSUS_API_BASE = "https://api.census.gov/data"  # ACS 5-year Data API
+TIGER_TRACT_BASE = "https://www2.census.gov/geo/tiger/TIGER2020/TRACT"  # tl_2020_<ff>_tract.zip
+# DOE LEAD is the least Census-native source; the exact DC download is confirmed at fetch
+# time (open risk §11) — the loader owns the URL, this only pins the vintage above.
+# Per-source caches under data/ (created on first fetch).
+TRACTS_CACHE_DIR = DATA_DIR / "tracts"
+
+# --- city-scale tiling (Phase 2, Part 2-2 — ADR-0009) ---
+# Scale the Stage-1 per-roof spine over the whole District by running it tile-by-tile on a
+# regular grid, caching each tile's roofs so an expensive multi-hour run is resumable.
+#
+# Fixed grid origin (lower-left anchor) in WORKING_CRS metres. It MUST stay fixed and sit SW
+# of the whole District: cell (row, col) = floor((point - origin) / TILE_SIZE_M), so a fixed
+# origin makes the cache key stable across runs (idempotency), and an SW anchor keeps every
+# index non-negative (DC spans easting ~315875–334681, northing ~4295204–4318471 in EPSG:6347).
+GRID_ORIGIN = (315000.0, 4295000.0)
+# Tile edge length (metres, in WORKING_CRS). Provisional 2 km — ~10×12 grid over DC, ~52
+# non-empty tiles. Confirm against the real point-cloud volume/runtime before the full batch
+# (stage-2-part2-plan.md §9 step 1 / §10); the unit tests take tile_size as a parameter so
+# they don't depend on this value.
+TILE_SIZE_M = 2000.0
+# Buffer grown around each tile's core cell before fetching DSM/footprints, so tall casters
+# just outside a tile still shade its edge roofs (risks §8 traps 2–3, one scale up). ADR-0009:
+# the buffer IS the effective shadow reach (r.sun's search distance is not separately wired),
+# so this tracks AOI_BUFFER_M — retune them together, never independently.
+TILE_BUFFER_M = AOI_BUFFER_M
+# Per-tile roof cache (GeoParquet) + tile manifest live here (gitignored, created on first run).
+TILES_CACHE_DIR = DATA_DIR / "tiles"
+
+# City-run deliverables land in outputs/<area>/<label> (e.g. outputs/dc/1day preview,
+# outputs/dc/12day_tuned calibrated) so a run never dumps into OUTPUTS_DIR root alongside the
+# Stage-1 Glover Park files. `outputs_run_dir` is the single source of truth for that layout.
+# The calibrated production run is the 12-day mid-month sample (ADR-0001), scored by the tuned
+# Part 2-4 chain (multiplane + obstructions, SCORING_VERSION 2-4.2; #25) — what the default
+# `build_web` reads and `run_city` writes. Earlier runs (12day, 12day_gcr) keep their own labels.
+CALIBRATED_CITY_LABEL = "12day_tuned"
+CALIBRATED_CITY_OUTPUTS_DIR = outputs_run_dir("dc", CALIBRATED_CITY_LABEL)
+
+# --- spot-check validation (Part 2-4 step 7b — plan §6) ---
+# Glover Park + one dense downtown block, as WGS84 (west, south, east, north) bboxes.
+SPOT_CHECK_AREAS_WGS84 = {
+    "glover_park": AOI_BBOX_WGS84,
+    "farragut_k_st": (-77.0445, 38.8995, -77.0330, 38.9050),  # Farragut Square / K St NW
+}
+# DC OCTO 2023 orthophoto (0.08 m, flown May 2023) — the hand-label reference imagery.
+DC_ORTHO_2023_URL = "https://imagery.dcgis.dc.gov/dcgis/rest/services/Ortho/Ortho_2023/ImageServer"

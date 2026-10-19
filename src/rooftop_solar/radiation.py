@@ -27,11 +27,14 @@ import geopandas as gpd
 import numpy as np
 import numpy.typing as npt
 import rasterio
+import rasterio.transform
 from rasterio.features import geometry_mask
 from rasterio.windows import Window
 from rasterio.windows import from_bounds as window_from_bounds
 from rasterio.windows import transform as window_transform
 from shapely.geometry import mapping
+
+from rooftop_solar import cache
 
 # Output nodata sentinel for the annual insolation GeoTIFF (surface_irradiance). A concrete
 # float value, not NaN, so downstream readers (e.g. zonal_insolation's `raster == nodata`
@@ -71,9 +74,7 @@ def annual_insolation(
     return annual_kwh
 
 
-def zonal_insolation(
-    footprints: gpd.GeoDataFrame, insol_path: str | Path
-) -> gpd.GeoDataFrame:
+def zonal_insolation(footprints: gpd.GeoDataFrame, insol_path: str | Path) -> gpd.GeoDataFrame:
     """Attach each footprint's mean shaded insolation from the raster at `insol_path`.
 
     `footprints` must share the raster's CRS (both the metric working CRS in the pipeline).
@@ -124,6 +125,79 @@ def zonal_insolation(
     return out
 
 
+def plane_poa(planes_gdf: gpd.GeoDataFrame, insol_path: str | Path) -> gpd.GeoDataFrame:
+    """Attach each per-plane row's mean insolation, sampled over that plane's own pixels.
+
+    ADR-0012's per-plane POA, the companion to :func:`zonal_insolation` (which stays,
+    unchanged, footprint-wide, for the `"ransac"` path). Consumes the per-plane schema
+    `roof_planes.fit_roof_planes(method="multiplane")` produces: for each row, reads the
+    insolation raster at `insol_path` at exactly that plane's `inlier_xy` pixel-centre
+    coordinates and averages, excluding nodata and any point that falls outside the
+    raster. Because `inlier_xy` holds *exact* DSM pixel centres and the insolation
+    raster shares the DSM's own grid (`surface_irradiance` guarantees the same
+    transform/shape), the (easting, northing) -> (row, col) lookup via the raster's
+    inverse transform is exact — no resampling, no interpolation, no double-counting. A
+    plane with empty membership (the unfittable-footprint placeholder row) gets NaN,
+    matching `zonal_insolation`'s "no valid pixel" convention. Adds :data:`POA_COLUMN`
+    and returns a copy; every other column is untouched.
+    """
+    with rasterio.open(insol_path) as src:
+        raster = src.read(1).astype("float64")
+        nodata = src.nodata
+        transform = src.transform
+    if nodata is not None:
+        raster[raster == nodata] = np.nan
+    n_rows, n_cols = raster.shape
+
+    means: list[float] = []
+    for xy in planes_gdf["inlier_xy"]:
+        xy = np.asarray(xy, dtype=np.float64)
+        if xy.shape[0] == 0:
+            means.append(np.nan)
+            continue
+        rows, cols = rasterio.transform.rowcol(transform, xy[:, 0], xy[:, 1])
+        rows = np.asarray(rows)
+        cols = np.asarray(cols)
+        in_bounds = (rows >= 0) & (rows < n_rows) & (cols >= 0) & (cols < n_cols)
+        vals = raster[rows[in_bounds], cols[in_bounds]]
+        vals = vals[~np.isnan(vals)]
+        means.append(float(np.mean(vals)) if vals.size else np.nan)
+
+    out = planes_gdf.copy()
+    out[POA_COLUMN] = means
+    return out
+
+
+def require_positive_int(name: str, value: object) -> None:
+    """Reject a non-int (incl. bool) or < 1 `name` — shared by `nprocs` and `workers`."""
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(f"{name} must be an int >= 1, got {value!r}")
+
+
+def grass_version() -> str:
+    """Return the installed GRASS version string (`grass --config version`).
+
+    Feeds `pipeline.radiation_key` so a radiation cache from a different GRASS build is
+    recomputed, not reused (ADR-0014 addendum, issue #14). There is deliberately no no-GRASS
+    fallback: the resume check needs the version, so `run_city` requires GRASS even for a
+    fully cached run — a missing or broken install raises a clear `RuntimeError` (issue #18).
+    """
+    try:
+        result = subprocess.run(
+            ["grass", "--config", "version"], capture_output=True, text=True, check=True
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            "GRASS GIS is not on PATH, but run_city needs it: its version is part of the "
+            "radiation cache key (ADR-0014 addendum), so even a fully cached run queries it."
+        ) from exc
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(
+            f"`grass --config version` failed (exit {exc.returncode}): {exc.stderr.strip()}"
+        ) from exc
+    return result.stdout.strip()
+
+
 @contextlib.contextmanager
 def grass_session(epsg: str, gisdb: str) -> Iterator[ModuleType]:
     """Create a throwaway GRASS location/mapset bound to `epsg` and yield `grass.script`.
@@ -164,7 +238,7 @@ def grass_session(epsg: str, gisdb: str) -> Iterator[ModuleType]:
 
 
 def run_r_sun(
-    gs: ModuleType, day: int, workdir: str
+    gs: ModuleType, day: int, workdir: str, nprocs: int = 1
 ) -> tuple[npt.NDArray[np.float64], float | None]:
     """Run `r.sun` mode 2 for one day (shading ON, the default) and read `glob_rad` back.
 
@@ -174,9 +248,13 @@ def run_r_sun(
     GRASS colour table to `glob_rad`, and `r.out.gdal`'s attempt to carry it into the Float32
     GeoTIFF logs a benign "SetColorTable() only supported for Byte or UInt16 bands" GDAL
     error to stderr — verified here on GRASS 8.5 that the raster values are written
-    correctly regardless (`r.out.gdal` still exits 0). Returns `(array, nodata)`.
+    correctly regardless (`r.out.gdal` still exits 0). `nprocs` is `r.sun`'s thread count
+    (GRASS >= 8.5); it only changes speed, not the result, and is passed only when > 1 so the
+    default call also runs on older GRASS (which rejects the unknown param). Returns
+    `(array, nodata)`.
     """
     out_name = f"glob_rad_{day}"
+    extra = {"nprocs": nprocs} if nprocs > 1 else {}
     gs.run_command(
         "r.sun",
         elevation="dsm",
@@ -186,6 +264,7 @@ def run_r_sun(
         glob_rad=out_name,
         overwrite=True,
         quiet=True,
+        **extra,
     )
     tif_path = f"{workdir}/{out_name}.tif"
     subprocess.run(
@@ -218,6 +297,9 @@ def surface_irradiance(
     dsm_path: str | Path,
     day_range: Sequence[int] | None = None,
     shadow_search_distance_m: float = 500.0,
+    out_path: str | Path | None = None,
+    cache_key: str | None = None,
+    nprocs: int = 1,
 ) -> Path:
     """Run GRASS `r.sun` over `dsm_path` and write an annual shaded insolation GeoTIFF.
 
@@ -226,7 +308,8 @@ def surface_irradiance(
     `glob_rad` (Wh/m²/day) and weight-sum it via :func:`annual_insolation` into an annual
     kWh/m²/yr raster on the *same grid as the input DSM*, written to a GeoTIFF, whose `Path`
     is returned. The caller decides where that file ultimately lives (e.g. copy it under
-    `config.OUTPUTS_DIR`) — this function only ever writes into `tempfile` scratch space.
+    `config.OUTPUTS_DIR`) — with no `out_path`, this function only writes into `tempfile`
+    scratch space; with `out_path`, it writes there instead (see below).
 
     Args:
         dsm_path: path to the DSM raster (NOT a DTM — trap 1). Its CRS/transform/shape are
@@ -238,6 +321,16 @@ def surface_irradiance(
             `day_range` instead weights each day uniformly by `365 / len(day_range)`; this
             is a fast smoke-test path (e.g. a single summer day for an integration test), not
             a physically meaningful annual total for anything other than the 12-day default.
+        out_path: where to write the annual insolation GeoTIFF. `None` (default) preserves
+            today's single-temp-file behavior for the single-AOI path — now a single temp
+            FILE, not an orphaned temp directory; a path enables the per-tile radiation
+            cache, tier-2 of ADR-0014.
+        cache_key: with `out_path`, records a `<out_path>.key` sidecar; a later call with a
+            matching key skips r.sun and reuses the cached raster. Both `out_path` and
+            `cache_key` must be given for a cache hit to be possible; either alone always
+            recomputes.
+        nprocs: `r.sun` thread count (>= 1, default 1; values > 1 need GRASS >= 8.5). Speed only --
+            it does not change the output, so it is deliberately NOT part of any cache key.
         shadow_search_distance_m: nominal horizon/shadow search distance in metres. Must be
             positive. **Honest status (trap 3, risks §8):** this parameter is accepted for
             forward compatibility but is *not yet wired* into an explicit `r.sun`/`r.horizon`
@@ -266,6 +359,14 @@ def surface_irradiance(
         raise ValueError(
             f"shadow_search_distance_m must be positive, got {shadow_search_distance_m}"
         )
+    require_positive_int("nprocs", nprocs)
+
+    if (
+        out_path is not None
+        and cache_key is not None
+        and cache.sidecar_matches(out_path, cache_key)
+    ):
+        return Path(out_path)
 
     dsm_path = Path(dsm_path)
     with rasterio.open(dsm_path) as src:
@@ -306,18 +407,28 @@ def surface_irradiance(
                 overwrite=True,
                 quiet=True,
             )
-            daily = [_masked(*run_r_sun(gs, day, workdir)) for day in days]
+            daily = [_masked(*run_r_sun(gs, day, workdir, nprocs)) for day in days]
     finally:
         shutil.rmtree(gisdb, ignore_errors=True)
         shutil.rmtree(workdir, ignore_errors=True)
 
     annual_kwh_m2 = annual_insolation(daily, weights)
 
-    out_dir = Path(tempfile.mkdtemp(prefix="rooftop_solar_insolation_"))
-    out_path = out_dir / "annual_insolation_kwh_m2.tif"
-    out_array = np.where(
-        np.isnan(annual_kwh_m2), INSOLATION_NODATA, annual_kwh_m2
-    ).astype(np.float32)
+    if out_path is not None:
+        out_path_resolved = Path(out_path)
+        out_path_resolved.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        # No persistent destination given (the single-AOI Stage-1 path) -- write a single
+        # temp FILE, not a temp directory: the leak fix. `tempfile.mkdtemp` here left an
+        # orphaned directory behind on every call; `mkstemp` leaves only a bare file, which
+        # is the caller's (or the OS's) problem to clean up, same as any other temp file.
+        fd, tmp = tempfile.mkstemp(suffix="_annual_insolation_kwh_m2.tif")
+        os.close(fd)
+        out_path_resolved = Path(tmp)
+
+    out_array = np.where(np.isnan(annual_kwh_m2), INSOLATION_NODATA, annual_kwh_m2).astype(
+        np.float32
+    )
     profile = {
         "driver": "GTiff",
         "height": height,
@@ -329,7 +440,10 @@ def surface_irradiance(
         "nodata": INSOLATION_NODATA,
         "compress": "deflate",
     }
-    with rasterio.open(out_path, "w", **profile) as dst:
+    with rasterio.open(out_path_resolved, "w", **profile) as dst:
         dst.write(out_array, 1)
 
-    return out_path
+    if out_path is not None and cache_key is not None:
+        cache.write_key_sidecar(out_path_resolved, cache_key)
+
+    return out_path_resolved

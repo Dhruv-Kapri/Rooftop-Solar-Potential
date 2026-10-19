@@ -45,9 +45,9 @@ def main() -> None:
         print(f"  -> {dsm_path}")
 
     # --- static check map ---
-    outputs_dir = config.OUTPUTS_DIR
+    outputs_dir = config.outputs_area_dir("glover_park")
     outputs_dir.mkdir(parents=True, exist_ok=True)
-    map_path = outputs_dir / "glover_park_aoi.png"
+    map_path = outputs_dir / "aoi.png"
     _render_check_map(dsm_path, footprints_gdf, core, map_path)
     print(f"Map: -> {map_path}")
 

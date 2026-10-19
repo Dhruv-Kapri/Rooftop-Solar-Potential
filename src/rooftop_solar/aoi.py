@@ -47,3 +47,22 @@ def buffered_aoi(crs: str = "EPSG:4326") -> Polygon:
 
     to_target = Transformer.from_crs(config.WORKING_CRS, crs, always_xy=True).transform
     return transform(to_target, buffered_working)
+
+
+def dc_aoi(crs: str = config.WORKING_CRS) -> Polygon:
+    """The whole-District AOI: the union of the TIGER 2020 census tracts (ADR-0009), in `crs`.
+
+    Part 2-2's city runner tiles *this* — a clean, reproducible District boundary built from
+    the census geometry already loaded for the equity overlay (Part 2-1), rather than a
+    hand-drawn bbox. Returned in `config.WORKING_CRS` by default because `tiling.make_grid`
+    works in metres; pass "EPSG:4326" for a lon/lat boundary. NOTE: unlike the pure helpers
+    above, this triggers a network fetch (or cache read) via `tracts.load_tracts`.
+    """
+    from rooftop_solar import tracts  # local import: pulls geopandas/requests only when used
+
+    district = tracts.load_tracts().union_all()  # tracts are already in config.WORKING_CRS
+    if crs == config.WORKING_CRS:
+        return district
+
+    to_target = Transformer.from_crs(config.WORKING_CRS, crs, always_xy=True).transform
+    return transform(to_target, district)

@@ -58,11 +58,42 @@ reaches into the 2014/15 tiles. Both are 2 m with the same processing, so the se
 (and to re-check if construction post-dates a tile). The `notebooks/01_footprints_and_dsm.ipynb`
 DSM-vs-DTM check visualises the surface these tiles produce.
 
-## Phase 2 · Full — city-scale + ML + deployed app · multi-week  ← NEXT
+## Phase 2 · Full — city-scale + ML + deployed app · multi-week  ← IN PROGRESS
 
-Scale to the full District: tiling/batching for the whole point cloud, the ML segmentation model
-(RoofN3D-trained) for planes + obstructions, census-tract aggregation, an equity overlay, and the
-deployed web app. The portfolio centrepiece. Facade BIPV (§10) enters here as a stretch.
+Scale to the full District: tiling/batching for the whole point cloud, classical multi-plane +
+obstruction roof-geometry refinement (ML demoted to a bounded inference-only demo — ADR-0011),
+census-tract aggregation, an equity overlay, and the deployed web app. The portfolio centrepiece. Facade
+BIPV (§10) enters here as a stretch.
+
+- **Part 2-1 — census-tract aggregation + equity overlay — complete (2026-09-07).** `aggregate.py`
+  (roll-up · equity join · quadrant classification) + `tracts.py` (TIGER/ACS/DOE LEAD) +
+  `pipeline.run_aggregation` + `scripts/run_aggregation.py`; ADR-0006/0007/0008. Conservation holds
+  on the real Glover Park run (all 771 roofs → 7 DC tracts, extensive sums preserved). Glover Park is
+  a machinery smoke, not the equity finding — that arrives at Part 2-2.
+- **Part 2-2 — city-scale tiling — built + tested (2026-09-07).** `tiling.py` (fixed-origin grid +
+  `floor` membership) + `pipeline.run_city` (per-tile GeoParquet cache · resumable manifest/params-stamp
+  · city-wide merge + suitability recompute) + `scripts/run_city.py`; ADR-0009. Both tiers green — seam
+  conservation + idempotency verified on a real multi-tile DC run. DC = 66 tiles @ 2 km. The **full-DC
+  batch run has since run** (Part 2-4 step 6, #19; ~3.9 h cold on the VM with the ADR-0014 tiered
+  cache) and its populated equity map is what the live map serves.
+- **Part 2-3 — deployed web app — built + live (2026-09-08).** A static MapLibre GL JS + PMTiles map on
+  GitHub Pages ([live](https://dhruv-kapri.github.io/Rooftop-Solar-Potential/); `web/`,
+  `scripts/build_web.py`; ADR-0010) — tract equity choropleth + 100k-roof drill-down. ETL unit-tested,
+  build + browser smokes green, PMTiles range-requests on Pages confirmed. Serves the tuned Part 2-4
+  city run since #25 (2026-10-18).
+- **Part 2-4 — roof-geometry refinement (classical multi-plane + obstructions) — steps 1–7 done
+  (2026-10-18).** Reframed from "ML segmentation" to a classical, training-free upgrade
+  (ADR-0011/0012/0013): multi-plane sequential RANSAC + per-plane POA + obstruction-aware usable area +
+  per-building collapse, across `roof_planes.py` / `radiation.py` / `usable_area.py` / `yield_pv.py`, wired
+  into `pipeline._score_roofs` (`method="multiplane"` default; `"ransac"` kept as the baseline). City
+  re-run with flat-roof GCR (#19), spot-check tuning (#23, `SCORING_VERSION` `2-4.2`), validation (#24,
+  [write-up](benchmarks/stage-2-part4-validation.md)) and the map refresh (#25): 2,237.6 MW /
+  2,658 GWh/yr, 1.72× / 1.66× NREL. The structural facet-vs-obstruction rule (#30, `SCORING_VERSION`
+  `2-4.3`) re-scores the city to 2,196.1 MW / 2,607 GWh/yr (1.69× / 1.63×); the map moves to it in #32.
+  **Remaining:** the **bounded inference-only ML demo** (step 8;
+  `method="ml"`). `stage-2` merged into `main` and Pages deploys from `main` only (#26).
+  **Part 2-4 step 8 + Part 2-5 (fidelity) next** — Part 2-5 starts from `main`, after its tentative
+  plan is revised.
 
 ## Phase 3 · India — re-version via modular adapters · stretch
 

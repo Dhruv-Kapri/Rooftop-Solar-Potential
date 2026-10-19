@@ -8,6 +8,7 @@ power potential" Glover Park tutorial; totals reported but not gated).
 
     python scripts/run_stage1.py                 # canonical run (MS footprints, 12-day)
     python scripts/run_stage1.py --source osm    # documented fallback footprint source
+                                                  # (lands under outputs/glover_park/osm/)
     python scripts/run_stage1.py --quick         # single-day radiation: fast, NOT calibrated
 
 The full 12-day Glover Park run is the documented manual benchmark (stage-1-plan.md §9), not
@@ -20,7 +21,7 @@ import argparse
 
 import geopandas as gpd
 
-from rooftop_solar import pipeline
+from rooftop_solar import config, pipeline
 
 # Esri "Estimate solar power potential" (Glover Park tutorial) reference values — the
 # intensive quantities ADR-0005 gates on. Totals are method-dependent and not gated.
@@ -61,44 +62,62 @@ def _report(result: gpd.GeoDataFrame) -> bool:
     print("\n=== Stage-1 Glover Park — headline results ===")
     print(f"  roofs scored             : {len(result)}")
     print(f"  usable roofs             : {len(usable)}")
-    print(f"  low-confidence fits      : {int(result['low_confidence'].sum())} "
-          f"({100 * result['low_confidence'].mean():.0f}%)")
+    print(
+        f"  low-confidence fits      : {int(result['low_confidence'].sum())} "
+        f"({100 * result['low_confidence'].mean():.0f}%)"
+    )
     print(f"  total installed capacity : {total_capacity_kw:10.1f} kW")
     print(f"  total annual energy      : {total_energy_mwh:10.1f} MWh/yr")
     print(f"  total annual CO2 offset  : {total_co2_t:10.1f} t/yr")
 
     print("\n=== Esri benchmark — GATE: specific yield within ~±15% (ADR-0005, revised) ===")
     yield_ok = _within_tolerance(specific_yield, ESRI_SPECIFIC_YIELD_KWH_KWP)
-    print(f"  specific yield             : {specific_yield:7.0f} kWh/kWp  "
-          f"vs Esri {ESRI_SPECIFIC_YIELD_KWH_KWP:.0f}  -> {'PASS' if yield_ok else 'FAIL'}")
+    print(
+        f"  specific yield             : {specific_yield:7.0f} kWh/kWp  "
+        f"vs Esri {ESRI_SPECIFIC_YIELD_KWH_KWP:.0f}  -> {'PASS' if yield_ok else 'FAIL'}"
+    )
 
     print("\n  context (NOT gated — footprint-source-sensitive / method-dependent):")
-    print(f"    median per-building energy : {median_energy_mwh:7.2f} MWh  "
-          f"(Esri {ESRI_MEDIAN_ENERGY_MWH:.2f}; MS merges rowhouses -> coarser, larger)")
+    print(
+        f"    median per-building energy : {median_energy_mwh:7.2f} MWh  "
+        f"(Esri {ESRI_MEDIAN_ENERGY_MWH:.2f}; MS merges rowhouses -> coarser, larger)"
+    )
     print(f"    median energy density      : {median_energy_density:7.0f} kWh/m²/yr footprint")
 
-    print(f"\n  ADR-0005 verdict: {'PASS' if yield_ok else 'FAIL'} "
-          "(gate = specific yield; per-building energy + totals are context)\n")
+    print(
+        f"\n  ADR-0005 verdict: {'PASS' if yield_ok else 'FAIL'} "
+        "(gate = specific yield; per-building energy + totals are context)\n"
+    )
     return yield_ok
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
-        "--source", default="ms-buildings", choices=["ms-buildings", "osm"],
+        "--source",
+        default="ms-buildings",
+        choices=["ms-buildings", "osm"],
         help="footprint source (default: ms-buildings, the canonical Stage-1 source)",
     )
     parser.add_argument("--output-dir", default=None, help="where to write GeoPackage + PNG")
     parser.add_argument(
-        "--quick", action="store_true",
+        "--quick",
+        action="store_true",
         help="single-day radiation — fast smoke, NOT a calibrated annual estimate",
     )
     args = parser.parse_args()
 
+    if args.output_dir is not None:
+        output_dir = args.output_dir
+    elif args.source == "osm":
+        output_dir = config.outputs_area_dir("glover_park") / "osm"
+    else:
+        output_dir = None
+
     result = pipeline.run_stage1(
         footprints_source=args.source,
         day_range=[172] if args.quick else None,
-        output_dir=args.output_dir,
+        output_dir=output_dir,
     )
     _report(result)
 
