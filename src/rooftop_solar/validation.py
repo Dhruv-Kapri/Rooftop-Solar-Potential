@@ -441,8 +441,9 @@ def tile_self_consistency(tiles_dir: str | Path, row: int, col: int) -> gpd.GeoD
     `ValueError`. Returns compare's rows (same order as the parquet) plus
     `tile_row`, `tile_col`, `roof_id` (:func:`spot_check_id` over the parquet's own
     `building_id`, which also overwrites compare's positional `building_id`), `roof_class`
-    (from the parquet) and `roof_type` (:func:`roof_type` over compare's `n_planes`).
-    Plan §6, risks §14.4, #24.
+    (from the parquet) and `roof_type` (:func:`roof_type` over compare's `n_planes`, except
+    a roof with `n_planes == 0` -- unfittable -- is tagged ``"unfittable"``, not
+    gable/flat, #31). Plan §6, risks §14.4, #24.
     """
     tiles_dir = Path(tiles_dir)
     roofs_path = _checked_cache_artifact(tiles_dir, row, col, "roofs")
@@ -455,10 +456,14 @@ def tile_self_consistency(tiles_dir: str | Path, row: int, col: int) -> gpd.GeoD
     out["roof_id"] = [spot_check_id(row, col, b) for b in roofs["building_id"]]
     out["roof_class"] = roofs["roof_class"].to_numpy()
     out["roof_type"] = [
-        roof_type(n, c) for n, c in zip(out["n_planes"], out["roof_class"], strict=True)
+        "unfittable" if n == 0 else roof_type(n, c)
+        for n, c in zip(out["n_planes"], out["roof_class"], strict=True)
     ]
     return out
 
+
+# `ROOF_TYPES` plus the self-consistency-only bin for unfittable roofs (#31)
+SELF_CONSISTENCY_TYPES = (*ROOF_TYPES, "unfittable")
 
 _SUMMARY_METRICS = {
     "rmse_multiplane_median": ("rmse_multiplane", 0.5),
@@ -473,13 +478,14 @@ _SUMMARY_METRICS = {
 def summarize_self_consistency(per_roof: pd.DataFrame) -> pd.DataFrame:
     """Per-roof-type rollup of :func:`tile_self_consistency` rows (plan §6, #24).
 
-    One row per type in `ROOF_TYPES` order, then ``"all"``; index named `roof_type`.
-    `n_roofs` counts every row in the bin, `n_unfittable` those with NaN `rmse_multiplane`;
+    One row per type in `SELF_CONSISTENCY_TYPES` order (unfittable roofs get their own
+    bin, #31), then ``"all"``; index named `roof_type`. `n_roofs` counts every row in the
+    bin, `n_unfittable` those with NaN `rmse_multiplane`;
     the median / p90 metrics are over fittable rows only. A type with no rows still appears,
     with zero counts and NaN metrics.
     """
     rows = {}
-    for name in (*ROOF_TYPES, "all"):
+    for name in (*SELF_CONSISTENCY_TYPES, "all"):
         group = per_roof if name == "all" else per_roof[per_roof["roof_type"] == name]
         fit = group[group["rmse_multiplane"].notna()]
         row = {"n_roofs": len(group), "n_unfittable": len(group) - len(fit)}
