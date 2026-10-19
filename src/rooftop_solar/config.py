@@ -114,14 +114,17 @@ TILE_BUFFER_M = AOI_BUFFER_M
 # Per-tile roof cache (GeoParquet) + tile manifest live here (gitignored, created on first run).
 TILES_CACHE_DIR = DATA_DIR / "tiles"
 
-# City-run deliverables land in outputs/<area>/<label> (e.g. outputs/dc/1day preview,
-# outputs/dc/12day_tuned calibrated) so a run never dumps into OUTPUTS_DIR root alongside the
-# Stage-1 Glover Park files. `outputs_run_dir` is the single source of truth for that layout.
-# The calibrated production run is the 12-day mid-month sample (ADR-0001), scored by the tuned
-# Part 2-4 chain (multiplane + obstructions, SCORING_VERSION 2-4.2; #25) — what the default
-# `build_web` reads and `run_city` writes. Earlier runs (12day, 12day_gcr) keep their own labels.
-CALIBRATED_CITY_LABEL = "12day_tuned"
-CALIBRATED_CITY_OUTPUTS_DIR = outputs_run_dir("dc", CALIBRATED_CITY_LABEL)
+# City-run deliverables land in outputs/<area>/<label> (e.g. outputs/dc/1day_<SCORING_VERSION>
+# preview, outputs/dc/12day_<SCORING_VERSION>) so a run never dumps into OUTPUTS_DIR root
+# alongside the Stage-1 Glover Park files. `outputs_run_dir` is the single source of truth for
+# that layout.
+# `run_city` writes to a version-stamped label (`pipeline.city_run_label`, embeds
+# SCORING_VERSION) so a version bump can't overwrite a published run. PUBLISHED_CITY_LABEL is
+# the run the web map serves — the default input of `build_web`; it is set by hand: publishing
+# a new run = pointing this constant at it and rebuilding the map (#32). Earlier runs (12day,
+# 12day_gcr, 12day_tuned = 2-4.2) keep their own labels.
+PUBLISHED_CITY_LABEL = "12day_2-4.3"
+PUBLISHED_CITY_OUTPUTS_DIR = outputs_run_dir("dc", PUBLISHED_CITY_LABEL)
 
 # --- spot-check validation (Part 2-4 step 7b — plan §6) ---
 # Glover Park + one dense downtown block, as WGS84 (west, south, east, north) bboxes.

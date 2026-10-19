@@ -63,7 +63,11 @@ Project-specific terms as used in this pipeline, not textbook-general definition
   tolerance; low ratios flag a poorly-fit (often multi-facet) roof.
 - **Low-confidence flag** — a per-roof boolean set when `inlier_ratio < 0.5` or fewer than 20 inlier
   pixels back the fit; carried through to output, not dropped (ADR-0002). ~55% of Glover Park roofs
-  carry this flag.
+  carry this flag. It measures fit quality only: under multiplane, the inlier fraction counts every
+  fitted plane, dropped superstructures included (#33).
+- **Superstructure fraction** (`superstructure_frac`) — per building, the share of its DSM pixels in
+  planes dropped as raised superstructures (HVAC, penthouses, overhanging trees; ADR-0013 addendum).
+  The roof-clutter measure, kept apart from the low-confidence flag (#33).
 - **Utilization fraction** — the fraction (0.70 in Stage 1) of a qualifying roof's area assumed
   actually packable with panels, after setbacks/spacing/obstructions (ADR-0003).
 - **Usable area** — the roof area that both (a) passes the plan's hard cutoffs (slope ≤ 45°,

@@ -15,6 +15,28 @@
 > plan's honest stand-in for "accuracy vs the RANSAC baseline" (§6). They are not a
 > statistical accuracy claim.
 
+## Published map run
+
+The **one place the live map's headline figures are recorded**. The README, `CLAUDE.md`, the roadmap
+and the Part 2-4 plan name only the version and label and link here. `web/index.html`'s about panel
+repeats the figures for map readers, so update it with this section (#32).
+
+- **Run:** `outputs/dc/12day_2-4.3/` (`config.PUBLISHED_CITY_LABEL`), `SCORING_VERSION` `2-4.3`
+  (#30's superstructure rule), 12-day calibrated radiation (ADR-0001), 66 tiles, 100,064 roofs.
+- **Totals:** **2,196.1 MW / 2,607 GWh/yr**, specific yield **~1,187 kWh/kWp** (Stage-1
+  Esri-validated ~1,162). That is **1.69× / 1.63×** NREL's ~1.3 GW / ~1.6 TWh: a usable-area
+  over-estimate, reported, not targeted (§3).
+- **Assembled (#32, 2026-10-19)** the same way as #25: #30's city re-score `roofs.parquet` +
+  `run_log.txt` copied in, `pipeline.run_aggregation(…, area_name="Washington, DC")` for the tracts,
+  then `python scripts/build_web.py`.
+- **Labels still not blind.** The ADR-0013 addendum asks for a blind relabel before more tuning. A
+  later re-score writes to a new `12day_<SCORING_VERSION>` label, so it can't overwrite this run.
+- **`2-4.4` (#33) keeps this run published.** It changes only `low_confidence` and adds
+  `superstructure_frac`; neither is on the map, and the totals are identical
+  ([tuning.md](spot_check/tuning.md)).
+
+The sections below were measured on `2-4.2` and are not re-run; §3 adds the `2-4.3` row.
+
 ## Verdict
 
 **Multi-plane fits DC roofs' surface geometry much better than one plane. It is not proven to
@@ -139,7 +161,8 @@ District (66 tiles, 100,064 roofs, 12-day calibrated radiation).
 | `12day` (Part 2-2) | single-plane ransac | — | 3,619 MW | 2.8× | 4,067 GWh/yr | 2.5× | ~1,124 kWh/kWp |
 | `12day` multiplane, pre-GCR | multiplane | — (`PIPELINE_VERSION` 2-4.0) | 3,831.5 MW | **2.9×** | 4,531 GWh/yr | 2.8× | ~1,183 |
 | `12day_gcr` (#19) | multiplane + flat GCR 0.50 | 2-4.1 | 2,302.7 MW | **1.77×** | 2,734 GWh/yr | 1.71× | ~1,187 |
-| **tuned (#23 round 1)** | multiplane + GCR, τ 0.5 m | **2-4.2** | **2,237.6 MW** | **1.72×** | **2,658 GWh/yr** | **1.66×** | ~1,188 |
+| tuned (#23 round 1), `12day_tuned` | multiplane + GCR, τ 0.5 m | 2-4.2 | 2,237.6 MW | 1.72× | 2,658 GWh/yr | 1.66× | ~1,188 |
+| **`12day_2-4.3` (#30), published** | + superstructure rule | **2-4.3** | **2,196.1 MW** | **1.69×** | **2,607 GWh/yr** | **1.63×** | ~1,187 |
 
 - **The GCR calibration did nearly all of the work** (2.9× → 1.77×): flat-roof arrays now get
   tilted-row spacing (plan step 6). Tuning τ took off another 2.8% of usable area (−65 MW).

@@ -85,9 +85,9 @@ def run_stage1(
 
     The returned GeoDataFrame (working CRS) carries geometry + tilt/aspect + usable area +
     capacity/energy/CO₂ + within-AOI suitability (ADR-0004). The "multiplane" default adds
-    ``n_planes``/``low_confidence`` and is one row per building (facets collapsed, ADR-0011);
-    "ransac" is one row per footprint with the ``inlier_ratio``/``n_px`` uncertainty columns
-    (ADR-0002).
+    ``n_planes``/``low_confidence``/``superstructure_frac`` and is one row per building (facets
+    collapsed, ADR-0011); "ransac" is one row per footprint with the ``inlier_ratio``/``n_px``
+    uncertainty columns (ADR-0002).
     """
     if core is None:
         core = aoi.core_aoi_wgs84()
@@ -532,10 +532,24 @@ def render_potential_burden_scatter(
 #   SCORING_VERSION   — anything downstream of r.sun (roof planes / usable area / yield)
 # SCORING_VERSION carries forward the retired single-stamp generation "2-4.1" (the GCR baseline);
 # "2-4.2" is the #23 spot-check tuning (OBSTRUCTION_TAU_M 0.75 -> 0.5); "2-4.3" is the #30
-# superstructure rule (roof_planes.SUPERSTRUCTURE_MAX_PX, ADR-0013 addendum).
+# superstructure rule (roof_planes.SUPERSTRUCTURE_MAX_PX, ADR-0013 addendum);
+# "2-4.4" is #33 (low_confidence back to fit quality over all fitted planes; new
+# superstructure_frac column).
 DSM_VERSION = "1"
 RADIATION_VERSION = "1"
-SCORING_VERSION = "2-4.3"
+SCORING_VERSION = "2-4.4"
+
+
+def city_run_label(day_range: list[int] | None = None) -> str:
+    """Version-stamped default label for a city run's outputs (`outputs/dc/<label>/`, #32).
+
+    `12day_<SCORING_VERSION>` for the calibrated 12-day default (ADR-0001), else
+    `<N>day_<SCORING_VERSION>`. Embedding the version means a SCORING_VERSION bump writes a
+    fresh dir instead of overwriting an earlier (possibly published) run. Reads the module
+    global at call time."""
+    days = len(radiation.MID_MONTH_DAYS) if day_range is None else len(day_range)
+    return f"{days}day_{SCORING_VERSION}"
+
 
 # The city path always scores via the Part 2-4 multiplane production chain (plan §3); this
 # single source keeps the scoring_key's `method` field and the actual _score_roofs call in sync.
@@ -823,7 +837,9 @@ def run_city(
             (queried once per run) also feeds `radiation_key`, so a GRASS upgrade recomputes.
         tiles_dir: per-tile parquet cache + manifest (default `config.TILES_CACHE_DIR`).
         output_dir: where the city per-roof GeoParquet goes (default
-            `config.CALIBRATED_CITY_OUTPUTS_DIR`, `outputs/dc/12day_tuned/`).
+            `config.outputs_run_dir("dc", city_run_label(day_range))`, e.g.
+            `outputs/dc/12day_<SCORING_VERSION>/` — version-stamped so a SCORING_VERSION bump never
+            overwrites an earlier run, #32).
         resume: skip tiles already recorded done under the tile's current `scoring_key` whose
             roofs parquet still matches its checksum sidecar (idempotent re-run; a truncated,
             swapped or sidecar-less parquet after a cross-machine rsync handoff is recomputed
@@ -923,7 +939,11 @@ def run_city(
     city = recompute_city_suitability(merge_tile_roofs(tile_frames[i] for i in sorted(tile_frames)))
 
     if write_outputs:
-        out_dir = Path(output_dir) if output_dir is not None else config.CALIBRATED_CITY_OUTPUTS_DIR
+        out_dir = (
+            Path(output_dir)
+            if output_dir is not None
+            else config.outputs_run_dir("dc", city_run_label(day_range))
+        )
         _write_parquet(city, out_dir / CITY_ROOFS_PARQUET_NAME)
     return city
 

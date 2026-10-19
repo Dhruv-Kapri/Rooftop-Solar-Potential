@@ -36,3 +36,15 @@ dropped at any stage between roof-plane fitting and the final map/table.
   solution that fits" for a single-neighbourhood MVP.
 - **Block-model / LOD-1** — rejected for DC: that's the sparse-data fallback path reserved for the
   India phase (plan §5, §13), not appropriate where LiDAR is available.
+
+## Addendum (2026-10-19) — what `low_confidence` means under multiplane (#33)
+
+`low_confidence` means **fit quality**, nothing else. Under the Part 2-4 multiplane fit
+(ADR-0011) it is set per building when the inlier fraction over **every plane the sequential
+RANSAC fit**, superstructures included, is < 0.5, or the roof has < 20 pixels in all. Planes
+later dropped as raised superstructures (ADR-0013 addendum) still count as inliers: they were
+fit well, they're just not facets. How much of a roof is that clutter is reported on its own,
+as `superstructure_frac` (dropped-plane pixels / total pixels). At `SCORING_VERSION` `2-4.3`
+only, the flag also meant "much of the roof is clutter"; `2-4.4` restores this meaning (ADR-0013
+addenda).
+

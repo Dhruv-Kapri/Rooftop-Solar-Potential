@@ -103,3 +103,21 @@ def test_cache_tile_result_error_marks_failed_writes_nothing_and_returns_none(tm
     assert list(reloaded.done_entries()) == []
     assert "boom" in reloaded.error_for(job.tile)
     assert reloaded.error_for(dataclasses.replace(job.tile, row=9, col=9)) is None
+
+
+def test_city_run_label_calibrated_default_embeds_scoring_version(monkeypatch):
+    monkeypatch.setattr(pipeline, "SCORING_VERSION", "9-9.9")
+    assert pipeline.city_run_label() == "12day_9-9.9"
+
+
+def test_city_run_label_custom_days_counts_them(monkeypatch):
+    monkeypatch.setattr(pipeline, "SCORING_VERSION", "9-9.9")
+    assert pipeline.city_run_label([172]) == "1day_9-9.9"
+    assert pipeline.city_run_label([80, 172, 264]) == "3day_9-9.9"
+
+
+def test_city_run_label_follows_a_version_bump(monkeypatch):
+    """#32: a SCORING_VERSION bump yields a new label, so it can't overwrite the prior run."""
+    before = pipeline.city_run_label()
+    monkeypatch.setattr(pipeline, "SCORING_VERSION", "9-9.9")
+    assert pipeline.city_run_label() != before

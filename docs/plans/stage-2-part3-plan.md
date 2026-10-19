@@ -9,8 +9,8 @@
 > (2026-09-08):** the calibrated 12-day run landed and `web/assets/` was rebuilt from `outputs/12day/`
 > and re-committed — the live map now serves the calibrated data (specific yield ~1,124 kWh/kWp,
 > validated). **Part 2-3 is complete** (the only open follow-up is the merge-time CI cleanup).
-> *Since then (#25, 2026-10-18):* the map serves the tuned Part 2-4 run (`outputs/dc/12day_tuned/`,
-> ~1,188 kWh/kWp).
+> *Since then:* the map serves Part 2-4 runs (#25 `12day_tuned`, then #32 `12day_2-4.3`); current
+> figures in the [published map run](../benchmarks/stage-2-part4-validation.md#published-map-run).
 
 - **Phase:** 2, Part 3 of 5 · **Branch:** `stage-2` · **Overview:** [stage-2-overview.md](stage-2-overview.md)
 - **Prerequisite:** Part 2-2 built.
