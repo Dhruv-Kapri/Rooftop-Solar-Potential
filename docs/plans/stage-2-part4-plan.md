@@ -143,8 +143,8 @@ Together these are the plan's "accuracy comparison vs the RANSAC baseline" — d
      Power-density was *not* touched (200 W/m² is right for modern modules; cutting it would break the
      calibrated specific yield). **The full 10–15 h city re-run is deferred and bundled with step 7b's
      obstruction/setback-knob tuning** — run the expensive batch ONCE with both calibrations, not twice.
-     Code + version bump are committed to the working tree; `outputs/12day/` + `web/assets/` still hold the
-     pre-GCR numbers until that batch runs. See risks note on r.sun caching below.
+     Code + version bump are committed to the working tree; *at the time*, `outputs/12day/` + `web/assets/`
+     still held the pre-GCR numbers (historical — the map has served the tuned run since #25). See risks note on r.sun caching below.
    - **⊙ re-sequenced (grill 2026-10-12):** the tiered cache (ADR-0014) removed the reason to bundle.
      Now: (1) multi-core `r.sun` (`nprocs`, measured on one tile; tile-level process pool only if <~4×
      on 8 cores) + GRASS version in `radiation_key` + log-noise cleanup; (2) **one** full-city run with
