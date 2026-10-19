@@ -31,6 +31,9 @@ repeats the figures for map readers, so update it with this section (#32).
   then `python scripts/build_web.py`.
 - **Labels still not blind.** The ADR-0013 addendum asks for a blind relabel before more tuning. A
   later re-score writes to a new `12day_<SCORING_VERSION>` label, so it can't overwrite this run.
+- **`2-4.4` (#33) keeps this run published.** It changes only `low_confidence` and adds
+  `superstructure_frac`; neither is on the map, and the totals are identical
+  ([tuning.md](spot_check/tuning.md)).
 
 The sections below were measured on `2-4.2` and are not re-run; §3 adds the `2-4.3` row.
 
