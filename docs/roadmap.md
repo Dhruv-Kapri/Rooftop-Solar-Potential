@@ -88,7 +88,9 @@ BIPV (§10) enters here as a stretch.
   into `pipeline._score_roofs` (`method="multiplane"` default; `"ransac"` kept as the baseline). City
   re-run with flat-roof GCR (#19), spot-check tuning (#23, `SCORING_VERSION` `2-4.2`), validation (#24,
   [write-up](benchmarks/stage-2-part4-validation.md)) and the map refresh (#25): 2,237.6 MW /
-  2,658 GWh/yr, 1.72× / 1.66× NREL. **Remaining:** the **bounded inference-only ML demo** (step 8;
+  2,658 GWh/yr, 1.72× / 1.66× NREL. The structural facet-vs-obstruction rule (#30, `SCORING_VERSION`
+  `2-4.3`) re-scores the city to 2,196.1 MW / 2,607 GWh/yr (1.69× / 1.63×); the map moves to it in #32.
+  **Remaining:** the **bounded inference-only ML demo** (step 8;
   `method="ml"`). **Part 2-4 step 8 + Part 2-5 (fidelity) next.**
 
 ## Phase 3 · India — re-version via modular adapters · stretch
