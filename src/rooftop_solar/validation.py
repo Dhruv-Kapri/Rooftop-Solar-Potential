@@ -145,9 +145,10 @@ def roof_type(n_planes: int, roof_class: str) -> str:
     There is no ground truth, so this only spreads the sample across archetypes: flat /
     gable (1-2 pitched facets) / hip (3+ pitched facets) / complex (flat-dominant with
     extra planes -- penthouses, mechanical, mixed; the ADR-0013 facet-vs-obstruction cases).
-    Raises `ValueError` for `n_planes < 1`: an unfittable roof has no archetype (#31).
+    Raises `ValueError` unless `n_planes >= 1` (0 or NaN): an unfittable roof has no
+    archetype (#31).
     """
-    if n_planes < 1:
+    if not n_planes >= 1:  # `not >=`, so NaN is rejected too
         raise ValueError(f"unfittable roof (n_planes={n_planes}) has no roof type")
     multi = n_planes >= MULTI_PLANE_MIN
     if roof_class == "flat":
