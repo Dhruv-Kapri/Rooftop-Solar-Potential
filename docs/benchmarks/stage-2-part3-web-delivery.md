@@ -47,6 +47,9 @@ console errors**. So the **Cloudflare Pages fallback is not needed**.
 
 ## Caveats & refresh
 
+> **Superseded (2026-10-18, #25):** the map now serves the tuned Part 2-4 run (`outputs/dc/12day_tuned/`,
+> specific yield ~1,188 kWh/kWp, 2,237.6 MW). The bullet below records the 2026-09-08 state.
+
 - **Calibrated (12-day) numbers; capacity still approximate.** The committed tiles are from the
   calibrated 12-day run (`outputs/12day/`, swapped in 2026-09-08 — Part 2-3 step 6); the fleet specific
   yield (~1,124 kWh/kWp) matches Stage-1's Esri-validated benchmark. Absolute capacity/energy still run
