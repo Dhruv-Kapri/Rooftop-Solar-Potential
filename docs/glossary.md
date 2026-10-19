@@ -34,7 +34,9 @@ Project-specific terms as used in this pipeline, not textbook-general definition
   hence shadow-casting) per cell from the DSM.
 - **Shadow search distance** — how far `r.horizon`/`r.sun` look outward for a shadow-casting obstacle.
   Too short and a distant tall tower stops mattering even though it still shades the roof (risks §8,
-  trap 3).
+  trap 3). In the current pipeline this is **not an explicit `r.sun` parameter** — the effective reach
+  is bounded by the DSM/GRASS-region extent (i.e. the buffered AOI), so the **shadow buffer *is* the
+  search distance** until an explicit `maxdistance` is wired in Part 2-5.
 - **Insolation** — solar energy received per unit area over a period (e.g. kWh/m²/yr); the raster
   quantity `r.sun` produces per cell.
 - **POA (plane-of-array)** — irradiance measured or modelled in the plane of the tilted roof/panel
@@ -98,3 +100,111 @@ Project-specific terms as used in this pipeline, not textbook-general definition
   published reference Stage 1 sanity-checks against (ADR-0005).
 - **LOD-1 / block model** — the fallback modelling mode: extrude each footprint to a single height,
   no per-roof plane fitting. Used where LiDAR is unavailable (the India/Phase-3 path), not for DC.
+
+### Stage 2 · census aggregation & equity (Part 2-1)
+
+- **GEOID** — the US Census geographic identifier; for a tract an 11-digit code (2 state + 3 county +
+  6 tract). DC tracts begin `11001…`. Must be kept a **zero-padded string** end-to-end — integer
+  coercion drops the leading `11` and silently breaks every join (ADR-0006).
+- **TIGER/Line** — the Census's boundary-geometry files; Stage 2 uses the **2020-vintage** DC tract
+  polygons as the aggregation geography (data-sources.md; ADR-0006).
+- **ACS (American Community Survey)** — the Census's rolling demographic survey; Stage 2 pulls its
+  **5-year** tract estimates for population, occupied housing units, and median household income via
+  the Census Data API (needs a free `CENSUS_API_KEY`; ADR-0006).
+- **Energy burden** — the share of household income spent on home energy; Stage 2's **headline equity
+  dimension** — a high-burden tract is where rooftop-solar bill savings matter most. Sourced from DOE
+  LEAD (ADR-0006).
+- **DOE LEAD** — the US DOE's *Low-Income Energy Affordability Data*; the tract-level energy-burden
+  source (2022 update, 2020-tract-aligned, free file download; ADR-0006).
+- **Disadvantage (this project)** — tract disadvantage is operationalized by **energy burden**
+  (headline) + **median household income** (legible secondary), *not* a composite index. The
+  de-hosted federal composites (CEJST, EPA EJScreen) are an optional, pinned, caveated overlay only —
+  never the core (ADR-0006).
+- **Extensive vs intensive (tract) quantities** — *extensive* quantities **sum** over a tract's roofs
+  (total usable area, PV capacity, energy, CO₂, building/usable-roof counts); *intensive* quantities
+  are per-unit summaries that don't scale with tract size (median suitability, % roofs usable). The
+  equity lens uses a per-household normalization of the extensive potential.
+- **Per-household potential** — a tract's total rooftop-solar potential ÷ its occupied housing units;
+  the equity-relevant normalizer (benefit accrues to *dwellings*, and energy burden is already a
+  per-household metric, so the two equity axes share a denominator). Per-capita is reported as a
+  legible secondary (ADR-0007).
+- **Equity quadrant / priority tract** — Stage 2's equity overlay classifies each tract into a 2×2 of
+  (per-household potential, high/low) × (energy burden, high/low), split at the tract-set medians. A
+  **priority tract** is high-potential + high-burden — the biggest equity win from rooftop solar.
+  Median-relative, like the ADR-0004 percentile, so meaningful only across many tracts — i.e.
+  city-wide (Part 2-2), not Glover Park's ~7 tracts (ADR-0007).
+
+### Stage 2 · city-scale tiling (Part 2-2)
+
+- **Tile** — one cell of Part 2-2's fixed grid over the District. It carries a **core** cell (the area
+  it is responsible for scoring) and a **buffered** cell (core grown by `TILE_BUFFER_M`) that the
+  DSM + `r.sun` pass actually cover, so a core-edge roof is still shaded by casters just outside the
+  core — the inter-building/AOI shadow trap, one scale up (ADR-0009).
+- **Fixed grid origin** — the tile grid is anchored to a **fixed origin**, so a cell's `(row, col)` —
+  and therefore its cache key — is identical on every run, independent of how the AOI is framed. The
+  precondition for idempotent caching (ADR-0009).
+- **`floor` membership / seam conservation** — each building is assigned to exactly one tile by
+  flooring its representative point against the grid origin: `(row, col) = ⌊(rep_point − origin)/tile_size⌋`.
+  A building on a **seam** (a shared cell edge) therefore lands in exactly one cell *by construction* —
+  never dropped (as a `.within` test would) nor double-counted (as a footprint-intersect would). **Seam
+  conservation**: every District building is scored exactly once (ADR-0009).
+- **Params-stamp** — a per-tile fingerprint (radiation days, DSM source, buffer, tile size, a pipeline
+  version) recorded in the **tile manifest**. A resumed run recomputes only tiles whose stamp changed,
+  so an accuracy swap (Parts 2-4/2-5) is incremental, not from-scratch, and a stale cache is never
+  silently served (ADR-0009).
+- **GeoParquet** — the columnar, partition-friendly geospatial format Part 2-2 writes the city-scale
+  per-roof dataset in (partitioned per tile) — better suited than a single GeoPackage to a ~10⁵-building
+  dataset and incremental per-tile writes. The small per-tract output stays GeoPackage (ADR-0009).
+- **Cache tier** — one of the three self-validating layers of the per-tile cache (DSM, radiation,
+  scoring); a downstream tier chains the key of the one above so invalidation cascades downward
+  only (ADR-0014).
+- **Component version** — a per-tier version constant (`DSM_VERSION`/`RADIATION_VERSION`/
+  `SCORING_VERSION`) bumped when that tier's behavior changes, replacing ADR-0009's single
+  pipeline-version stamp so a change re-runs only the affected tier and below (ADR-0014).
+- **Re-score** — a city re-run in which only the scoring tier is invalidated (a `SCORING_VERSION`
+  bump), so every tile's cached DSM and radiation raster is reused and only roof planes → usable area →
+  yield are recomputed: minutes, not the ~10–15 h full batch. The unit of a Part 2-4 **tuning round**
+  (ADR-0014).
+- **Artifact validity key / sidecar** — the chained fingerprint of a cached artifact's real inputs,
+  written as a small `.key` file next to the artifact; the artifact is reused only when it exists
+  and its sidecar matches the current key (ADR-0014).
+
+### Stage 2 · roof-geometry refinement (Part 2-4)
+
+- **Multi-plane (sequential) RANSAC** — Part 2-4's upgrade to ADR-0002's single-plane fit: fit the best
+  RANSAC plane on a roof's DSM pixels, remove its inliers, refit on the remainder, repeat (≤ ~4 planes,
+  dropping planes below a min area/inlier count). Recovers gable/hip/complex roofs the single-plane
+  baseline averaged into one tilt/aspect. Classical, training-free (ADR-0011). Exposed as
+  `fit_roof_planes(method="multiplane")`; `"ransac"` is kept for the baseline comparison.
+- **Pixel–plane membership** — which DSM pixels are inliers of which fitted plane; a byproduct of
+  sequential RANSAC. It is what makes per-plane POA and DSM-residual obstruction detection possible
+  (ADR-0011/0012/0013).
+- **Dominant plane** — the largest usable plane on a roof; its tilt/aspect/roof_class are what the
+  collapsed per-building row reports (ADR-0011).
+- **Per-building collapse** — Part 2-4 fits multiple planes internally but emits **one row per
+  building** (extensive quantities summed over usable planes), so the downstream contract (aggregate,
+  web_build, the map) is unchanged — no schema change, no map rebuild (ADR-0011; Part 2-3 §10).
+- **Per-plane POA** — insolation taken as the `r.sun` zonal mean over each **usable** plane's pixels,
+  not over the whole footprint. The footprint mean dilutes sun-facing planes with north-face/obstruction
+  pixels; per-plane POA removes that dilution — the biggest honest energy-accuracy gain, nearly free
+  given pixel–plane membership (ADR-0012). Energy is driven by this insolation, not by tilt/aspect
+  (which only feed the usable/not gate).
+- **Rooftop obstruction / superstructure** — a chimney, vent, HVAC unit, or bulkhead that eats usable
+  panel area. Detected as a **DSM residual**: pixels sitting more than a threshold (≈0.5–1.0 m) above
+  the fitted plane (the RANSAC outliers-above). Classical — no training or labels (ADR-0013).
+- **Obstruction-aware usable area** — Part 2-4 replaces ADR-0003's flat `× 0.70` utilization fraction
+  with **measured** obstruction subtraction plus a smaller principled setback factor (~0.85–0.90,
+  edge/access only): `usable = (plane_area − obstruction_area) × setback_factor` (ADR-0013).
+- **DSM self-consistency** — Part 2-4's ground-truth-free accuracy proxy: reconstruct the DSM from the
+  fitted planes and measure the per-roof residual (RMSE / % pixels within tolerance), multi-plane vs
+  single-plane. Multi-plane should reconstruct complex roofs with materially lower residual (ADR-0011).
+- **Spot-check (hand-labelled sample)** — ~20 DC roofs, stratified across archetypes (flat/gable/hip/
+  complex) over Glover Park + a downtown block, hand-labelled for **major-plane count** and
+  **obstruction presence**, compared against the algorithm (plane-count agreement ±1 vs single-plane;
+  obstruction hit/false-positive). An indicative sanity check, not a statistical accuracy claim — the
+  honest stand-in for the DC ground truth that doesn't exist (risks §14.4).
+- **ML demo (`method="ml"`)** — a bounded, **inference-only** demonstration: an existing NYC-trained
+  RoofN3D point-cloud segmenter run on a handful of DC roofs behind the pre-wired
+  `fit_roof_planes(method="ml")` seam, plus a comparison notebook. Framed as a NYC-trained *prior*
+  applied to DC (domain gap noted), **not** a validated pipeline swap — the shipped accuracy path is the
+  classical `"multiplane"` (ADR-0011).

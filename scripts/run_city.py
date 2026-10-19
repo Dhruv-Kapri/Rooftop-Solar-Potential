@@ -1,0 +1,180 @@
+#!/usr/bin/env python
+"""Part 2-2 CLI — run the per-roof spine over the whole District, then aggregate to tracts.
+
+Thin wrapper over `pipeline.run_city` (tile the DC AOI → score each tile's roofs → cache →
+merge → recompute city-wide suitability) followed by the reused `pipeline.run_aggregation`
+(→ the real, populated tract equity map). Resumable, with tiles optionally scored in parallel
+worker processes: a crashed or accuracy-swapped run resumes only the tiles it must (ADR-0009).
+Prints the compute-cost run-log Parts 2-4/2-5 budget re-runs against (stage-2-part2-plan.md
+§6.5/§8).
+
+    python scripts/run_city.py                        # full DC, calibrated 12-day (batch job!)
+    python scripts/run_city.py --day-range 172        # fast single-day smoke over the whole grid
+    python scripts/run_city.py --no-aggregate         # roof side only (skip the equity map)
+    python scripts/run_city.py --no-resume            # force a full recompute
+    python scripts/run_city.py --run-label 12day_gcr   # new run label; old outputs untouched
+    python scripts/run_city.py --nprocs 8             # 8 r.sun threads per tile (same results)
+    python scripts/run_city.py --workers 2 --nprocs 4 # 2 tiles at once x 4 threads (same results)
+
+This is a BATCH JOB, not CI: the calibrated full-DC run is many tiles × a 12-day r.sun pass.
+Deliverables land in a run-labelled subdir — outputs/dc/12day_tuned (calibrated default) or
+outputs/dc/<N>day for an N-day sample — so a run never dumps into outputs/ root beside the
+Stage-1 Glover Park files (override with --output-dir). It writes the city per-roof GeoParquet
+(roofs.parquet) and — unless --no-aggregate — the tract equity GeoPackage + choropleths (the
+actual Phase-2 payoff).
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import platform
+import time
+from datetime import UTC, datetime
+from pathlib import Path
+
+import geopandas as gpd
+
+from rooftop_solar import config, pipeline
+
+
+def _parse_day_range(value: str | None) -> list[int] | None:
+    """`None`/"calibrated" → the ADR-0001 12-day default; else a comma list of day-of-year ints."""
+    if value is None or value == "calibrated":
+        return None
+    return [int(d) for d in value.split(",")]
+
+
+def _run_label(day_range: list[int] | None) -> str:
+    """Run-labelled output subdir: `config.CALIBRATED_CITY_LABEL` ("12day_tuned") for the calibrated
+    default (ADR-0001), else `{N}day`."""
+    if day_range is None:
+        return config.CALIBRATED_CITY_LABEL
+    return f"{len(day_range)}day"
+
+
+def _report_runlog(
+    tiles_dir,
+    city: gpd.GeoDataFrame,
+    wall_clock_s: float,
+    nprocs: int,
+    workers: int,
+    output_dir: Path,
+) -> None:
+    """Print the §8 compute-cost run-log from the tile manifest + wall-clock, and append the same
+    text to `<output_dir>/run_log.txt` so the cost record travels with the run's deliverables.
+    Appended, not overwritten: a run resumed on another machine (Mac <-> VM) adds a timestamped
+    segment, so every segment's machine and wall-clock survive (#19)."""
+    manifest = json.loads((tiles_dir / pipeline.MANIFEST_NAME).read_text())
+    done = {k: v for k, v in manifest.items() if v.get("status") == "done"}
+    failed = {k: v for k, v in manifest.items() if v.get("status") == "failed"}
+    n_with_roofs = sum(1 for v in done.values() if v.get("n_roofs", 0) > 0)
+
+    lines = ["\n=== Part 2-2 city run — compute-cost run-log (§8) ==="]
+    lines.append(f"  logged (UTC)         : {datetime.now(UTC):%Y-%m-%d %H:%M:%S}")
+    lines.append(
+        f"  machine              : {platform.node()} ({platform.platform()}, {os.cpu_count()} cpus)"
+    )
+    lines.append(
+        f"  tiles done           : {len(done)}  ({n_with_roofs} with roofs, "
+        f"{len(done) - n_with_roofs} empty)"
+    )
+    lines.append(f"  tiles failed         : {len(failed)}")
+    for key, entry in list(failed.items())[:5]:
+        lines.append(f"      tile {key}: {entry.get('error', '')[:100]}")
+    lines.append(f"  city roofs (merged)  : {len(city)}")
+    lines.append(f"  r.sun threads        : {nprocs}")
+    lines.append(f"  tile workers         : {workers}")
+    lines.append(f"  wall-clock           : {wall_clock_s:8.1f} s")
+    if len(done):
+        per_tile_s = wall_clock_s / len(done)  # tiles overlap when workers > 1
+        lines.append(f"  wall-clock / tile    : {per_tile_s:8.1f} s")
+
+    if len(city):
+        total_energy_mwh = float(city["annual_energy_kwh"].sum()) / 1000.0
+        total_capacity_mw = float(city["capacity_kw"].sum()) / 1000.0
+        lines.append("\n=== city per-roof totals (sanity vs NREL/NLR DC potential, §6.4) ===")
+        lines.append(f"  installed capacity   : {total_capacity_mw:10.1f} MW")
+        lines.append(f"  annual energy        : {total_energy_mwh:10.1f} MWh/yr")
+
+    text = "\n".join(lines)
+    print(text)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    with (output_dir / "run_log.txt").open("a") as log:
+        log.write(text + "\n")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--tile-size-m", type=float, default=config.TILE_SIZE_M)
+    parser.add_argument("--buffer-m", type=float, default=config.TILE_BUFFER_M)
+    parser.add_argument(
+        "--day-range",
+        default=None,
+        help="comma day-of-year list (e.g. '172' for a fast smoke); default = calibrated 12-day",
+    )
+    parser.add_argument("--tiles-dir", default=None, help="per-tile cache + manifest dir")
+    parser.add_argument("--output-dir", default=None, help="where deliverables are written")
+    parser.add_argument(
+        "--run-label",
+        default=None,
+        help="outputs go to outputs/dc/<LABEL> (default: 12day_tuned / <N>day); --output-dir wins",
+    )
+    parser.add_argument("--no-resume", action="store_true", help="recompute every tile")
+    parser.add_argument(
+        "--nprocs",
+        type=int,
+        default=1,
+        help="threads per tile's r.sun; doesn't change results or cache keys",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="tiles scored at once in worker processes; doesn't change results or cache keys",
+    )
+    parser.add_argument("--no-aggregate", action="store_true", help="skip the tract equity map")
+    args = parser.parse_args()
+    tiles_dir = Path(args.tiles_dir) if args.tiles_dir is not None else config.TILES_CACHE_DIR
+    day_range = _parse_day_range(args.day_range)
+    # Default deliverables to a run-labelled subdir (outputs/dc/<N>day), never outputs/ root.
+    # Validated even under --output-dir so an unsafe --run-label is always rejected.
+    label = args.run_label if args.run_label is not None else _run_label(day_range)
+    try:
+        config.validate_run_label(label)
+    except ValueError as exc:
+        parser.error(f"--run-label: {exc}")
+    output_dir = (
+        Path(args.output_dir)
+        if args.output_dir is not None
+        else config.outputs_run_dir("dc", label)
+    )
+
+    started = time.perf_counter()
+    city = pipeline.run_city(
+        tile_size_m=args.tile_size_m,
+        buffer_m=args.buffer_m,
+        day_range=day_range,
+        tiles_dir=tiles_dir,
+        output_dir=output_dir,
+        resume=not args.no_resume,
+        nprocs=args.nprocs,
+        workers=args.workers,
+    )
+    wall_clock_s = time.perf_counter() - started
+    _report_runlog(tiles_dir, city, wall_clock_s, args.nprocs, args.workers, output_dir)
+    print(f"  deliverables dir     : {output_dir}")
+
+    if not args.no_aggregate:
+        print("\n=== aggregating city roofs to census tracts (reused Part 2-1) ===")
+        pipeline.run_aggregation(
+            buildings=city,
+            output_dir=output_dir,
+            area_name="Washington, DC",
+        )
+        print("  wrote tract equity GeoPackage + choropleths (tracts.gpkg + tract_*.png).")
+
+
+if __name__ == "__main__":
+    main()

@@ -11,11 +11,14 @@ Fast: pure numpy + sklearn, no DSM, no network, no GRASS.
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import numpy.typing as npt
 import pytest
+from sklearn.exceptions import UndefinedMetricWarning
 
-from rooftop_solar import roof_planes
+from rooftop_solar import roof_planes, usable_area
 
 # Compass azimuth (deg) of the direction each synthetic roof *faces* (downslope).
 _FACING_AZIMUTH = {"north": 0.0, "east": 90.0, "south": 180.0, "west": 270.0}
@@ -81,6 +84,98 @@ def test_flat_roof_has_near_zero_tilt():
     assert fit["tilt_deg"] < 1.0
 
 
+def test_multiplane_single_planar_roof_returns_one_plane():
+    # A single clean tilted plane has nothing left to peel off after the first fit --
+    # sequential RANSAC must stop at len==1, matching fit_roof_plane's tilt/aspect.
+    X, z = synthetic_roof(pitch_deg=20.0, faces="south")
+
+    planes = roof_planes.fit_planes_multi(X, z)
+
+    assert len(planes) == 1
+    assert abs(planes[0]["tilt_deg"] - 20.0) < 1.0
+    assert abs(planes[0]["aspect_deg"] - _FACING_AZIMUTH["south"]) < 1.0
+    assert planes[0]["n_px"] == len(z)
+
+
+def _synthetic_gable(
+    pitch_deg: float, n_side: int = 20, n_east: int = 20
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    """Build a symmetric gable roof: two facets of known pitch meeting at a ridge.
+
+    The south half (smaller `north` index) rises toward the ridge -- physically faces
+    south (rises north, per `synthetic_roof`'s convention); the north half falls away
+    from the ridge as `north` increases further -- physically faces north. `n_side` is
+    the pixel run of *each* facet (so the roof is `2*n_side` px in the north direction).
+    """
+    east_idx, north_idx = np.meshgrid(np.arange(n_east), np.arange(2 * n_side), indexing="ij")
+    east = east_idx.ravel().astype(np.float64)
+    north = north_idx.ravel().astype(np.float64)
+    slope = float(np.tan(np.radians(pitch_deg)))
+    # A tent: rises from both edges to the ridge at north == n_side - 0.5.
+    south_of_ridge = north < n_side
+    z = np.where(south_of_ridge, slope * north, slope * (2 * n_side - 1 - north))
+    X = np.column_stack([east, north])
+    return X, z
+
+
+def test_multiplane_recovers_two_facets():
+    # A gable roof: two known-pitch facets, one facing south, one facing north, meeting
+    # at a ridge. Sequential RANSAC should peel off each facet as its own plane.
+    pitch_deg = 20.0
+    X, z = _synthetic_gable(pitch_deg)
+
+    planes = roof_planes.fit_planes_multi(X, z)
+
+    assert len(planes) == 2
+    for plane in planes:
+        assert abs(plane["tilt_deg"] - pitch_deg) < 2.0
+    aspects = [plane["aspect_deg"] for plane in planes]
+    # one facet faces south (~180), the other faces north (~0/360) -- order unspecified.
+    assert any(abs(a - 180.0) < 3.0 for a in aspects)
+    assert any(min(abs(a - 0.0), abs(a - 360.0)) < 3.0 for a in aspects)
+    # disjoint membership covering (almost) every pixel of this perfect synthetic roof.
+    idx0, idx1 = set(planes[0]["inlier_idx"]), set(planes[1]["inlier_idx"])
+    assert idx0.isdisjoint(idx1)
+    assert len(idx0 | idx1) >= 0.95 * len(z)
+
+
+def test_fit_planes_multi_max_planes_caps():
+    # The same gable that yields 2 facets by default must yield exactly 1 -- the
+    # dominant facet -- when capped at max_planes=1 (Part 2-4 step 7a: this is the
+    # single-plane baseline compare_self_consistency will fit for its RANSAC comparator).
+    pitch_deg = 20.0
+    X, z = _synthetic_gable(pitch_deg)
+
+    capped = roof_planes.fit_planes_multi(X, z, max_planes=1)
+    uncapped = roof_planes.fit_planes_multi(X, z)
+
+    assert len(capped) == 1
+    assert len(uncapped) == 2
+    assert capped[0]["n_px"] == uncapped[0]["n_px"]
+
+
+def test_multiplane_drops_below_min_plane_px():
+    # A clean 400-pixel roof plane plus 7 stray points whose elevation is wildly
+    # inconsistent with any plane through the roof. After the roof is peeled off, only
+    # 7 points remain -- strictly fewer than MIN_PLANE_PX (8), so no fit on them can
+    # ever be recorded as a second plane, however RANSAC's internal sampling falls.
+    X_roof, z_roof = synthetic_roof(pitch_deg=20.0, faces="south")
+    n_stray = 7
+    assert n_stray < roof_planes.MIN_PLANE_PX
+    stray_east = np.arange(n_stray, dtype=np.float64)
+    stray_north = np.full(n_stray, 1000.0)  # far outside the roof's coordinate range
+    X_stray = np.column_stack([stray_east, stray_north])
+    z_stray = np.zeros(n_stray)  # the roof's plane would predict ~364 m here
+
+    X = np.vstack([X_roof, X_stray])
+    z = np.concatenate([z_roof, z_stray])
+
+    planes = roof_planes.fit_planes_multi(X, z)
+
+    assert len(planes) == 1
+    assert planes[0]["n_px"] == len(z_roof)
+
+
 def test_too_few_pixels_are_flagged_not_fitted():
     # Below MIN_PX pixels, no plane is trustworthy: return NaN geometry, flagged low-confidence
     # (ADR-0002) rather than a bogus tilt/aspect from a handful of points.
@@ -94,3 +189,141 @@ def test_too_few_pixels_are_flagged_not_fitted():
     assert np.isnan(fit["aspect_deg"])
     assert fit["n_px"] == 4
     assert fit["low_confidence"] is True
+
+
+# --- Quiet sklearn R^2 warning flood (issue #15) -----------------------------------------
+# RANSAC's R^2 score is only a tie-breaker among candidates; on a degenerate roof it is
+# undefined (nan either way), so silencing the warning must not move any per-roof output.
+
+
+def _collinear_strip(n: int) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    """A 1-px-wide, collinear, noisy strip — the degenerate roof that floods the logs."""
+    X = np.column_stack([np.arange(n) * 1.0, np.zeros(n)])
+    z = 100 + np.random.default_rng(1).normal(0, 3, n)
+    return X, z
+
+
+@pytest.mark.parametrize("n", [6, 10])
+def test_degenerate_roof_emits_no_undefined_metric_warning(n):
+    X, z = _collinear_strip(n)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        roof_planes.fit_roof_plane(X, z)
+        roof_planes.fit_planes_multi(X, z)
+
+    assert not [w for w in caught if issubclass(w.category, UndefinedMetricWarning)]
+
+
+# fit_roof_plane outputs on _collinear_strip(n), captured from the code BEFORE the warning was
+# silenced — a regression pin (tied to the seeded noise + sklearn's RANSAC; may move on upgrade).
+_PINNED_STRIP = {
+    6: {
+        "tilt_deg": 3.710601556151217,
+        "aspect_deg": 270.0,
+        "inlier_ratio": 0.5,
+        "n_px": 6,
+        "low_confidence": True,
+    },
+    10: {
+        "tilt_deg": 0.874090241633737,
+        "aspect_deg": 270.0,
+        "inlier_ratio": 0.6,
+        "n_px": 10,
+        "low_confidence": True,
+    },
+}
+
+
+@pytest.mark.parametrize("n", [6, 10])
+def test_degenerate_roof_outputs_unchanged(n):
+    X, z = _collinear_strip(n)
+
+    fit = roof_planes.fit_roof_plane(X, z)
+
+    expected = _PINNED_STRIP[n]
+    assert fit["n_px"] == expected["n_px"]
+    assert fit["low_confidence"] is expected["low_confidence"]
+    assert fit["inlier_ratio"] == pytest.approx(expected["inlier_ratio"], abs=1e-12)
+    assert fit["tilt_deg"] == pytest.approx(expected["tilt_deg"], abs=1e-9)
+    assert fit["aspect_deg"] == pytest.approx(expected["aspect_deg"], abs=1e-9)
+    assert roof_planes.fit_planes_multi(X, z) == []
+
+
+def test_normal_roof_outputs_unchanged():
+    X, z = synthetic_roof(30.0, "south", n=10)
+
+    fit = roof_planes.fit_roof_plane(X, z)
+    planes = roof_planes.fit_planes_multi(X, z)
+
+    assert fit["tilt_deg"] == pytest.approx(30.0, abs=1e-9)
+    assert fit["aspect_deg"] == pytest.approx(180.0, abs=1e-9)
+    assert fit["inlier_ratio"] == 1.0
+    assert fit["n_px"] == 100
+    assert fit["low_confidence"] is False
+    assert len(planes) == 1
+    assert planes[0]["n_px"] == 100
+    assert planes[0]["coef"] == pytest.approx((0.0, np.tan(np.radians(30.0)), 0.0), abs=1e-9)
+
+
+def _flat_roof_with_block(
+    block_shape: tuple[int, int], dz: float
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    """A 20x20 px flat roof at z=10 with a flat block (corner, `block_shape` px) at `dz` m."""
+    east_idx, north_idx = np.meshgrid(np.arange(20), np.arange(20), indexing="ij")
+    east = east_idx.ravel().astype(np.float64)
+    north = north_idx.ravel().astype(np.float64)
+    in_block = (east < block_shape[0]) & (north < block_shape[1])
+    z = np.where(in_block, 10.0 + dz, 10.0)
+    return np.column_stack([east, north]), z
+
+
+def test_multiplane_drops_small_raised_superstructure(monkeypatch):
+    # #30 / ADR-0013: a 20-px block 2 m above a flat roof (HVAC-sized) is fit as its own
+    # plane by sequential RANSAC, then dropped as a raised superstructure.
+    X, z = _flat_roof_with_block((4, 5), dz=2.0)
+    assert 20 < roof_planes.SUPERSTRUCTURE_MAX_PX
+    with monkeypatch.context() as m:  # the pre-rule behaviour: the block is a real plane
+        m.setattr(roof_planes, "SUPERSTRUCTURE_MAX_PX", 0)
+        assert len(roof_planes.fit_planes_multi(X, z)) == 2
+
+    planes = roof_planes.fit_planes_multi(X, z)
+
+    assert len(planes) == 1
+    assert planes[0]["n_px"] == 380
+
+
+def test_multiplane_keeps_gable_secondary_facet():
+    # A small second facet that sits BELOW the dominant facet's extension (a gable's far
+    # side) is a facet, not a superstructure: 10x2 px = 20 px < the size cap, still kept.
+    slope = float(np.tan(np.radians(20.0)))
+    east_idx, north_idx = np.meshgrid(np.arange(10), np.arange(22), indexing="ij")
+    east = east_idx.ravel().astype(np.float64)
+    north = north_idx.ravel().astype(np.float64)
+    z = np.where(north < 20, slope * north, slope * 19 - slope * (north - 19))
+    X = np.column_stack([east, north])
+
+    planes = roof_planes.fit_planes_multi(X, z)
+
+    assert [p["n_px"] for p in planes] == [200, 20]
+
+
+def test_multiplane_keeps_large_raised_level():
+    # A 36-px level 3 m up is >= SUPERSTRUCTURE_MAX_PX: a real raised roof level, kept.
+    X, z = _flat_roof_with_block((6, 6), dz=3.0)
+    assert 36 >= roof_planes.SUPERSTRUCTURE_MAX_PX
+
+    assert len(roof_planes.fit_planes_multi(X, z)) == 2
+
+
+def test_multiplane_keeps_small_plane_below_dominant():
+    # The rule is above-only: a 20-px sunken block (2 m below) is kept.
+    X, z = _flat_roof_with_block((4, 5), dz=-2.0)
+
+    assert len(roof_planes.fit_planes_multi(X, z)) == 2
+
+
+def test_superstructure_band_matches_obstruction_tau():
+    # #30 / ADR-0013 addendum: a dropped superstructure's pixels are subtracted as obstruction
+    # only above tau, so the drop band must stay equal to tau if either is retuned.
+    assert roof_planes.RESIDUAL_THRESHOLD_M == usable_area.OBSTRUCTION_TAU_M

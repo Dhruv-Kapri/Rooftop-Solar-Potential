@@ -15,6 +15,17 @@
    batch publishes and confirm caps before committing a platform as the final target.
 6. **India ≠ "just swap the adapter."** The geometry/imagery/shading stages need a functional
    downgrade to the block-model path, not a repoint. Scope it as such.
+7. **Large obstructions can escape subtraction (Part 2-4).** Obstruction detection (ADR-0013) only
+   catches DSM pixels that stay *outliers* of a fitted plane. A superstructure large and planar enough to
+   win ≥ `MIN_PLANE_PX` inlier pixels (≈32 m² at the 2 m DSM) is instead fit as its own plane by the
+   multi-plane RANSAC and, if usably oriented, counts as usable roof — inflating usable area for exactly
+   the biggest obstructions. `MIN_PLANE_PX` is the explicit, reported knob at the facet-vs-obstruction
+   seam; it is tuned on the ~20-roof spot-check (§14.4), whose *obstruction-presence* labels reveal
+   escapes. #23 found `MIN_PLANE_PX` can't close it alone. #30 adds a structural rule: a small
+   (< `SUPERSTRUCTURE_MAX_PX` = 25 px) later plane sitting > 0.5 m above the dominant plane is
+   dropped, so its pixels are subtracted as obstruction. Spot-check ±1 12 → 14/17, exact 9 → 10/17.
+   Raised planes ≥ 25 px still escape, and a small raised real facet (a front mansard) can be lost
+   (ADR-0013 addendum 2026-10-18).
 
 ## Inter-building & mutual shading — the traps (§8)
 
