@@ -37,6 +37,23 @@ NODATA = -9999.0
 EXPECTED_ASPECT_DEG = 180.0  # rises north -> faces south (test_roof_planes.py convention)
 
 
+def _write_dsm(path: Path, band: np.ndarray) -> Path:
+    """Write `band` as a one-band DSM GeoTIFF whose top-left corner is the shared origin."""
+    profile = {
+        "driver": "GTiff",
+        "height": band.shape[0],
+        "width": band.shape[1],
+        "count": 1,
+        "dtype": band.dtype,
+        "crs": config.WORKING_CRS,
+        "transform": from_origin(ORIGIN_EASTING, ORIGIN_NORTHING, PIXEL_M, PIXEL_M),
+        "nodata": NODATA,
+    }
+    with rasterio.open(path, "w", **profile) as dst:
+        dst.write(band, 1)
+    return path
+
+
 @pytest.fixture
 def dsm_path(tmp_path: Path) -> Path:
     """Write a synthetic south-facing-ramp DSM GeoTIFF to `tmp_path` and return its path.
@@ -45,27 +62,12 @@ def dsm_path(tmp_path: Path) -> Path:
     coordinate (no east-west slope), and *rises* as northing increases (further
     north) -- a roof over this surface physically faces due south.
     """
-    transform = from_origin(ORIGIN_EASTING, ORIGIN_NORTHING, PIXEL_M, PIXEL_M)
-
     row_idx = np.arange(GRID_SIZE_PX).reshape(-1, 1)  # row 0 = north edge
     northing = ORIGIN_NORTHING - (row_idx + 0.5) * PIXEL_M  # per-row pixel-centre northing
     row_elev = np.tan(np.radians(PITCH_DEG)) * northing + BASE_ELEV_M  # (GRID_SIZE_PX, 1)
     band = np.broadcast_to(row_elev, (GRID_SIZE_PX, GRID_SIZE_PX)).astype(np.float32)
 
-    path = tmp_path / "synthetic_dsm.tif"
-    profile = {
-        "driver": "GTiff",
-        "height": GRID_SIZE_PX,
-        "width": GRID_SIZE_PX,
-        "count": 1,
-        "dtype": band.dtype,
-        "crs": config.WORKING_CRS,
-        "transform": transform,
-        "nodata": NODATA,
-    }
-    with rasterio.open(path, "w", **profile) as dst:
-        dst.write(band, 1)
-    return path
+    return _write_dsm(tmp_path / "synthetic_dsm.tif", band)
 
 
 @pytest.fixture
@@ -88,27 +90,13 @@ def gable_dsm_path(tmp_path: Path) -> Path:
     move away from the ridge -- physically faces north; the side closer to the south
     edge rises toward the ridge going north -- physically faces south.
     """
-    transform = from_origin(ORIGIN_EASTING, ORIGIN_NORTHING, PIXEL_M, PIXEL_M)
     ridge_row = GRID_SIZE_PX // 2
     row_idx = np.arange(GRID_SIZE_PX).reshape(-1, 1)
     slope = np.tan(np.radians(PITCH_DEG))
     row_elev = BASE_ELEV_M + slope * PIXEL_M * (ridge_row - np.abs(row_idx - ridge_row))
     band = np.broadcast_to(row_elev, (GRID_SIZE_PX, GRID_SIZE_PX)).astype(np.float32)
 
-    path = tmp_path / "synthetic_gable_dsm.tif"
-    profile = {
-        "driver": "GTiff",
-        "height": GRID_SIZE_PX,
-        "width": GRID_SIZE_PX,
-        "count": 1,
-        "dtype": band.dtype,
-        "crs": config.WORKING_CRS,
-        "transform": transform,
-        "nodata": NODATA,
-    }
-    with rasterio.open(path, "w", **profile) as dst:
-        dst.write(band, 1)
-    return path
+    return _write_dsm(tmp_path / "synthetic_gable_dsm.tif", band)
 
 
 def test_multiplane_two_facet_footprint_yields_two_rows(gable_dsm_path, footprints):
@@ -250,21 +238,7 @@ def test_multiplane_hvac_on_flat_roof_keeps_fit_quality_high(tmp_path):
     z = np.where(kind == 0, 300.0, 302.0)
     z[kind == 2] = 300.0 + clutter_z
     band = z.reshape(size, size).astype(np.float32)
-    path = tmp_path / "hvac_dsm.tif"
-    transform = from_origin(ORIGIN_EASTING, ORIGIN_NORTHING, PIXEL_M, PIXEL_M)
-    with rasterio.open(
-        path,
-        "w",
-        driver="GTiff",
-        height=size,
-        width=size,
-        count=1,
-        dtype=band.dtype,
-        crs=config.WORKING_CRS,
-        transform=transform,
-        nodata=NODATA,
-    ) as dst:
-        dst.write(band, 1)
+    path = _write_dsm(tmp_path / "hvac_dsm.tif", band)
     roof = box(
         ORIGIN_EASTING,
         ORIGIN_NORTHING - size * PIXEL_M,
