@@ -47,8 +47,9 @@ validation is [`docs/benchmarks/stage-2-part4-validation.md`](docs/benchmarks/st
 (#24). **Remaining:** step 8 (the ML **demo** — `method="ml"`, bounded inference-only, no
 longer the production path). #30 then added a structural facet-vs-obstruction rule: a small raised
 later plane is dropped as a superstructure (`SCORING_VERSION` `2-4.3`; city re-score 2,196.1 MW /
-2,607 GWh/yr, 1.69× / 1.63× NREL; ADR-0013 addendum, risks §14 item 7). The map still serves `2-4.2`;
-moving it is #32.
+2,607 GWh/yr, 1.69× / 1.63× NREL; ADR-0013 addendum, risks §14 item 7). #33 (`2-4.4`) made
+`low_confidence` fit quality only again (all fitted planes count) and reports clutter as
+`superstructure_frac`; yield unchanged. The map still serves `2-4.2`; moving it is #32.
 **Phase 2 is planned in `docs/plans/stage-2-overview.md`** (5 parts; **Part 2-4 step 8 + Part 2-5
 (fidelity) are next**).
 See `docs/roadmap.md` for phase boundaries/exit criteria and `docs/benchmarks/` for the benchmark

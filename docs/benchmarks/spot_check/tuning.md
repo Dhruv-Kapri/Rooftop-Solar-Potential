@@ -153,3 +153,25 @@ obstruction-free. A blind relabel of a subset and more `has_obstruction=n` roofs
 should confirm the rule before any further tuning.
 
 Reproduce: the #23 commands above, with `--out-dir`/`--output-dir` pointing at a `2-4.3` location.
+
+## #33 — `low_confidence` back to fit quality; `superstructure_frac` (2026-10-19)
+
+`SCORING_VERSION` `2-4.4`. `low_confidence` again counts every fitted plane, dropped superstructures
+included, so it means fit quality only. The clutter share is a new per-building column,
+`superstructure_frac` (ADR-0002 and ADR-0013 addenda). Planes, usable area and yield are unchanged.
+
+**City re-score.** Run on the VM from a copy of the `2-4.3` cache (same command as #30), 66/66
+tiles in 50 min, no `r.sun` reruns.
+
+| city | 2-4.2 | 2-4.3 | **2-4.4** |
+|---|---|---|---|
+| capacity / energy | 2,237.6 MW / 2,658 GWh/yr | 2,196.1 MW / 2,607 GWh/yr | 2,196.1 MW / 2,607 GWh/yr |
+| roofs with usable area | 67,044 | 65,779 | 65,779 |
+| `low_confidence` roofs | 27,788 | 33,678 | **27,788** |
+| roofs with `superstructure_frac > 0` | — | — | **12,379** (median 0.25, p90 0.36, max 0.67) |
+
+- The `low_confidence` count matches `2-4.2` exactly. This is expected: #30 changed only which
+  peeled planes are kept, not the peeling, so the all-planes inlier fraction is the `2-4.2` one.
+- Only 86 roofs are both `low_confidence` and carry a superstructure. Clutter and poor fit are
+  largely separate populations.
+
