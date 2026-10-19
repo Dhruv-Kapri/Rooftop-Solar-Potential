@@ -114,8 +114,8 @@ TILE_BUFFER_M = AOI_BUFFER_M
 # Per-tile roof cache (GeoParquet) + tile manifest live here (gitignored, created on first run).
 TILES_CACHE_DIR = DATA_DIR / "tiles"
 
-# City-run deliverables land in outputs/<area>/<label> (e.g. outputs/dc/1day preview,
-# outputs/dc/12day_2-4.3) so a run never dumps into OUTPUTS_DIR root alongside the
+# City-run deliverables land in outputs/<area>/<label> (e.g. outputs/dc/1day_2-4.3
+# preview, outputs/dc/12day_2-4.3) so a run never dumps into OUTPUTS_DIR root alongside the
 # Stage-1 Glover Park files. `outputs_run_dir` is the single source of truth for that layout.
 # `run_city` writes to a version-stamped label (`pipeline.city_run_label`, embeds
 # SCORING_VERSION) so a version bump can't overwrite a published run. PUBLISHED_CITY_LABEL is

@@ -6,10 +6,10 @@ layer) + ``roofs.parquet`` (the city per-roof layer) from an input dir and write
 ``web/assets/{tracts.geojson, roofs.pmtiles, scatter.png}`` — the inline tract layer, the
 100k-roof vector tiles, and the about-panel chart (plan §4). Defaults ``--input`` to the published
 run (``outputs/dc/12day_2-4.3/``, ``config.PUBLISHED_CITY_OUTPUTS_DIR``); point it at
-``outputs/dc/1day/`` for a dev build.
+``outputs/dc/1day_<SCORING_VERSION>/`` for a dev build.
 
     python scripts/build_web.py                          # outputs/dc/12day_2-4.3/ -> web/assets/
-    python scripts/build_web.py --input outputs/dc/1day   # dev build off the 1-day pass
+    python scripts/build_web.py --input outputs/dc/1day_2-4.3   # dev build off a 1-day pass
     python scripts/build_web.py --output /tmp/assets       # write elsewhere
 
 Requires ``tippecanoe`` on PATH (a system dep, ADR-0010).
