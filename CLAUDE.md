@@ -49,10 +49,11 @@ longer the production path). #30 then added a structural facet-vs-obstruction ru
 later plane is dropped as a superstructure (`SCORING_VERSION` `2-4.3`; city re-score 2,196.1 MW /
 2,607 GWh/yr, 1.69× / 1.63× NREL; ADR-0013 addendum, risks §14 item 7). The map still serves `2-4.2`;
 moving it is #32.
-**`stage-2` merged into `main` (#26):** Pages deploys from `main` only, so the live map changes only
+#26 merged `stage-2` into `main`; Pages now deploys from `main` only, so the live map changes only
 when `web/` lands on `main`.
 **Phase 2 is planned in `docs/plans/stage-2-overview.md`** (5 parts; **Part 2-4 step 8 + Part 2-5
-(fidelity) are next** — Part 2-5 starts from `main`, after its tentative plan is revised).
+(fidelity) are next**). Part 2-5 starts from `main`, after
+[its tentative plan](docs/plans/stage-2-part5-plan.md) is revised.
 See `docs/roadmap.md` for phase boundaries/exit criteria and `docs/benchmarks/` for the benchmark
 write-up.
 
