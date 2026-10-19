@@ -174,7 +174,8 @@ Together these are the plan's "accuracy comparison vs the RANSAC baseline" — d
      the `MAX_PLANES` clamp); `MIN_PLANE_PX` has no headroom, so the structural rule is follow-up #30.
      Write-up: `docs/benchmarks/spot_check/tuning.md`.
    - **✓ map refresh (#25, 2026-10-18):** `build_web` from `outputs/dc/12day_tuned/`, `web/assets/`
-     committed — a data swap only, no app rebuild. `CALIBRATED_CITY_LABEL` now names `12day_tuned`.
+     committed — a data swap only, no app rebuild. `CALIBRATED_CITY_LABEL` now names `12day_tuned` (renamed
+     `PUBLISHED_CITY_LABEL` in #32).
      Assembled from the #23 re-score (run `--no-aggregate` into `outputs/dc/tune23/round1/`): its
      `roofs.parquet` + `run_log.txt` copied in, then `pipeline.run_aggregation(…, area_name="Washington,
      DC")` wrote `tracts.gpkg` + the choropleths beside them.

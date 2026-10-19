@@ -545,7 +545,7 @@ def city_run_label(day_range: list[int] | None = None) -> str:
     `<N>day_<SCORING_VERSION>`. Embedding the version means a SCORING_VERSION bump writes a
     fresh dir instead of overwriting an earlier (possibly published) run. Reads the module
     global at call time."""
-    days = 12 if day_range is None else len(day_range)
+    days = len(radiation.MID_MONTH_DAYS) if day_range is None else len(day_range)
     return f"{days}day_{SCORING_VERSION}"
 
 
