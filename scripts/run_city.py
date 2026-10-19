@@ -17,8 +17,9 @@ Prints the compute-cost run-log Parts 2-4/2-5 budget re-runs against (stage-2-pa
     python scripts/run_city.py --workers 2 --nprocs 4 # 2 tiles at once x 4 threads (same results)
 
 This is a BATCH JOB, not CI: the calibrated full-DC run is many tiles × a 12-day r.sun pass.
-Deliverables land in a run-labelled subdir — outputs/dc/12day_tuned (calibrated default) or
-outputs/dc/<N>day for an N-day sample — so a run never dumps into outputs/ root beside the
+Deliverables land in a run-labelled subdir — outputs/dc/12day_<SCORING_VERSION> (calibrated
+default) or outputs/dc/<N>day_<SCORING_VERSION> for an N-day sample (version-stamped so a version
+bump never overwrites an earlier run, #32) — so a run never dumps into outputs/ root beside the
 Stage-1 Glover Park files (override with --output-dir). It writes the city per-roof GeoParquet
 (roofs.parquet) and — unless --no-aggregate — the tract equity GeoPackage + choropleths (the
 actual Phase-2 payoff).
@@ -44,14 +45,6 @@ def _parse_day_range(value: str | None) -> list[int] | None:
     if value is None or value == "calibrated":
         return None
     return [int(d) for d in value.split(",")]
-
-
-def _run_label(day_range: list[int] | None) -> str:
-    """Run-labelled output subdir: `config.CALIBRATED_CITY_LABEL` ("12day_tuned") for the calibrated
-    default (ADR-0001), else `{N}day`."""
-    if day_range is None:
-        return config.CALIBRATED_CITY_LABEL
-    return f"{len(day_range)}day"
 
 
 def _report_runlog(
@@ -119,7 +112,10 @@ def main() -> None:
     parser.add_argument(
         "--run-label",
         default=None,
-        help="outputs go to outputs/dc/<LABEL> (default: 12day_tuned / <N>day); --output-dir wins",
+        help=(
+            "outputs go to outputs/dc/<LABEL> (default: 12day_<SCORING_VERSION> / "
+            "<N>day_<SCORING_VERSION>); --output-dir wins"
+        ),
     )
     parser.add_argument("--no-resume", action="store_true", help="recompute every tile")
     parser.add_argument(
@@ -138,9 +134,10 @@ def main() -> None:
     args = parser.parse_args()
     tiles_dir = Path(args.tiles_dir) if args.tiles_dir is not None else config.TILES_CACHE_DIR
     day_range = _parse_day_range(args.day_range)
-    # Default deliverables to a run-labelled subdir (outputs/dc/<N>day), never outputs/ root.
+    # Default deliverables to a version-stamped subdir (outputs/dc/<N>day_<SCORING_VERSION>), never
+    # outputs/ root.
     # Validated even under --output-dir so an unsafe --run-label is always rejected.
-    label = args.run_label if args.run_label is not None else _run_label(day_range)
+    label = args.run_label if args.run_label is not None else pipeline.city_run_label(day_range)
     try:
         config.validate_run_label(label)
     except ValueError as exc:
