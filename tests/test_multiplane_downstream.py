@@ -43,6 +43,7 @@ def _collapsed_buildings_gdf() -> gpd.GeoDataFrame:
             "building_id": [0, 1, 2],
             "n_planes": [2, 1, 1],
             "low_confidence": [False, False, True],
+            "superstructure_frac": [0.1, 0.0, 0.0],
             "tilt_deg": [20.0, 25.0, np.nan],
             "aspect_deg": [180.0, 190.0, np.nan],
             "roof_class": [

@@ -50,6 +50,9 @@ validation is [`docs/benchmarks/stage-2-part4-validation.md`](docs/benchmarks/st
 longer the production path). #30 then added a structural facet-vs-obstruction rule: a small raised
 later plane is dropped as a superstructure (`SCORING_VERSION` `2-4.3`; ADR-0013 addendum, risks §14
 item 7). #32 moved the map assets to that re-score (`12day_2-4.3`); its labels are not blind yet.
+#33 (`2-4.4`) made `low_confidence` fit quality only again (all fitted planes count) and reports
+clutter as `superstructure_frac`; yield unchanged and neither column is on the map, so the map stays
+on `12day_2-4.3`.
 #26 merged `stage-2` into `main`; Pages now deploys from `main` only, so the live map changes only
 when `web/` lands on `main`.
 **Phase 2 is planned in `docs/plans/stage-2-overview.md`** (5 parts; **Part 2-4 step 8 + Part 2-5

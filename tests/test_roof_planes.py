@@ -327,3 +327,51 @@ def test_superstructure_band_matches_obstruction_tau():
     # #30 / ADR-0013 addendum: a dropped superstructure's pixels are subtracted as obstruction
     # only above tau, so the drop band must stay equal to tau if either is retuned.
     assert roof_planes.RESIDUAL_THRESHOLD_M == usable_area.OBSTRUCTION_TAU_M
+
+
+def _plane_dict(coef, inlier_idx):
+    return {"coef": coef, "inlier_idx": np.asarray(inlier_idx), "n_px": len(inlier_idx)}
+
+
+def test_peel_planes_returns_the_superstructure_that_fit_planes_multi_drops():
+    # #33: peel_planes is the pure fitter (no drop); fit_planes_multi = peel + split, kept only.
+    X, z = _flat_roof_with_block((4, 5), dz=2.0)
+
+    peeled = roof_planes.peel_planes(X, z)
+
+    assert [p["n_px"] for p in peeled] == [380, 20]
+    assert [p["n_px"] for p in roof_planes.fit_planes_multi(X, z)] == [380]
+
+
+def test_split_superstructures_partitions_kept_and_dropped():
+    X, z = _flat_roof_with_block((4, 5), dz=2.0)
+    peeled = roof_planes.peel_planes(X, z)
+
+    kept, dropped = roof_planes.split_superstructures(peeled, X, z)
+
+    assert kept == peeled[:1]
+    assert dropped == peeled[1:]
+
+
+def test_split_superstructures_never_drops_dominant_and_handles_empty():
+    X, z = _flat_roof_with_block((4, 5), dz=2.0)
+    # A lone (even tiny, raised) plane is the dominant: kept.
+    lone = [_plane_dict((0.0, 0.0, 10.0), range(5))]
+
+    assert roof_planes.split_superstructures(lone, X, z) == (lone, [])
+    assert roof_planes.split_superstructures([], X, z) == ([], [])
+
+
+@pytest.mark.parametrize(("n_px", "is_dropped"), [(24, True), (25, False)])
+def test_superstructure_size_boundary(n_px, is_dropped):
+    # SUPERSTRUCTURE_MAX_PX = 25: a raised plane of 24 px is dropped, 25 px is kept.
+    assert roof_planes.SUPERSTRUCTURE_MAX_PX == 25
+    X, z = _flat_roof_with_block((5, 5), dz=2.0)  # block = 25 px at z=12
+    dominant = _plane_dict((0.0, 0.0, 10.0), range(100, 400))
+    block_idx = np.flatnonzero(z > 11.0)[:n_px]
+    raised = _plane_dict((0.0, 0.0, 12.0), block_idx)
+
+    kept, dropped = roof_planes.split_superstructures([dominant, raised], X, z)
+
+    assert (raised in dropped) is is_dropped
+    assert (raised in kept) is not is_dropped
