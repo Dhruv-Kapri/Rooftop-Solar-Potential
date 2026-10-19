@@ -9,7 +9,7 @@
 > [`stage-2-part4-validation.md`](../benchmarks/stage-2-part4-validation.md)). **Remaining:** step 8 (the
 > ML demo). The facet-vs-obstruction finding (a large planar obstruction is fit as its own plane and
 > escapes subtraction; ADR-0013, risks §14 item 7) got a structural rule in #30 (`SCORING_VERSION`
-> `2-4.3`, 2026-10-18); the map still serves `2-4.2` (#32).
+> `2-4.3`, 2026-10-18); #32 moved the map to it (run `12day_2-4.3`, 2026-10-19).
 >
 > Grilled to a full decision set (grill 2026-09-08, grounded on two fact-finds: the per-roof contract map
 > + the ML-model landscape) and recorded in
@@ -188,6 +188,11 @@ Together these are the plan's "accuracy comparison vs the RANSAC baseline" — d
      its pixels are subtracted as obstruction. `SCORING_VERSION` `2-4.3`; spot-check ±1 14/17 (stop
      rule met), exact 10/17; city re-score **2,196.1 MW / 2,607 GWh/yr, 1.69× / 1.63× NREL**. ADR-0013
      addendum; `spot_check/tuning.md` "#30". Labels still not blind. The map stays on `2-4.2` until #32.
+   - **✓ map refresh to `2-4.3` (#32, 2026-10-19):** `build_web` from `outputs/dc/12day_2-4.3/`,
+     assembled like #25 from #30's re-score. `run_city` now writes to a version-stamped label
+     (`pipeline.city_run_label`) and `build_web` reads `config.PUBLISHED_CITY_LABEL`, so a later
+     `SCORING_VERSION` can't overwrite the published run. Figures:
+     [published map run](../benchmarks/stage-2-part4-validation.md#published-map-run).
 8. The ML demo: `method="ml"` adapter (integration) + the comparison notebook (best-effort).
 
 **Delegation note:** steps 1–4 (deterministic, clear contracts) are strong Sonnet-subagent TDD tasks,
@@ -199,8 +204,8 @@ closer to hand.
 - `fit_roof_planes(method="multiplane")` + pixel membership; per-plane zonal POA; `detect_obstructions` +
   obstruction-aware `usable_area(obstructions=…)`; per-building collapse — all unit-tested (§4/§7).
 - `method="ml"` inference adapter + a ML-vs-classical comparison notebook (best-effort).
-- **✓** A refreshed city dataset (`outputs/dc/12day_tuned/`) + `web/assets/` (`build_web`, committed — no
-  app rebuild; #25).
+- **✓** A refreshed city dataset + `web/assets/` (`build_web`, committed — no app rebuild):
+  `outputs/dc/12day_tuned/` (#25), then `outputs/dc/12day_2-4.3/` (#32).
 - **✓** The validation write-up: DSM self-consistency (multi-plane vs single) + the 17-roof spot-check, with
   uncertainty stated — the honest "is it better than RANSAC" story
   ([`stage-2-part4-validation.md`](../benchmarks/stage-2-part4-validation.md), #24).

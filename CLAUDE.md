@@ -26,14 +26,16 @@ Part 2-2 scales the spine over the **whole District** by tiling: `tiling.py` (fi
 membership) + `pipeline.run_city` (per-tile GeoParquet cache, resumable manifest/params-stamp, city-wide
 merge + suitability recompute; `scripts/run_city.py`; ADR-0009). Both test tiers are green (unit +
 network/GRASS integration smoke). The full-DC batch (66 tiles @ 2 km, `scripts/run_city.py`) has since run —
-see Part 2-4 below. Deliverables are run-labelled under `outputs/dc/<label>/`; `12day_tuned` is the
-calibrated default (`config.CALIBRATED_CITY_LABEL`).
+see Part 2-4 below. Deliverables are run-labelled under `outputs/dc/<label>/`. `run_city` writes to a
+version-stamped label (`pipeline.city_run_label`, e.g. `12day_2-4.3`), so a `SCORING_VERSION` bump can't
+overwrite an earlier run. The map serves `config.PUBLISHED_CITY_LABEL` (#32).
 **Part 2-3 — the deployed web map — is built and live** at
 <https://dhruv-kapri.github.io/Rooftop-Solar-Potential/>: a static MapLibre GL JS + PMTiles map on
 GitHub Pages (`web/`, `scripts/build_web.py`; ADR-0010), ETL unit-tested with build + browser smokes
-green, PMTiles range-requests on Pages confirmed. It now serves the **tuned Part 2-4 run** (below): 2,237.6 MW /
-2,658 GWh/yr, specific yield ~1,188 kWh/kWp (Stage-1 Esri-validated ~1,162); capacity/energy still
-overstate NREL (1.72× / 1.66×) — a usable-area over-estimate, reported not targeted.
+green, PMTiles range-requests on Pages confirmed. It serves the **Part 2-4 run `12day_2-4.3`** (below;
+#32). Capacity/energy still overstate NREL ~1.6–1.7×, a usable-area over-estimate, reported not
+targeted. The headline figures live in one place, the validation write-up's
+[published map run](docs/benchmarks/stage-2-part4-validation.md#published-map-run); don't copy them here.
 **Part 2-4 — roof-geometry refinement (classical multi-plane + obstructions) — steps 1–7 done
 (2026-10-18).** Reframed from "ML segmentation" to a classical, training-free upgrade
 (ADR-0011/0012/0013): multi-plane sequential RANSAC (`fit_roof_planes(method="multiplane")`), per-plane
@@ -42,13 +44,12 @@ POA (`radiation.plane_poa`), obstruction-aware usable area (`detect_obstructions
 `method="multiplane"` is the production default, `"ransac"` the §6 baseline. Step 6 ran the city with
 a flat-roof GCR (`12day_gcr`, #19) on the **tiered per-tile cache** (ADR-0014: DSM + `r.sun` tiers with
 sha256 `.key` sidecars, keyed by component versions such as `SCORING_VERSION`), so downstream-only
-changes are re-scores; #23 tuned it (`2-4.2`, run `12day_tuned`, now on the map, #25). Step 7's
+changes are re-scores; #23 tuned it (`2-4.2`, run `12day_tuned`, on the map from #25 to #32). Step 7's
 validation is [`docs/benchmarks/stage-2-part4-validation.md`](docs/benchmarks/stage-2-part4-validation.md)
 (#24). **Remaining:** step 8 (the ML **demo** — `method="ml"`, bounded inference-only, no
 longer the production path). #30 then added a structural facet-vs-obstruction rule: a small raised
-later plane is dropped as a superstructure (`SCORING_VERSION` `2-4.3`; city re-score 2,196.1 MW /
-2,607 GWh/yr, 1.69× / 1.63× NREL; ADR-0013 addendum, risks §14 item 7). The map still serves `2-4.2`;
-moving it is #32.
+later plane is dropped as a superstructure (`SCORING_VERSION` `2-4.3`; ADR-0013 addendum, risks §14
+item 7). #32 moved the map to that re-score (`12day_2-4.3`); its labels are not blind yet.
 **Phase 2 is planned in `docs/plans/stage-2-overview.md`** (5 parts; **Part 2-4 step 8 + Part 2-5
 (fidelity) are next**).
 See `docs/roadmap.md` for phase boundaries/exit criteria and `docs/benchmarks/` for the benchmark

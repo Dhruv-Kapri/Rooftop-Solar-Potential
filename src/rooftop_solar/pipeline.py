@@ -537,6 +537,18 @@ DSM_VERSION = "1"
 RADIATION_VERSION = "1"
 SCORING_VERSION = "2-4.3"
 
+
+def city_run_label(day_range: list[int] | None = None) -> str:
+    """Version-stamped default label for a city run's outputs (`outputs/dc/<label>/`, #32).
+
+    `12day_<SCORING_VERSION>` for the calibrated 12-day default (ADR-0001), else
+    `<N>day_<SCORING_VERSION>`. Embedding the version means a SCORING_VERSION bump writes a
+    fresh dir instead of overwriting an earlier (possibly published) run. Reads the module
+    global at call time."""
+    days = 12 if day_range is None else len(day_range)
+    return f"{days}day_{SCORING_VERSION}"
+
+
 # The city path always scores via the Part 2-4 multiplane production chain (plan §3); this
 # single source keeps the scoring_key's `method` field and the actual _score_roofs call in sync.
 CITY_METHOD = "multiplane"
@@ -823,7 +835,9 @@ def run_city(
             (queried once per run) also feeds `radiation_key`, so a GRASS upgrade recomputes.
         tiles_dir: per-tile parquet cache + manifest (default `config.TILES_CACHE_DIR`).
         output_dir: where the city per-roof GeoParquet goes (default
-            `config.CALIBRATED_CITY_OUTPUTS_DIR`, `outputs/dc/12day_tuned/`).
+            `config.outputs_run_dir("dc", city_run_label(day_range))`, e.g.
+            `outputs/dc/12day_2-4.3/` — version-stamped so a SCORING_VERSION bump never
+            overwrites an earlier run, #32).
         resume: skip tiles already recorded done under the tile's current `scoring_key` whose
             roofs parquet still matches its checksum sidecar (idempotent re-run; a truncated,
             swapped or sidecar-less parquet after a cross-machine rsync handoff is recomputed
@@ -923,7 +937,11 @@ def run_city(
     city = recompute_city_suitability(merge_tile_roofs(tile_frames[i] for i in sorted(tile_frames)))
 
     if write_outputs:
-        out_dir = Path(output_dir) if output_dir is not None else config.CALIBRATED_CITY_OUTPUTS_DIR
+        out_dir = (
+            Path(output_dir)
+            if output_dir is not None
+            else config.outputs_run_dir("dc", city_run_label(day_range))
+        )
         _write_parquet(city, out_dir / CITY_ROOFS_PARQUET_NAME)
     return city
 

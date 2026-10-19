@@ -47,8 +47,9 @@ console errors**. So the **Cloudflare Pages fallback is not needed**.
 
 ## Caveats & refresh
 
-> **Superseded (2026-10-18, #25):** the map now serves the tuned Part 2-4 run (`outputs/dc/12day_tuned/`,
-> specific yield ~1,188 kWh/kWp, 2,237.6 MW). The bullet below records the 2026-09-08 state.
+> **Superseded:** the map now serves Part 2-4 runs (#25 `12day_tuned`, then #32 `12day_2-4.3`);
+> current figures in the [published map run](stage-2-part4-validation.md#published-map-run). The
+> bullet below records the 2026-09-08 state.
 
 - **Calibrated (12-day) numbers; capacity still approximate.** The committed tiles are from the
   calibrated 12-day run (`outputs/12day/`, swapped in 2026-09-08 — Part 2-3 step 6); the fleet specific

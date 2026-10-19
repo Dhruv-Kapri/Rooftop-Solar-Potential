@@ -106,12 +106,12 @@ fully static: **MapLibre GL JS + PMTiles vector tiles on GitHub Pages**, no back
   zoom past level 13 for the <strong>100,064 individual rooftops</strong> coloured by suitability.</em></sub>
 </p>
 
-> **Calibrated radiation; capacity still approximate.** The map serves the tuned 12-day run (Part 2-4,
-> multi-plane roofs + obstruction-aware usable area): 2,237.6 MW / 2,658 GWh/yr across 100,064 roofs.
-> The fleet specific yield (~1,188 kWh/kWp) is stable and close to Stage-1's Esri-validated
-> ~1,162. Capacity still runs about 1.72× NREL's published estimate (1.66× for energy) — a usable-area
-> over-estimate, not a radiation one; reported, not targeted
-> ([validation](docs/benchmarks/stage-2-part4-validation.md)). Rebuild the served tiles with `python scripts/build_web.py`
+> **Calibrated radiation; capacity still approximate.** The map serves the calibrated 12-day run
+> `12day_2-4.3` (Part 2-4: multi-plane roofs + obstruction-aware usable area, `SCORING_VERSION`
+> `2-4.3`). The fleet specific yield is stable and close to Stage-1's Esri-validated ~1,162 kWh/kWp.
+> Capacity and energy still run about 1.6–1.7× NREL's published estimate. That is a usable-area
+> over-estimate, not a radiation one, and it is reported, not targeted. Headline figures:
+> [published map run](docs/benchmarks/stage-2-part4-validation.md#published-map-run). Rebuild the served tiles with `python scripts/build_web.py`
 > (preview locally with `python scripts/serve_web.py` — a Range-capable static server, since PMTiles
 > needs byte-range requests).
 
