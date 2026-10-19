@@ -112,7 +112,7 @@ seconds per setting:
   - `low_confidence` changes meaning at `2-4.3`. A dropped plane no longer counts toward a
     building's inlier fraction, so the flag (inliers < 50%, or < 20 px in all) now also fires on
     a well-fit dominant plane carrying raised clutter. It isn't comparable across `2-4.2` and
-    `2-4.3` runs.
+    `2-4.3` runs. *Reverted at `2-4.4` (#33, addendum below).*
   - Only the dropped plane's pixels that sit more than τ above their nearest kept plane become
     obstruction. The rule tests the *median*, so up to half of them stay usable on the kept plane.
   - A dropped plane still used one of the `MAX_PLANES` fit slots.
@@ -127,3 +127,27 @@ seconds per setting:
 **Not settled.** The labels aren't blind (the drafter saw the model panels), only 2 scored roofs
 are `has_obstruction=n`, and with 17 roofs one roof is ~6 points. A blind relabel of a subset and
 more obstruction-free roofs should confirm the rule before it is tuned further (#23 caveats).
+
+## Addendum (2026-10-19) — `low_confidence` is fit quality again; clutter is `superstructure_frac` (#33)
+
+The `2-4.3` side effect above mixed two meanings into one flag: "the fit is poor" and "much of the
+roof is clutter". `2-4.4` separates them.
+
+- **`low_confidence`** is fit quality only (ADR-0002 addendum). The inlier fraction counts every
+  plane the sequential RANSAC fit, before the superstructure drop. A well-fit flat roof carrying an
+  HVAC block is not flagged.
+- **`superstructure_frac`** is a new per-building column: the dropped planes' pixels / the roof's
+  total pixels. It is carried through `collapse_to_buildings` to the per-roof output. An unfittable
+  roof reports 0.0 (nothing was dropped).
+- **Seam.** `roof_planes.peel_planes` is the pure sequential fitter, and
+  `roof_planes.split_superstructures` is this addendum's facet-vs-obstruction policy, returning
+  `(kept, dropped)`. `fit_planes_multi` composes them and its output is unchanged, so validation's
+  multiplane-vs-single comparison is unaffected. The policy can now be tested and swapped on its
+  own. A unit test pins the `SUPERSTRUCTURE_MAX_PX` boundary (24 px dropped, 25 px kept).
+
+**City re-score** (VM, cached DSM + radiation tiers, 66/66 tiles, no `r.sun` reruns): capacity,
+energy, usable area and plane counts are identical to `2-4.3` (2,196.1 MW / 2,607 GWh/yr).
+`low_confidence` returns to **27,788** roofs, the exact `2-4.2` count, down from 33,678.
+**12,379** roofs (12%) have `superstructure_frac > 0`, with a median of 0.25 and a 90th percentile
+of 0.36. Detail in `spot_check/tuning.md` "#33".
+

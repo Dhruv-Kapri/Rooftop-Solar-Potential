@@ -90,7 +90,9 @@ BIPV (§10) enters here as a stretch.
   [write-up](benchmarks/stage-2-part4-validation.md)) and the map refresh (#25). The structural
   facet-vs-obstruction rule (#30, `SCORING_VERSION` `2-4.3`) re-scored the city, and #32 moved the map
   to it (run `12day_2-4.3`; figures in the write-up's
-  [published map run](benchmarks/stage-2-part4-validation.md#published-map-run)).
+  [published map run](benchmarks/stage-2-part4-validation.md#published-map-run)). #33 (`2-4.4`) restores
+  `low_confidence` to fit quality and adds `superstructure_frac`, with yield unchanged (the map stays on
+  `12day_2-4.3`).
   **Remaining:** the **bounded inference-only ML demo** (step 8;
   `method="ml"`). `stage-2` merged into `main` and Pages deploys from `main` only (#26).
   **Part 2-4 step 8 + Part 2-5 (fidelity) next** — Part 2-5 starts from `main`, after its tentative

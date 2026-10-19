@@ -102,8 +102,8 @@ def collapse_to_buildings(plane_yields_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFram
 
     `plane_yields_gdf` — :func:`plane_yields`'s output, one row per (building, plane) — is
     grouped by `building_id` and reduced to exactly the downstream contract today's
-    :func:`estimate_yield` emits, PLUS `n_planes`/`low_confidence` (the multiplane
-    provenance):
+    :func:`estimate_yield` emits, PLUS `n_planes`/`low_confidence`/`superstructure_frac` (the
+    multiplane provenance):
 
       - ``geometry`` — the building's footprint (identical across its plane rows; take the
         first); ``footprint_area_m2 = geometry.area``.
@@ -116,8 +116,8 @@ def collapse_to_buildings(plane_yields_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFram
         smallest ``plane_id``, i.e. the largest-inlier-count facet). A building with no
         usable plane at all reports its `plane_id == 0` row instead — there is no dominant
         usable facet to prefer, but the building still needs *some* orientation to display.
-      - ``n_planes``, ``low_confidence`` — per-building values, repeated across a building's
-        plane rows upstream; take the first.
+      - ``n_planes``, ``low_confidence``, ``superstructure_frac`` — per-building values,
+        repeated across a building's plane rows upstream; take the first.
       - ``energy_density_kwh_m2 = annual_energy_kwh / footprint_area_m2``.
 
     Then recomputes ``suitability`` (:func:`suitability_score`) over the resulting
@@ -154,6 +154,7 @@ def collapse_to_buildings(plane_yields_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFram
                 "building_id": building_id,
                 "n_planes": group.iloc[0]["n_planes"],
                 "low_confidence": group.iloc[0]["low_confidence"],
+                "superstructure_frac": group.iloc[0]["superstructure_frac"],
                 "tilt_deg": dominant["tilt_deg"],
                 "aspect_deg": dominant["aspect_deg"],
                 "roof_class": dominant["roof_class"],

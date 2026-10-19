@@ -85,9 +85,9 @@ def run_stage1(
 
     The returned GeoDataFrame (working CRS) carries geometry + tilt/aspect + usable area +
     capacity/energy/CO₂ + within-AOI suitability (ADR-0004). The "multiplane" default adds
-    ``n_planes``/``low_confidence`` and is one row per building (facets collapsed, ADR-0011);
-    "ransac" is one row per footprint with the ``inlier_ratio``/``n_px`` uncertainty columns
-    (ADR-0002).
+    ``n_planes``/``low_confidence``/``superstructure_frac`` and is one row per building (facets
+    collapsed, ADR-0011); "ransac" is one row per footprint with the ``inlier_ratio``/``n_px``
+    uncertainty columns (ADR-0002).
     """
     if core is None:
         core = aoi.core_aoi_wgs84()
@@ -532,10 +532,12 @@ def render_potential_burden_scatter(
 #   SCORING_VERSION   — anything downstream of r.sun (roof planes / usable area / yield)
 # SCORING_VERSION carries forward the retired single-stamp generation "2-4.1" (the GCR baseline);
 # "2-4.2" is the #23 spot-check tuning (OBSTRUCTION_TAU_M 0.75 -> 0.5); "2-4.3" is the #30
-# superstructure rule (roof_planes.SUPERSTRUCTURE_MAX_PX, ADR-0013 addendum).
+# superstructure rule (roof_planes.SUPERSTRUCTURE_MAX_PX, ADR-0013 addendum);
+# "2-4.4" is #33 (low_confidence back to fit quality over all fitted planes; new
+# superstructure_frac column).
 DSM_VERSION = "1"
 RADIATION_VERSION = "1"
-SCORING_VERSION = "2-4.3"
+SCORING_VERSION = "2-4.4"
 
 
 def city_run_label(day_range: list[int] | None = None) -> str:
