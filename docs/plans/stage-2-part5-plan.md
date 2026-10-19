@@ -5,7 +5,8 @@
 > before starting it**, against what the earlier parts actually taught. Guesses are flagged `ASSUMPTION:`.
 
 - **Phase:** 2, Part 5 of 5 · **Branch:** `stage-2` · **Overview:** [stage-2-overview.md](stage-2-overview.md)
-- **Prerequisite:** Part 2-4 built.
+- **Prerequisite:** Part 2-4 built (steps 1–7 done 2026-10-18 and merged to `main`, #26) — so this
+  plan is now due its revision.
 
 ## 1. What this part is
 
