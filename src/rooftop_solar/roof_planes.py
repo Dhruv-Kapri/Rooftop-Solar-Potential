@@ -107,7 +107,7 @@ def _is_superstructure(
     return bool(np.median(z[idx] - (a * X[idx, 0] + b * X[idx, 1] + c)) > RESIDUAL_THRESHOLD_M)
 
 
-def fit_planes_multi(
+def peel_planes(
     X: npt.NDArray[np.float64], z: npt.NDArray[np.float64], max_planes: int = MAX_PLANES
 ) -> list[dict[str, object]]:
     """Sequential RANSAC: peel off up to `max_planes` roof facets from one point cloud.
@@ -130,11 +130,7 @@ def fit_planes_multi(
     descending, so index 0 is always the dominant (largest) facet. Returns `[]` if
     `len(z) < MIN_PX` to begin with, or the very first fit can't clear `MIN_PLANE_PX`.
 
-    Raised superstructures are dropped (#30 / ADR-0013): any later plane that is small
-    (`SUPERSTRUCTURE_MAX_PX`) and sits above the dominant plane (median residual >
-    `RESIDUAL_THRESHOLD_M`) is removed from the result, no refit — its pixels fall to the
-    nearest kept plane downstream and anything well above it becomes an obstruction. The
-    dominant plane is never dropped.
+    Pure fitter: no superstructure policy (that is :func:`split_superstructures`, #33).
     """
     remaining = np.arange(len(z))
     planes: list[dict[str, object]] = []
@@ -161,10 +157,41 @@ def fit_planes_multi(
         )
         remaining = remaining[~mask]
     planes.sort(key=lambda p: p["n_px"], reverse=True)
-    if planes:
-        dominant = planes[0]
-        planes = [dominant] + [p for p in planes[1:] if not _is_superstructure(p, dominant, X, z)]
     return planes
+
+
+def split_superstructures(
+    planes: list[dict[str, object]],
+    X: npt.NDArray[np.float64],
+    z: npt.NDArray[np.float64],
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    """Partition peeled `planes` into ``(kept, dropped)`` raised superstructures (#30 / ADR-0013).
+
+    Any later plane that is small (`SUPERSTRUCTURE_MAX_PX`) and sits above the dominant plane
+    (median residual > `RESIDUAL_THRESHOLD_M`) is dropped, no refit — its pixels fall to the
+    nearest kept plane downstream and anything well above it becomes an obstruction. The
+    dominant plane (`planes[0]`) is never dropped. Order is preserved; empty in, empty out.
+    """
+    if not planes:
+        return [], []
+    dominant = planes[0]
+    kept = [dominant]
+    dropped = []
+    for plane in planes[1:]:
+        (dropped if _is_superstructure(plane, dominant, X, z) else kept).append(plane)
+    return kept, dropped
+
+
+def fit_planes_multi(
+    X: npt.NDArray[np.float64], z: npt.NDArray[np.float64], max_planes: int = MAX_PLANES
+) -> list[dict[str, object]]:
+    """The roof's kept facets: :func:`peel_planes` then :func:`split_superstructures` (kept only).
+
+    Same contract as `peel_planes` (plane dict shape, sorted by `n_px` descending, `max_planes`
+    cap) except raised superstructures are dropped (#30 / ADR-0013). The dominant plane is
+    never dropped.
+    """
+    return split_superstructures(peel_planes(X, z, max_planes), X, z)[0]
 
 
 def roof_points(
@@ -227,14 +254,17 @@ def fit_roof_planes(
     inlier count), ``coef`` (`(a, b, c)` of `z = a*x + b*y + c`, for obstruction
     residuals downstream), ``inlier_xy`` ((n_px, 2) easting/northing pixel centres —
     this plane's membership, consumed by `radiation.plane_poa`), ``low_confidence``
-    (per building, repeated: True if the building's overall inlier fraction < 0.5 or its
-    total pixel count < 20 — the same threshold `fit_roof_plane` uses at n_px<20).
+    (per building, repeated: overall fit quality — True if the inlier fraction over EVERY
+    plane fit, before the superstructure drop, is < 0.5 or the total pixel count < 20, the
+    same threshold `fit_roof_plane` uses at n_px<20; #33), ``superstructure_frac`` (per
+    building, repeated: the dropped superstructures' pixels / total pixels — roof clutter,
+    reported apart from fit quality). Rows come only from kept planes.
 
     An **unfittable** footprint (too few DSM pixel centres, or not even one facet clears
     `MIN_PLANE_PX`) still gets exactly **one** row — never dropped (ADR-0002's "flag,
     don't drop" carried into Part 2-4): `plane_id=0`, `n_planes=1`, NaN tilt/aspect/
     inlier_ratio, `n_px` = the building's raw pixel count, `coef=None`, `inlier_xy` an
-    empty `(0, 2)` array, `low_confidence=True`.
+    empty `(0, 2)` array, `low_confidence=True`, `superstructure_frac=0.0`.
 
     Args:
         method: "ransac" is the Phase 1 baseline — a single robust plane per footprint,
@@ -273,7 +303,8 @@ def fit_roof_planes(
     for building_id, geom in enumerate(footprints.geometry):
         X, z = roof_points(geom, dsm_path)
         total_px = int(len(z))
-        planes = fit_planes_multi(X, z, max_planes=max_planes)
+        peeled = peel_planes(X, z, max_planes=max_planes)
+        planes, dropped = split_superstructures(peeled, X, z)
 
         if not planes:
             # Unfittable: too few pixels, or no facet cleared MIN_PLANE_PX. One
@@ -291,13 +322,17 @@ def fit_roof_planes(
                     "coef": None,
                     "inlier_xy": np.empty((0, 2), dtype=np.float64),
                     "low_confidence": True,
+                    "superstructure_frac": 0.0,
                 }
             )
             continue
 
         n_planes = len(planes)
-        total_inliers = sum(plane["n_px"] for plane in planes)
-        low_confidence = bool(total_inliers / total_px < 0.5 or total_px < 20)
+        dropped_px = sum(plane["n_px"] for plane in dropped)
+        # Fit quality is judged over every peeled plane, before the superstructure drop (#33).
+        peeled_px = sum(plane["n_px"] for plane in peeled)
+        low_confidence = bool(peeled_px / total_px < 0.5 or total_px < 20)
+        superstructure_frac = dropped_px / total_px
         for plane_id, plane in enumerate(planes):
             records.append(
                 {
@@ -312,6 +347,7 @@ def fit_roof_planes(
                     "coef": plane["coef"],
                     "inlier_xy": X[plane["inlier_idx"]],
                     "low_confidence": low_confidence,
+                    "superstructure_frac": superstructure_frac,
                 }
             )
     return gpd.GeoDataFrame(records, crs=footprints.crs)
