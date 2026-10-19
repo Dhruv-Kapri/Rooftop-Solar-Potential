@@ -76,7 +76,7 @@ def test_tile_self_consistency_tags_rows_and_keeps_compare_columns(tiles):
     assert (got["tile_row"] == 2).all() and (got["tile_col"] == 5).all()
     assert list(got["roof_class"]) == ["pitched", "flat"]
     assert list(got["n_planes"]) == [2, 0]
-    assert list(got["roof_type"]) == ["gable", "flat"]  # from compare's n_planes, not the parquet's
+    assert list(got["roof_type"]) == ["gable", "unfittable"]  # n_planes 0 -> own bin (#31)
     assert {"rmse_multiplane", "rmse_ransac", "rmse_improvement"} <= set(got.columns)
     assert got.crs == config.WORKING_CRS
     assert got["rmse_improvement"].iloc[0] > 0.5  # one plane cannot reconstruct a gable
@@ -125,7 +125,7 @@ def _per_roof() -> pd.DataFrame:
     nan = np.nan
     return pd.DataFrame(
         {
-            "roof_type": ["gable", "gable", "gable", "hip", "flat"],
+            "roof_type": ["gable", "gable", "unfittable", "hip", "flat"],
             "rmse_multiplane": [0.1, 0.3, nan, 0.2, 0.05],
             "rmse_ransac": [0.5, 0.9, nan, 0.4, 0.05],
             "rmse_improvement": [0.4, 0.6, nan, 0.2, 0.0],
@@ -139,15 +139,18 @@ def test_summarize_self_consistency_hand_computed():
     got = validation.summarize_self_consistency(_per_roof())
 
     assert got.index.name == "roof_type"
-    assert list(got.index) == ["flat", "gable", "hip", "complex", "all"]
+    assert list(got.index) == ["flat", "gable", "hip", "complex", "unfittable", "all"]
     gable = got.loc["gable"]
-    assert (gable["n_roofs"], gable["n_unfittable"]) == (3, 1)
+    assert (gable["n_roofs"], gable["n_unfittable"]) == (2, 0)
     assert gable["rmse_multiplane_median"] == pytest.approx(0.2)
     assert gable["rmse_ransac_median"] == pytest.approx(0.7)
     assert gable["rmse_improvement_median"] == pytest.approx(0.5)
     assert gable["rmse_improvement_p90"] == pytest.approx(0.58)  # 0.4 + 0.9 * (0.6 - 0.4)
     assert gable["pct_within_multiplane_median"] == pytest.approx(80.0)
     assert gable["pct_within_ransac_median"] == pytest.approx(40.0)
+    unfit = got.loc["unfittable"]
+    assert (unfit["n_roofs"], unfit["n_unfittable"]) == (1, 1)
+    assert unfit.drop(["n_roofs", "n_unfittable"]).isna().all()
     everything = got.loc["all"]
     assert (everything["n_roofs"], everything["n_unfittable"]) == (5, 1)
     assert everything["rmse_multiplane_median"] == pytest.approx(0.15)  # [.05,.1,.2,.3]
