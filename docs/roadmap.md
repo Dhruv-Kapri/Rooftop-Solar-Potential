@@ -91,7 +91,9 @@ BIPV (§10) enters here as a stretch.
   2,658 GWh/yr, 1.72× / 1.66× NREL. The structural facet-vs-obstruction rule (#30, `SCORING_VERSION`
   `2-4.3`) re-scores the city to 2,196.1 MW / 2,607 GWh/yr (1.69× / 1.63×); the map moves to it in #32.
   **Remaining:** the **bounded inference-only ML demo** (step 8;
-  `method="ml"`). **Part 2-4 step 8 + Part 2-5 (fidelity) next.**
+  `method="ml"`). `stage-2` merged into `main` and Pages deploys from `main` only (#26).
+  **Part 2-4 step 8 + Part 2-5 (fidelity) next** — Part 2-5 starts from `main`, after its tentative
+  plan is revised.
 
 ## Phase 3 · India — re-version via modular adapters · stretch
 
