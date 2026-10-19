@@ -18,7 +18,7 @@ import numpy.typing as npt
 import pytest
 from sklearn.exceptions import UndefinedMetricWarning
 
-from rooftop_solar import roof_planes
+from rooftop_solar import roof_planes, usable_area
 
 # Compass azimuth (deg) of the direction each synthetic roof *faces* (downslope).
 _FACING_AZIMUTH = {"north": 0.0, "east": 90.0, "south": 180.0, "west": 270.0}
@@ -264,3 +264,66 @@ def test_normal_roof_outputs_unchanged():
     assert len(planes) == 1
     assert planes[0]["n_px"] == 100
     assert planes[0]["coef"] == pytest.approx((0.0, np.tan(np.radians(30.0)), 0.0), abs=1e-9)
+
+
+def _flat_roof_with_block(
+    block_shape: tuple[int, int], dz: float
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    """A 20x20 px flat roof at z=10 with a flat block (corner, `block_shape` px) at `dz` m."""
+    east_idx, north_idx = np.meshgrid(np.arange(20), np.arange(20), indexing="ij")
+    east = east_idx.ravel().astype(np.float64)
+    north = north_idx.ravel().astype(np.float64)
+    in_block = (east < block_shape[0]) & (north < block_shape[1])
+    z = np.where(in_block, 10.0 + dz, 10.0)
+    return np.column_stack([east, north]), z
+
+
+def test_multiplane_drops_small_raised_superstructure(monkeypatch):
+    # #30 / ADR-0013: a 20-px block 2 m above a flat roof (HVAC-sized) is fit as its own
+    # plane by sequential RANSAC, then dropped as a raised superstructure.
+    X, z = _flat_roof_with_block((4, 5), dz=2.0)
+    assert 20 < roof_planes.SUPERSTRUCTURE_MAX_PX
+    with monkeypatch.context() as m:  # the pre-rule behaviour: the block is a real plane
+        m.setattr(roof_planes, "SUPERSTRUCTURE_MAX_PX", 0)
+        assert len(roof_planes.fit_planes_multi(X, z)) == 2
+
+    planes = roof_planes.fit_planes_multi(X, z)
+
+    assert len(planes) == 1
+    assert planes[0]["n_px"] == 380
+
+
+def test_multiplane_keeps_gable_secondary_facet():
+    # A small second facet that sits BELOW the dominant facet's extension (a gable's far
+    # side) is a facet, not a superstructure: 10x2 px = 20 px < the size cap, still kept.
+    slope = float(np.tan(np.radians(20.0)))
+    east_idx, north_idx = np.meshgrid(np.arange(10), np.arange(22), indexing="ij")
+    east = east_idx.ravel().astype(np.float64)
+    north = north_idx.ravel().astype(np.float64)
+    z = np.where(north < 20, slope * north, slope * 19 - slope * (north - 19))
+    X = np.column_stack([east, north])
+
+    planes = roof_planes.fit_planes_multi(X, z)
+
+    assert [p["n_px"] for p in planes] == [200, 20]
+
+
+def test_multiplane_keeps_large_raised_level():
+    # A 36-px level 3 m up is >= SUPERSTRUCTURE_MAX_PX: a real raised roof level, kept.
+    X, z = _flat_roof_with_block((6, 6), dz=3.0)
+    assert 36 >= roof_planes.SUPERSTRUCTURE_MAX_PX
+
+    assert len(roof_planes.fit_planes_multi(X, z)) == 2
+
+
+def test_multiplane_keeps_small_plane_below_dominant():
+    # The rule is above-only: a 20-px sunken block (2 m below) is kept.
+    X, z = _flat_roof_with_block((4, 5), dz=-2.0)
+
+    assert len(roof_planes.fit_planes_multi(X, z)) == 2
+
+
+def test_superstructure_band_matches_obstruction_tau():
+    # #30 / ADR-0013 addendum: a dropped superstructure's pixels are subtracted as obstruction
+    # only above tau, so the drop band must stay equal to tau if either is retuned.
+    assert roof_planes.RESIDUAL_THRESHOLD_M == usable_area.OBSTRUCTION_TAU_M

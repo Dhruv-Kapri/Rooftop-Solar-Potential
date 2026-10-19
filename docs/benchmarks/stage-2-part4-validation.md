@@ -27,6 +27,9 @@ model their structure better.**
 - **Spot-check (17 roofs):** ±1 plane-count agreement is **12/17 (71%) vs 11/17 (65%)**, which is a
   statistical tie. Exact agreement is **9/17 vs 4/17**. Multiplane reaches the cap on the six roofs
   labelled above it, where one plane can't, and over-splits flat roofs with HVAC (ADR-0013, follow-up #30).
+  *Since then:* #30's superstructure rule (`SCORING_VERSION` `2-4.3`) reaches **14/17 ±1 and 10/17
+  exact** on the same labels. The numbers in this write-up are for `2-4.2` and aren't re-run; see
+  [`spot_check/tuning.md`](spot_check/tuning.md) "#30".
 - **City total vs NREL:** **2.9× → 1.77× → 1.72×** capacity (pre-GCR → GCR → tuned). The tuned
   run is **2,237.6 MW / 2,658 GWh/yr, 1.72× / 1.66×** NREL's ~1.3 GW / ~1.6 TWh. This is reported,
   not targeted.

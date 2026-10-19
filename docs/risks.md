@@ -21,7 +21,11 @@
    multi-plane RANSAC and, if usably oriented, counts as usable roof — inflating usable area for exactly
    the biggest obstructions. `MIN_PLANE_PX` is the explicit, reported knob at the facet-vs-obstruction
    seam; it is tuned on the ~20-roof spot-check (§14.4), whose *obstruction-presence* labels reveal
-   escapes. Deferred-and-recorded, not yet tuned (ADR-0013 Consequences).
+   escapes. #23 found `MIN_PLANE_PX` can't close it alone. #30 adds a structural rule: a small
+   (< `SUPERSTRUCTURE_MAX_PX` = 25 px) later plane sitting > 0.5 m above the dominant plane is
+   dropped, so its pixels are subtracted as obstruction. Spot-check ±1 12 → 14/17, exact 9 → 10/17.
+   Raised planes ≥ 25 px still escape, and a small raised real facet (a front mansard) can be lost
+   (ADR-0013 addendum 2026-10-18).
 
 ## Inter-building & mutual shading — the traps (§8)
 

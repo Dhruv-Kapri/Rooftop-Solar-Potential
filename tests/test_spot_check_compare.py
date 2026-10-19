@@ -282,9 +282,22 @@ def test_summary_counts_clamped_and_raw_agreement():
     # clamped: a,b,d,e agree (c is +2) -> 4/5; raw: b is |4 - 7| = 3 -> a,d,e -> 3/5
     assert (mp["plane_agree"], mp["plane_agree_pct"]) == (4, 80.0)
     assert (mp["plane_agree_raw"], mp["plane_agree_raw_pct"]) == (3, 60.0)
-    assert list(summary.columns)[1:5] == [
-        "plane_agree", "plane_agree_pct", "plane_agree_raw", "plane_agree_raw_pct",
+    assert list(summary.columns)[1:7] == [
+        "plane_agree", "plane_agree_pct", "plane_exact", "plane_exact_pct",
+        "plane_agree_raw", "plane_agree_raw_pct",
     ]  # fmt: skip
+
+
+def test_plane_exact_is_stricter_than_plus_minus_one():
+    # #30: exact agreement sits next to +/-1 so a 2 -> 1 collapse can't score as a win.
+    c = validation.compare_labels(_labels(), _score())
+    assert (c["plane_exact"] == (c["plane_diff"] == 0)).all()
+    assert (c["plane_agree"] & ~c["plane_exact"]).any()  # the fixture has +/-1 misses
+    mp = validation.summarize_spot_check(c).loc["multiplane"]
+    m = c[c["method"] == "multiplane"]
+    assert mp["plane_exact"] == m["plane_exact"].sum()
+    assert mp["plane_exact_pct"] == pytest.approx(100.0 * m["plane_exact"].mean())
+    assert mp["plane_exact"] < mp["plane_agree"]
 
 
 def test_summarize_spot_check_by_method():
