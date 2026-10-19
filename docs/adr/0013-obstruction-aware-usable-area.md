@@ -110,8 +110,9 @@ seconds per setting:
   (a 200 px facet plus a 20 px facet rising away from it) fits 2 planes without the rule and 1 with it.
 - **Side effects, by construction:**
   - `low_confidence` changes meaning at `2-4.3`. A dropped plane no longer counts toward a
-    building's inlier fraction, so the flag (inliers < 50%) now also fires on a well-fit dominant
-    plane carrying raised clutter. It isn't comparable across `2-4.2` and `2-4.3` runs.
+    building's inlier fraction, so the flag (inliers < 50%, or < 20 px in all) now also fires on
+    a well-fit dominant plane carrying raised clutter. It isn't comparable across `2-4.2` and
+    `2-4.3` runs.
   - Only the dropped plane's pixels that sit more than τ above their nearest kept plane become
     obstruction. The rule tests the *median*, so up to half of them stay usable on the kept plane.
   - A dropped plane still used one of the `MAX_PLANES` fit slots.
