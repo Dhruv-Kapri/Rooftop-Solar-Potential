@@ -36,10 +36,11 @@
     <button id="about-close" class="about-close" aria-label="Close">&times;</button>
     <h2>About this map</h2>
     <p class="warn"><strong>Calibrated radiation; capacity still approximate.</strong> These are the
-      calibrated 12-day figures &mdash; the fleet <em>specific yield</em> (~1,124 kWh/kWp) matches an
-      independently validated benchmark. But absolute <em>capacity</em> (and total energy) still runs
-      high versus published estimates: usable area is derated by a flat factor and merged building
-      footprints inflate it. An obstruction-aware fix is the next accuracy pass. Treat per-roof kW/kWh
+      calibrated 12-day figures &mdash; the fleet <em>specific yield</em> (~1,188 kWh/kWp) is close to
+      an independently validated benchmark. Roofs are fit with multiple planes and rooftop obstructions
+      are subtracted, but absolute <em>capacity</em> (2,238 MW city-wide, about 1.7&times; published
+      estimates) and total energy (2,658 GWh/yr) still run high: usable area is over-estimated, not the
+      radiation. Treat per-roof kW/kWh
       as indicative; the relative suitability and the equity ranking are the sound parts.</p>
     <img src="./assets/scatter.png" alt="Scatter of per-household solar potential vs. energy burden, by tract" />
     <p>Each tract is placed in a 2&times;2 quadrant by median-splitting <strong>per-household solar
@@ -47,8 +48,9 @@
       (outlined red) are high potential <em>and</em> high burden &mdash; where rooftop solar does the
       most equity good.</p>
     <p class="src">Roofs: Microsoft Building Footprints + USGS 3DEP LiDAR, shaded <code>r.sun</code>
-      radiation, RANSAC roof planes, PVWatts yield. Tracts: US Census TIGER/ACS + DOE LEAD. Built
-      with open-source Python; served static via MapLibre GL JS + PMTiles.</p>
+      radiation, multi-plane roof fits with obstruction-aware usable area, PVWatts yield. Tracts: US
+      Census TIGER/ACS + DOE LEAD. Built with open-source Python; served static via MapLibre GL JS +
+      PMTiles.</p>
   </aside>
 
   <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>

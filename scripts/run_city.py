@@ -17,7 +17,7 @@ Prints the compute-cost run-log Parts 2-4/2-5 budget re-runs against (stage-2-pa
     python scripts/run_city.py --workers 2 --nprocs 4 # 2 tiles at once x 4 threads (same results)
 
 This is a BATCH JOB, not CI: the calibrated full-DC run is many tiles × a 12-day r.sun pass.
-Deliverables land in a run-labelled subdir — outputs/dc/12day (calibrated default) or
+Deliverables land in a run-labelled subdir — outputs/dc/12day_tuned (calibrated default) or
 outputs/dc/<N>day for an N-day sample — so a run never dumps into outputs/ root beside the
 Stage-1 Glover Park files (override with --output-dir). It writes the city per-roof GeoParquet
 (roofs.parquet) and — unless --no-aggregate — the tract equity GeoPackage + choropleths (the
@@ -47,7 +47,7 @@ def _parse_day_range(value: str | None) -> list[int] | None:
 
 
 def _run_label(day_range: list[int] | None) -> str:
-    """Run-labelled output subdir: `config.CALIBRATED_CITY_LABEL` ("12day") for the calibrated
+    """Run-labelled output subdir: `config.CALIBRATED_CITY_LABEL` ("12day_tuned") for the calibrated
     default (ADR-0001), else `{N}day`."""
     if day_range is None:
         return config.CALIBRATED_CITY_LABEL
@@ -119,7 +119,7 @@ def main() -> None:
     parser.add_argument(
         "--run-label",
         default=None,
-        help="deliverables go to outputs/dc/<LABEL> (default: 12day / <N>day); --output-dir wins",
+        help="outputs go to outputs/dc/<LABEL> (default: 12day_tuned / <N>day); --output-dir wins",
     )
     parser.add_argument("--no-resume", action="store_true", help="recompute every tile")
     parser.add_argument(
