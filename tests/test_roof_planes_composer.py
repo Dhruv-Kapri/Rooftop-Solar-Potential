@@ -142,6 +142,7 @@ def test_multiplane_unfittable_footprint_one_low_conf_row(gable_dsm_path, footpr
     assert row["coef"] is None
     assert row["inlier_xy"].shape == (0, 2)
     assert row["low_confidence"]
+    assert row["superstructure_frac"] == 0.0
 
 
 def test_multiplane_output_contract_columns_and_crs(gable_dsm_path, footprints):
@@ -159,6 +160,7 @@ def test_multiplane_output_contract_columns_and_crs(gable_dsm_path, footprints):
         "coef",
         "inlier_xy",
         "low_confidence",
+        "superstructure_frac",
     }
     assert roofs.crs == footprints.crs
 
@@ -234,3 +236,48 @@ def test_roof_points_returns_empty_arrays_when_no_pixel_centre_is_covered(dsm_pa
 
     assert X.shape == (0, 2)
     assert z.shape == (0,)
+
+
+def test_multiplane_hvac_on_flat_roof_keeps_fit_quality_high(tmp_path):
+    # #33: low_confidence is fit quality over EVERY peeled plane, before the superstructure
+    # drop. A 7x7 px roof: 20 px flat (dominant, 41% < 50%), a 12-px raised HVAC block (dropped),
+    # 17 px of scattered clutter that fits no plane. Kept inliers 20/49 < 0.5, but all peeled
+    # 32/49 >= 0.5 -> not low-confidence; the dropped block is reported as superstructure_frac.
+    size = 7
+    rng = np.random.default_rng(0)
+    kind = rng.permutation(np.array([0] * 20 + [1] * 12 + [2] * 17))
+    clutter_z = 30.0 + 7.0 * rng.permutation(17)
+    z = np.where(kind == 0, 300.0, 302.0)
+    z[kind == 2] = 300.0 + clutter_z
+    band = z.reshape(size, size).astype(np.float32)
+    path = tmp_path / "hvac_dsm.tif"
+    transform = from_origin(ORIGIN_EASTING, ORIGIN_NORTHING, PIXEL_M, PIXEL_M)
+    with rasterio.open(
+        path,
+        "w",
+        driver="GTiff",
+        height=size,
+        width=size,
+        count=1,
+        dtype=band.dtype,
+        crs=config.WORKING_CRS,
+        transform=transform,
+        nodata=NODATA,
+    ) as dst:
+        dst.write(band, 1)
+    roof = box(
+        ORIGIN_EASTING,
+        ORIGIN_NORTHING - size * PIXEL_M,
+        ORIGIN_EASTING + size * PIXEL_M,
+        ORIGIN_NORTHING,
+    )
+    fp = gpd.GeoDataFrame({"id": ["hvac"]}, geometry=[roof], crs=config.WORKING_CRS)
+
+    roofs = roof_planes.fit_roof_planes(fp, path, method="multiplane")
+
+    assert len(roofs) == 1  # only the dominant flat plane becomes a row
+    row = roofs.iloc[0]
+    assert row["n_px"] == 20
+    assert row["inlier_ratio"] == pytest.approx(20 / 49)
+    assert not row["low_confidence"]
+    assert row["superstructure_frac"] == pytest.approx(12 / 49)

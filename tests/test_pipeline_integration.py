@@ -32,6 +32,7 @@ _EXPECTED_COLUMNS = {
     "building_id",
     "n_planes",
     "low_confidence",
+    "superstructure_frac",
     "tilt_deg",
     "aspect_deg",
     "roof_class",
