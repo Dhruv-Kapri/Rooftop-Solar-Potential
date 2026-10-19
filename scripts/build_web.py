@@ -5,11 +5,11 @@ Thin wrapper over ``web_build.build_web``: reads ``tracts.gpkg`` (the aggregatio
 layer) + ``roofs.parquet`` (the city per-roof layer) from an input dir and writes
 ``web/assets/{tracts.geojson, roofs.pmtiles, scatter.png}`` — the inline tract layer, the
 100k-roof vector tiles, and the about-panel chart (plan §4). Defaults ``--input`` to the published
-run (``outputs/dc/12day_2-4.3/``, ``config.PUBLISHED_CITY_OUTPUTS_DIR``); point it at
+run (``config.PUBLISHED_CITY_OUTPUTS_DIR``); point it at
 ``outputs/dc/1day_<SCORING_VERSION>/`` for a dev build.
 
-    python scripts/build_web.py                          # outputs/dc/12day_2-4.3/ -> web/assets/
-    python scripts/build_web.py --input outputs/dc/1day_2-4.3   # dev build off a 1-day pass
+    python scripts/build_web.py                          # published run -> web/assets/
+    python scripts/build_web.py --input outputs/dc/1day_<SCORING_VERSION>  # 1-day dev build
     python scripts/build_web.py --output /tmp/assets       # write elsewhere
 
 Requires ``tippecanoe`` on PATH (a system dep, ADR-0010).
@@ -28,7 +28,7 @@ def main() -> None:
     parser.add_argument(
         "--input",
         default=None,
-        help="dir with tracts.gpkg + roofs.parquet (default: published outputs/dc/12day_2-4.3/)",
+        help="dir with tracts.gpkg + roofs.parquet (default: config.PUBLISHED_CITY_OUTPUTS_DIR)",
     )
     parser.add_argument(
         "--output", default=None, help="web assets output dir (default: web/assets/)"
