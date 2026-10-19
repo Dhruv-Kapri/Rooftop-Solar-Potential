@@ -47,14 +47,15 @@ production `n_planes` on 100% of fittable roofs.
 | roof type | roofs | unfittable | RMSE multiplane | RMSE ransac | RMSE improvement (median / p90) | % px ≤ 0.5 m multiplane | % px ≤ 0.5 m ransac | capacity share |
 |---|---|---|---|---|---|---|---|---|
 | flat | 16,787 | 0 | 0.71 | 1.29 | 0.50 / 1.14 | 78 | 55 | 180 MW (8%) |
-| gable | 54,274 | 8,393¹ | 1.13 | 1.80 | 0.37 / 1.78 | 63 | 44 | 321 MW (14%) |
+| gable | 45,881 | 0 | 1.13 | 1.80 | 0.37 / 1.78 | 63 | 44 | 321 MW (14%) |
 | hip | 14,016 | 0 | 0.68 | 2.57 | 1.82 / 3.69 | 80 | 35 | 480 MW (21%) |
 | complex | 14,987 | 0 | 0.54 | 1.86 | 1.24 / 2.66 | 87 | 50 | 1,257 MW (56%) |
+| unfittable¹ | 8,393 | 8,393 | — | — | — | — | — | 0 MW (0%) |
 | **all** | **100,064** | **8,393** | **0.85** | **1.79** | **0.81 / 2.32** | **73** | **45** | **2,238 MW** |
 
-¹ An unfittable roof (too few DSM pixels, or no facet that clears `MIN_PLANE_PX`) has no planes and lands in
-"gable" by the proxy's rule. These roofs are small (median footprint 63 m²) and all
-`low_confidence`. None is usable, so they carry **0 MW**. They are excluded from the medians.
+¹ An unfittable roof (too few DSM pixels, or no facet that clears `MIN_PLANE_PX`) has no planes, so the
+self-consistency summary gives it its own bin (#31; the spot-check's `roof_type` proxy is unchanged).
+These roofs are small (median footprint 63 m²) and all `low_confidence`. None is usable, so they carry **0 MW**. They are excluded from the medians.
 
 Share of fittable roofs where multiplane cuts RMSE by more than 0.25 m: flat 64%, gable 52%, hip
 100%, complex 99.9%, all 70%. A roof fit as a single plane improves by exactly 0. That is 33% of
