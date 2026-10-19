@@ -19,8 +19,8 @@ Esri.
 **Phase 1 MVP complete (2026-09-07); Phase 2 in progress — Parts 2-1 (aggregation + equity), 2-2
 (city-scale tiling) and 2-3 (web map) built; Part 2-4 steps 1–7 done (2026-10-18).** The full spine —
 footprints → DSM → shaded `r.sun` radiation → roof planes → usable area → PV yield + suitability — runs
-end-to-end for Glover Park (`scripts/run_stage1.py`) and passes the ADR-0005 benchmark gate. Part 2-1 fills the last stub
-(`aggregate.py`), adds the census/equity data-access module (`tracts.py`), and rolls per-roof
+end-to-end for Glover Park (`scripts/run_stage1.py`) and passes the ADR-0005 benchmark gate. Part 2-1
+fills the last stub (`aggregate.py`), adds the census/equity data-access module (`tracts.py`), and rolls per-roof
 results up to census tracts with an equity overlay (`scripts/run_aggregation.py`; ADR-0006/0007/0008).
 Part 2-2 scales the spine over the **whole District** by tiling: `tiling.py` (fixed-origin grid + `floor`
 membership) + `pipeline.run_city` (per-tile GeoParquet cache, resumable manifest/params-stamp, city-wide
