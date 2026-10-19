@@ -55,7 +55,8 @@ production `n_planes` on 100% of fittable roofs.
 
 ¹ An unfittable roof (too few DSM pixels, or no facet that clears `MIN_PLANE_PX`) has no planes, so the
 self-consistency summary gives it its own bin (#31; the spot-check's `roof_type` proxy is unchanged).
-These roofs are small (median footprint 63 m²) and all `low_confidence`. None is usable, so they carry **0 MW**. They are excluded from the medians.
+These roofs are small (median footprint 63 m²) and all `low_confidence`. None is usable, so they
+carry **0 MW**. They are excluded from the medians.
 
 Share of fittable roofs where multiplane cuts RMSE by more than 0.25 m: flat 64%, gable 52%, hip
 100%, complex 99.9%, all 70%. A roof fit as a single plane improves by exactly 0. That is 33% of
