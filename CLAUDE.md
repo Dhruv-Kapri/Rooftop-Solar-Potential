@@ -148,11 +148,13 @@ don't over-claim precision.
   Playwright + `playwright install chromium`.
 - Lint/format: **ruff**. Tests: **pytest** — the unit tier runs by default; GRASS/network tests are
   marked `integration` and **deselected by default** (`pytest -m integration` to include).
-- **Remote compute VM (`ssh graham-build`, office LAN only):** when reachable, prefer it for long
-  batch runs (e.g. the full-DC `scripts/run_city.py` batch). It is **not always available** — the user
-  only reaches it from the office and runs the same jobs on the Mac from home, often moving a job
-  between the two day to day. So: probe first (`ssh -o ConnectTimeout=4 graham-build true`); if
-  unreachable, run locally — never block on it. Keep runs resumable (the per-tile manifest + cache
+- **Remote compute VM (two SSH aliases, same machine):** `graham-build` = office LAN
+  (192.168.2.56); `graham-ts` = Tailscale (100.98.240.84), works from any network while the Mac's
+  Tailscale app is connected. When reachable, prefer it for long batch runs (e.g. the full-DC
+  `scripts/run_city.py` batch). It is **not always available** — the user moves jobs between it and
+  the Mac day to day. So: probe `ssh -o ConnectTimeout=4 graham-build true`, then the same with
+  `graham-ts`, and use whichever answers in the commands below (they say `graham-build`; swap the
+  alias). If neither does, run locally — never block on it. Keep runs resumable (the per-tile manifest + cache
   tiers, ADR-0009/0014) so work started on one machine can continue on the other. **Specs (verified
   2026-10-13):** Ubuntu 24.04 x86_64, 8 vCPU (Xeon Gold 6530), 15 GiB RAM + 4 GiB swap, 98 GB disk.
   **Set up:** Miniforge at `~/miniforge3` (user-space; no passwordless sudo), repo at
@@ -162,7 +164,12 @@ don't over-claim precision.
   `ssh graham-build 'source ~/miniforge3/bin/activate rooftop-solar && cd ~/rooftop-solar-potential && nice -n 10 <cmd>'`.
   The VM is **shared** with another team's runs (load often above 8): check `uptime` first and run
   niced, but not at nice 19 — it starves under that load. Its checkout pulls from `origin`, so
-  unpushed commits need a push or a `git bundle` before a run.
+  unpushed commits need a push or a `git bundle` before a run. **Keep every VM run's output on
+  the VM:** detach it there (`nohup`/`tmux`) and `tee` it to a log file on the VM, then read that
+  file, so a network switch (LAN ↔ Tailscale) that drops the SSH session loses neither the process
+  nor its output (the user's call, 2026-10-14). Once you have used a run's output, delete its
+  log (and any scratch output) on the VM; keep only results the repo's run layout persists on
+  purpose (the manifest and cache tiers).
 - **Moving a city run between the Mac and the VM (#18):** stop the run, then
   `scripts/sync_tiles.sh push` (Mac → VM) or `scripts/sync_tiles.sh pull` (VM → Mac), with `-n` for
   a dry run. Then rerun the same `run_city` command on the other machine. It rsyncs the tile cache +
