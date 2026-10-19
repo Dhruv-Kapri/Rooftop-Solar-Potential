@@ -45,9 +45,10 @@ sha256 `.key` sidecars, keyed by component versions such as `SCORING_VERSION`), 
 changes are re-scores; #23 tuned it (`2-4.2`, run `12day_tuned`, now on the map, #25). Step 7's
 validation is [`docs/benchmarks/stage-2-part4-validation.md`](docs/benchmarks/stage-2-part4-validation.md)
 (#24). **Remaining:** step 8 (the ML **demo** — `method="ml"`, bounded inference-only, no
-longer the production path). Open finding: a large planar obstruction (≥ `MIN_PLANE_PX` px) is fit as its
-own plane and escapes subtraction — structural facet-vs-obstruction rule is follow-up #30 (ADR-0013,
-risks §14 item 7).
+longer the production path). #30 then added a structural facet-vs-obstruction rule: a small raised
+later plane is dropped as a superstructure (`SCORING_VERSION` `2-4.3`; city re-score 2,196.1 MW /
+2,607 GWh/yr, 1.69× / 1.63× NREL; ADR-0013 addendum, risks §14 item 7). The map still serves `2-4.2`;
+moving it is #32.
 **Phase 2 is planned in `docs/plans/stage-2-overview.md`** (5 parts; **Part 2-4 step 8 + Part 2-5
 (fidelity) are next**).
 See `docs/roadmap.md` for phase boundaries/exit criteria and `docs/benchmarks/` for the benchmark
