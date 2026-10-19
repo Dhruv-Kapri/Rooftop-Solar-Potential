@@ -8,7 +8,8 @@
 > `12day_tuned`. Step 7: validation write-up (#24, 2026-10-18,
 > [`stage-2-part4-validation.md`](../benchmarks/stage-2-part4-validation.md)). **Remaining:** step 8 (the
 > ML demo). The facet-vs-obstruction finding (a large planar obstruction is fit as its own plane and
-> escapes subtraction; ADR-0013, risks §14 item 7) is follow-up #30.
+> escapes subtraction; ADR-0013, risks §14 item 7) got a structural rule in #30 (`SCORING_VERSION`
+> `2-4.3`, 2026-10-18); the map still serves `2-4.2` (#32).
 >
 > Grilled to a full decision set (grill 2026-09-08, grounded on two fact-finds: the per-roof contract map
 > + the ML-model landscape) and recorded in
@@ -182,6 +183,11 @@ Together these are the plan's "accuracy comparison vs the RANSAC baseline" — d
      median DSM reconstruction RMSE (1.79→0.85 m); spot-check ±1 plane-count 12/17 vs 11/17 (a tie),
      exact 9/17 vs 4/17; city 1.72× / 1.66× NREL (reported, not targeted). Verdict: better surface
      geometry, not proven better structure; structural facet-vs-obstruction rule is follow-up #30.
+   - **✓ structural facet-vs-obstruction rule (#30, 2026-10-18):** a later plane under
+     `SUPERSTRUCTURE_MAX_PX` (25) whose median sits > 0.5 m above the dominant plane is dropped, so
+     its pixels are subtracted as obstruction. `SCORING_VERSION` `2-4.3`; spot-check ±1 14/17 (stop
+     rule met), exact 10/17; city re-score **2,196.1 MW / 2,607 GWh/yr, 1.69× / 1.63× NREL**. ADR-0013
+     addendum; `spot_check/tuning.md` "#30". Labels still not blind. The map stays on `2-4.2` until #32.
 8. The ML demo: `method="ml"` adapter (integration) + the comparison notebook (best-effort).
 
 **Delegation note:** steps 1–4 (deterministic, clear contracts) are strong Sonnet-subagent TDD tasks,
