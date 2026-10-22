@@ -185,3 +185,7 @@ If this work helps yours, a citation or link back is appreciated:
 
 **Credits:** builds on the 2024 Smart India Hackathon BIPV prototype (PS SIH1739) by
 **Team Operation_VIJAY**. Prototype figures in this README are from that team's project deck.
+
+---
+
+<sub>Part of [Dhruv Kapri's portfolio](https://dhruv-kapri.github.io/) · [all projects](https://github.com/Dhruv-Kapri)</sub>
