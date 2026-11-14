@@ -30,8 +30,8 @@ Park only** (user, 2026-11-14), so the rasters are small: the GP DSM is ~275 KB 
    ADR-0010's buildless pattern.
 
 ## Consequences
-- The walkthrough adds committed deployables under `web/assets/walkthrough/` (a few MB in total,
-  checked at build). ADR-0010's escalation path (Git LFS / `gh-pages`) still applies if they grow.
+- The walkthrough adds committed deployables under `web/assets/walkthrough/` (~9.4 MB in total,
+  measured 2026-11-14: 4.9 MB raster PMTiles + 4.4 MB GeoJSON). ADR-0010's escalation path (Git LFS / `gh-pages`) still applies if they grow.
 - City-wide rasters stay out of scope. Scaling this to the District would need a separate decision on
   size and hosting.
 

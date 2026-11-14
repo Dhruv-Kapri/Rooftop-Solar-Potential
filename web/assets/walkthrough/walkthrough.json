@@ -1,0 +1,196 @@
+{
+  "bounds": [
+    -77.0825,
+    38.913,
+    -77.068,
+    38.928
+  ],
+  "center": [
+    -77.07525,
+    38.9205
+  ],
+  "rasters": {
+    "hillshade": {
+      "url": "hillshade.pmtiles",
+      "minzoom": 13,
+      "maxzoom": 16,
+      "legend": {
+        "min": 0.0,
+        "max": 255.0,
+        "unit": "",
+        "stops": [
+          [
+            0.0,
+            "#000000"
+          ],
+          [
+            51.0,
+            "#333333"
+          ],
+          [
+            102.0,
+            "#666666"
+          ],
+          [
+            153.0,
+            "#999999"
+          ],
+          [
+            204.0,
+            "#cccccc"
+          ],
+          [
+            255.0,
+            "#ffffff"
+          ]
+        ]
+      }
+    },
+    "insolation": {
+      "url": "insolation.pmtiles",
+      "minzoom": 13,
+      "maxzoom": 16,
+      "legend": {
+        "min": 694.6260986328125,
+        "max": 2584.0943603515625,
+        "unit": "kWh/m\u00b2/yr",
+        "stops": [
+          [
+            694.6260986328125,
+            "#000003"
+          ],
+          [
+            1072.5197509765626,
+            "#410967"
+          ],
+          [
+            1450.4134033203125,
+            "#932567"
+          ],
+          [
+            1828.3070556640623,
+            "#dc5039"
+          ],
+          [
+            2206.2007080078124,
+            "#fba40a"
+          ],
+          [
+            2584.0943603515625,
+            "#fcfea4"
+          ]
+        ]
+      }
+    },
+    "slope": {
+      "url": "slope.pmtiles",
+      "minzoom": 13,
+      "maxzoom": 16,
+      "legend": {
+        "min": 0.0,
+        "max": 60.0,
+        "unit": "\u00b0",
+        "stops": [
+          [
+            0.0,
+            "#440154"
+          ],
+          [
+            12.0,
+            "#404387"
+          ],
+          [
+            24.0,
+            "#29788e"
+          ],
+          [
+            36.0,
+            "#22a784"
+          ],
+          [
+            48.0,
+            "#79d151"
+          ],
+          [
+            60.0,
+            "#fde724"
+          ]
+        ]
+      }
+    },
+    "aspect": {
+      "url": "aspect.pmtiles",
+      "minzoom": 13,
+      "maxzoom": 16,
+      "legend": {
+        "min": 0.0,
+        "max": 360.0,
+        "unit": "\u00b0 from N",
+        "stops": [
+          [
+            0.0,
+            "#2f1337"
+          ],
+          [
+            72.0,
+            "#5e59b0"
+          ],
+          [
+            144.0,
+            "#a7c0ca"
+          ],
+          [
+            216.0,
+            "#cfb19c"
+          ],
+          [
+            288.0,
+            "#9d3a4f"
+          ],
+          [
+            360.0,
+            "#2f1436"
+          ]
+        ]
+      }
+    }
+  },
+  "vectors": {
+    "facets": "facets.geojson",
+    "obstructions": "obstructions.geojson",
+    "buildings": "buildings.geojson"
+  },
+  "aspect_flat": {
+    "max_tilt_deg": 10.0,
+    "color": "#bebebe"
+  },
+  "reasons": [
+    "too_steep",
+    "north_facing",
+    "low_insolation",
+    "too_small",
+    "no_plane_fit"
+  ],
+  "stats": {
+    "n_buildings": 771,
+    "n_planes": 1837,
+    "n_suitable": 614,
+    "reason_counts": {
+      "too_steep": 13,
+      "north_facing": 68,
+      "low_insolation": 0,
+      "too_small": 27,
+      "no_plane_fit": 49
+    },
+    "plane_reason_counts": {
+      "too_steep": 127,
+      "north_facing": 362,
+      "low_insolation": 0
+    },
+    "total_energy_mwh": 31182.861778069426,
+    "median_energy_mwh": 28.236871062549938,
+    "specific_yield_kwh_kwp": 1192.8298219132116,
+    "esri_specific_yield_kwh_kwp": 1150.0,
+    "esri_median_energy_mwh": 13.35
+  }
+}

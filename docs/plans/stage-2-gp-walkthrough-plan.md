@@ -94,4 +94,9 @@ pixels. The narrative says so, which is the honest difference from the tutorial.
 
 - #40's reason-column name and collapse rule aren't fixed yet, so step 7 is wired by one constant.
 - The swipe plugin adds a third CDN dependency (pinned), same pattern as ADR-0010.
-- Raster PMTiles at z13–z17 for a ~2 km area: expected to be well under 5 MB in total; checked at step 6.
+- Asset size, **measured 2026-11-14** (12-day build on #40's `2-4.5`): 4 raster PMTiles = 4.9 MB (z13–16,
+  since a 2 m DSM tops out at z16; hillshade 3.3 MB), GeoJSON = 4.4 MB (facets 3.3 MB), so ~9.4 MB in total.
+  That is fine for Pages. If it grows, simplify the facets or apply ADR-0010's LFS escalation.
+- Build result: 771 buildings, 1,837 planes, 614 suitable. Specific yield is 1,193 kWh/kWp vs Esri's 1,150
+  (+3.7%), so the ADR-0005 gate passes with the 30 m² gate in place. No plane fails the 800 kWh/m² cutoff
+  in Glover Park, so step 7c honestly removes 0.
