@@ -40,7 +40,7 @@ Decided during implementation (recorded assumptions, cheap to revisit):
 | 4 | Pixel aspect, clipped (flat ≤10° shown as flat) | raster | same | Aspect_DSM |
 | 5 | Fitted roof planes, coloured by aspect | vector | `fit_roof_planes("multiplane")` `inlier_xy` → pixel-square union | — (ours, ADR-0011) |
 | 6 | Obstructions removed | vector | `detect_obstructions` geometry | — (ours, ADR-0013) |
-| 7a–d | Cutoffs, applied one at a time: too steep (>45°), low insolation (<800 kWh/m²), north-facing, too small (<30 m²) | vector filter | #40's per-plane reason | remove >45° / <800 / north / Suitable_Buildings ≥30 m² |
+| 7a–d | Cutoffs, applied one at a time: too steep (>45°) → north-facing → low insolation (<800 kWh/m²) → too small (<30 m²); #40's precedence, so a plane failing several cutoffs carries (and is removed at) the first | vector filter | #40's per-plane reason | remove >45° / north / <800 / Suitable_Buildings ≥30 m² |
 | 8 | Suitable buildings by annual MWh, plus the ADR-0005 benchmark line | vector | `score_stages(...).buildings` | Elec_Prod_MWh |
 
 Stages 3–4 are **context, not inputs**: the pipeline applies its cutoffs to fitted planes, not

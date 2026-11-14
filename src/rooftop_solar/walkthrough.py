@@ -28,7 +28,6 @@ import geopandas as gpd
 import matplotlib
 import numpy as np
 import numpy.typing as npt
-import pandas as pd
 import rasterio
 import rasterio.features
 import shapely
@@ -41,32 +40,39 @@ from rasterio.enums import ColorInterp
 from rooftop_solar import aoi, config, pipeline, radiation
 from rooftop_solar.usable_area import FLAT_THRESHOLD_DEG
 
-# The per-plane / per-building "why not suitable" columns issue #40 adds
-# (`usable_area.unsuitable_reason`, `yield_pv.collapse_to_buildings`): one of REASONS, or null
-# when the plane / building passes. Named here once, so reconciling with #40's final names is a
-# one-line change.
-REASON_COLUMN = "unsuitable_reason"
-BUILDING_REASON_COLUMN = "unsuitable_reason"
-# Ordered as #40's precedence (`usable_area.unsuitable_reason`: steep > north > low insolation, then
-# the per-building area gate): a plane failing several cutoffs carries the first, so the
-# walkthrough removes it at that step. no_plane_fit is shown from the planes step on.
+# The per-plane and per-building "why not suitable" column (`usable_area.unsuitable_reason`,
+# `yield_pv.collapse_to_buildings`): one of `usable_area.UNSUITABLE_REASONS`, or null when the
+# plane / building passes.
+REASON_COLUMN: str = "unsuitable_reason"
+# The walkthrough's step order (tests pin that it is the same set as
+# `usable_area.UNSUITABLE_REASONS`): #40's precedence, steep > north > low insolation, then the
+# per-building area gate, so a plane failing several cutoffs carries the first and is removed at
+# that step. no_plane_fit is shown from the planes step on.
 REASONS: list[str] = ["too_steep", "north_facing", "low_insolation", "too_small", "no_plane_fit"]
+# The reasons that strike out a *plane* (steps 7a-7c); too_small is per-building, no_plane_fit
+# has no plane.
+_PLANE_REASONS: list[str] = ["too_steep", "north_facing", "low_insolation"]
 
-_WEB_CRS = "EPSG:4326"
-_WEB_PRECISION_DEG = 1e-6  # ~0.1 m: keeps the GeoJSON small without moving a footprint edge
-_SNAP_M = 1e-3  # pixel squares share edges exactly after this, so the union has no slivers
-_FLAT_RGBA = (190, 190, 190, 255)  # aspect is undefined on a flat roof: draw it neutral grey
-_SLOPE_RANGE_DEG = (0.0, 60.0)
-_ASPECT_RANGE_DEG = (0.0, 360.0)
-_INSOLATION_PERCENTILES = (2.0, 98.0)
+_WEB_CRS: str = "EPSG:4326"
+_WEB_PRECISION_DEG: float = 1e-6  # ~0.1 m: keeps the GeoJSON small without moving a footprint edge
+_SNAP_M: float = 1e-3  # pixel squares share edges exactly after this, so the union has no slivers
+_FLAT_RGBA: tuple[int, int, int, int] = (
+    190,
+    190,
+    190,
+    255,
+)  # aspect is undefined on a flat roof: draw it neutral grey
+_SLOPE_RANGE_DEG: tuple[float, float] = (0.0, 60.0)
+_ASPECT_RANGE_DEG: tuple[float, float] = (0.0, 360.0)
+_INSOLATION_PERCENTILES: tuple[float, float] = (2.0, 98.0)
 
-_ASSETS_SUBDIR = Path("web") / "assets" / "walkthrough"
-_VECTOR_NAMES = {
+_ASSETS_SUBDIR: Path = Path("web") / "assets" / "walkthrough"
+_VECTOR_NAMES: dict[str, str] = {
     "facets": "facets.geojson",
     "obstructions": "obstructions.geojson",
     "buildings": "buildings.geojson",
 }
-MANIFEST_NAME = "walkthrough.json"  # the page fetches this name (web/walkthrough.js)
+MANIFEST_NAME: str = "walkthrough.json"  # the page fetches this name (web/walkthrough.js)
 
 
 # --- raster math --------------------------------------------------------------
@@ -232,14 +238,6 @@ def zoom_range(pmtiles_path: str | Path) -> tuple[int, int]:
 # --- vector layers ------------------------------------------------------------
 
 
-def _require_column(frame: pd.DataFrame, column: str, what: str) -> None:
-    if column not in frame.columns:
-        raise KeyError(
-            f"{what} frame has no {column!r} column: the 'why not suitable' reason is added "
-            "by issue #40 (usable_area / yield_pv); the walkthrough's cutoff steps need it."
-        )
-
-
 def _to_web(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     """Reproject to EPSG:4326 and snap coordinates to ~0.1 m (small GeoJSON, same shapes)."""
     web = gdf.to_crs(_WEB_CRS)
@@ -259,12 +257,10 @@ def facet_polygons(
     :data:`radiation.POA_COLUMN`), ``reason`` (the plane's own cutoff, :data:`REASON_COLUMN`) and
     ``building_reason`` (its building's, from `buildings`, which is what the 30 m² gate sets).
     EPSG:4326, unsimplified (a facet is a handful of pixel squares)."""
-    _require_column(usable_planes, REASON_COLUMN, "per-plane")
-    _require_column(buildings, BUILDING_REASON_COLUMN, "per-building")
-    building_reason = buildings.set_index("building_id")[BUILDING_REASON_COLUMN]
+    building_reason = buildings.set_index("building_id")[REASON_COLUMN]
     half = pixel_size_m / 2.0
 
-    records = []
+    records: list[dict[str, Any]] = []
     for row in usable_planes.itertuples(index=False):
         xy = np.asarray(row.inlier_xy, dtype=np.float64)
         if len(xy) == 0:
@@ -316,12 +312,11 @@ def buildings_to_web(buildings: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
 
     ``building_id``, ``usable``, ``unsuitable_reason``, ``annual_energy_mwh``, ``capacity_kw``,
     ``usable_area_m2``, ``tilt_deg``, ``aspect_deg``, ``n_planes``; numbers at display precision."""
-    _require_column(buildings, BUILDING_REASON_COLUMN, "per-building")
     out = gpd.GeoDataFrame(
         {
             "building_id": buildings["building_id"].astype(int),
             "usable": buildings["usable"].astype(bool),
-            "unsuitable_reason": buildings[BUILDING_REASON_COLUMN].astype(object),
+            "unsuitable_reason": buildings[REASON_COLUMN].astype(object),
             "annual_energy_mwh": (buildings["annual_energy_kwh"] / 1000.0).round(2),
             "capacity_kw": buildings["capacity_kw"].round(1),
             "usable_area_m2": buildings["usable_area_m2"].round(1),
@@ -356,24 +351,35 @@ def walkthrough_manifest(
     output; `buildings` / `planes` are `ScoringStages.buildings` / `.usable_planes` (working
     CRS). Stats follow `scripts/run_stage1.py`'s headline: the median is over suitable
     buildings, the specific yield over all (unsuitable ones contribute 0 kWh and 0 kW). The Esri
-    numbers are `config.ESRI_*` (the benchmark line on the last step)."""
-    _require_column(buildings, BUILDING_REASON_COLUMN, "per-building")
+    numbers are `config.ESRI_*` (the benchmark line on the last step). ``reason_counts`` counts
+    buildings (by their dominant-plane reason); ``plane_reason_counts`` counts fitted planes by
+    their own reason, which is what steps 7a-7c strike out."""
     west, south, east, north = bounds
     suitable = buildings[buildings["usable"]]
     energy_kwh = float(buildings["annual_energy_kwh"].sum())
     capacity_kw = float(buildings["capacity_kw"].sum())
-    reasons = buildings.loc[~buildings["usable"], BUILDING_REASON_COLUMN]
+    reasons = buildings.loc[~buildings["usable"], REASON_COLUMN]
+    fitted = planes[
+        [len(xy) > 0 for xy in planes["inlier_xy"]]
+    ]  # the planes `facet_polygons` emits
     return {
         "bounds": [west, south, east, north],
         "center": [(west + east) / 2.0, (south + north) / 2.0],
         "rasters": rasters,
         "vectors": dict(_VECTOR_NAMES),
+        "aspect_flat": {
+            "max_tilt_deg": FLAT_THRESHOLD_DEG,
+            "color": "#{:02x}{:02x}{:02x}".format(*_FLAT_RGBA[:3]),
+        },
         "reasons": list(REASONS),
         "stats": {
             "n_buildings": int(len(buildings)),
-            "n_planes": int(sum(len(xy) > 0 for xy in planes["inlier_xy"])),
+            "n_planes": int(len(fitted)),
             "n_suitable": int(len(suitable)),
-            "reason_counts": {r: int((reasons == r).sum()) for r in REASONS},
+            "reason_counts": {r: int((reasons == r).sum()) for r in REASONS},  # buildings
+            "plane_reason_counts": {  # fitted planes, by their own reason (steps 7a-7c)
+                r: int((fitted[REASON_COLUMN] == r).sum()) for r in _PLANE_REASONS
+            },
             "total_energy_mwh": energy_kwh / 1000.0,
             "median_energy_mwh": (
                 float(suitable["annual_energy_kwh"].median()) / 1000.0 if len(suitable) else 0.0
@@ -423,7 +429,7 @@ def build_rasters(
     lo, hi = np.nanpercentile(insol, _INSOLATION_PERCENTILES)
     aspect_rgba = colorize(aspect, *_ASPECT_RANGE_DEG, "twilight_shifted")
     aspect_rgba[np.isfinite(slope) & (slope <= FLAT_THRESHOLD_DEG)] = _FLAT_RGBA
-    layers = {
+    layers: dict[str, tuple[npt.NDArray[np.uint8], dict[str, Any]]] = {
         "hillshade": (
             colorize(hillshade(dsm, res_m), 0.0, 255.0, "gray"),
             legend(0, 255, "", "gray"),
@@ -482,8 +488,7 @@ def build_walkthrough(
     ``config.DATA_DIR/walkthrough/`` behind cache keys (:func:`walkthrough_keys`), so only the
     first build pays for `r.sun`. Writes the four raster PMTiles, the three GeoJSON layers and
     ``walkthrough.json`` into `out_dir` (default ``web/assets/walkthrough/``); needs GRASS and the
-    network on a cold cache. The vector step raises `KeyError` naming #40 if the reason columns
-    are missing, after the rasters are written. `day_range` is as for `run_stage1`.
+    network on a cold cache. `day_range` is as for `run_stage1`.
 
     Returns the written paths keyed by role (``hillshade`` / ``insolation`` / ``slope`` /
     ``aspect`` / ``facets`` / ``obstructions`` / ``buildings`` / ``manifest``)."""

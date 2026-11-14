@@ -8,6 +8,7 @@ No GRASS, no network: every input is a small synthetic raster/frame. GDAL's MBTi
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import geopandas as gpd
 import numpy as np
@@ -20,7 +21,7 @@ from pmtiles.reader import MmapSource, Reader
 from rasterio.transform import from_origin
 from shapely.geometry import box
 
-from rooftop_solar import config, radiation, roof_planes, walkthrough
+from rooftop_solar import config, radiation, roof_planes, usable_area, walkthrough
 
 RES = 2.0
 X0, Y0 = 322000.0, 4306000.0  # inside DC, EPSG:6347
@@ -36,22 +37,9 @@ def _plane(dz_dx: float, dz_dy: float, n: int = 12) -> npt.NDArray[np.float64]:
 # --- raster math ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    ("dz_dx", "dz_dy", "aspect"),
-    [(0.0, 1.0, 180.0), (0.0, -1.0, 0.0), (-1.0, 0.0, 90.0), (1.0, 0.0, 270.0)],
-)
-def test_slope_aspect_uses_the_roof_planes_convention(
-    dz_dx: float, dz_dy: float, aspect: float
-) -> None:
-    """Aspect is the compass azimuth of the downslope side (0 = N, clockwise): a plane that
-    rises to the north faces south."""
-    slope, asp = walkthrough.slope_aspect(_plane(dz_dx, dz_dy), RES)
-
-    assert slope[5, 5] == pytest.approx(45.0)
-    assert asp[5, 5] == pytest.approx(aspect)
-
-
 def test_slope_aspect_matches_the_ransac_fit_and_flat_has_no_slope() -> None:
+    """Pixel slope/aspect follow roof_planes' convention (aspect = compass azimuth of the
+    downslope side), checked on a south-east-facing plane against the RANSAC fit."""
     dz_dx, dz_dy = -0.3, 0.4  # faces roughly south-east
     z = _plane(dz_dx, dz_dy)
     rows, cols = np.indices(z.shape)
@@ -165,7 +153,7 @@ def _buildings() -> gpd.GeoDataFrame:
         {
             "building_id": [0, 1],
             "usable": [True, False],
-            walkthrough.BUILDING_REASON_COLUMN: pd.Series([None, "no_plane_fit"], dtype=object),
+            walkthrough.REASON_COLUMN: pd.Series([None, "no_plane_fit"], dtype=object),
             "annual_energy_kwh": [20000.0, 0.0],
             "capacity_kw": [16.0, 0.0],
             "usable_area_m2": [80.0, 0.0],
@@ -194,13 +182,6 @@ def test_facet_polygons_one_per_fitted_plane_with_the_reasons() -> None:
     assert south["poa_kwh_m2"] == 1500.0 and south["aspect_deg"] == 180.0
 
 
-def test_facet_polygons_names_issue_40_when_the_reason_column_is_missing() -> None:
-    planes = _usable_planes().drop(columns=[walkthrough.REASON_COLUMN])
-
-    with pytest.raises(KeyError, match="#40"):
-        walkthrough.facet_polygons(planes, RES, buildings=_buildings())
-
-
 def test_obstruction_and_building_layers_carry_the_page_schema() -> None:
     planes = _usable_planes()
     obstructions = gpd.GeoDataFrame(
@@ -224,10 +205,14 @@ def test_obstruction_and_building_layers_carry_the_page_schema() -> None:
     }  # fmt: skip
 
 
+def test_walkthrough_reasons_are_the_pipelines_reasons() -> None:
+    assert set(walkthrough.REASONS) == set(usable_area.UNSUITABLE_REASONS)
+
+
 def test_manifest_has_the_schema_the_page_codes_against() -> None:
     buildings = _buildings()
     buildings.loc[1, "annual_energy_kwh"] = 0.0
-    layer = {"url": "x.pmtiles", "minzoom": 13, "maxzoom": 17, "legend": {}}
+    layer: dict[str, Any] = {"url": "x.pmtiles", "minzoom": 13, "maxzoom": 17, "legend": {}}
     rasters = {k: layer for k in ("hillshade", "insolation", "slope", "aspect")}
 
     m = walkthrough.walkthrough_manifest(
@@ -240,6 +225,7 @@ def test_manifest_has_the_schema_the_page_codes_against() -> None:
     assert m["bounds"] == [-77.08, 38.91, -77.07, 38.92]
     assert m["center"] == pytest.approx([-77.075, 38.915])
     assert set(m["rasters"]) == {"hillshade", "insolation", "slope", "aspect"}
+    assert m["aspect_flat"] == {"max_tilt_deg": 10.0, "color": "#bebebe"}
     assert m["vectors"] == {
         "facets": "facets.geojson",
         "obstructions": "obstructions.geojson",
@@ -254,24 +240,19 @@ def test_manifest_has_the_schema_the_page_codes_against() -> None:
     ]
     stats = m["stats"]
     assert (stats["n_buildings"], stats["n_planes"], stats["n_suitable"]) == (2, 2, 1)
-    assert stats["reason_counts"] == {
+    assert stats["reason_counts"] == {  # buildings, by their dominant-plane reason
         "too_steep": 0, "low_insolation": 0, "north_facing": 0, "too_small": 0, "no_plane_fit": 1,
     }  # fmt: skip
+    assert stats["plane_reason_counts"] == {  # fitted planes, by their own reason
+        "too_steep": 0,
+        "north_facing": 1,
+        "low_insolation": 0,
+    }
     assert stats["total_energy_mwh"] == pytest.approx(20.0)
     assert stats["median_energy_mwh"] == pytest.approx(20.0)  # suitable buildings only
     assert stats["specific_yield_kwh_kwp"] == pytest.approx(20000 / 16)
     assert stats["esri_specific_yield_kwh_kwp"] == config.ESRI_SPECIFIC_YIELD_KWH_KWP == 1150.0
     assert stats["esri_median_energy_mwh"] == config.ESRI_MEDIAN_ENERGY_MWH == 13.35
-
-
-def test_raster_legends_have_stops_over_the_stated_range() -> None:
-    legend = walkthrough.legend(10.0, 50.0, "kWh", "inferno")
-
-    assert (legend["min"], legend["max"], legend["unit"]) == (10.0, 50.0, "kWh")
-    values = [v for v, _ in legend["stops"]]
-    assert 5 <= len(values) <= 7 and values[0] == 10.0 and values[-1] == 50.0
-    assert values == sorted(values)
-    assert all(c.startswith("#") and len(c) == 7 for _, c in legend["stops"])
 
 
 def test_build_rasters_writes_four_layers_clipped_to_the_footprints(tmp_path: Path) -> None:

@@ -6,8 +6,6 @@ const ASSET_DIR = "./assets/walkthrough/";
 const BASEMAP = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 const ESRI_URL = "https://learn.arcgis.com/en/projects/estimate-solar-power-potential/";
 const ESRI_GATE = 0.15; // ADR-0005: specific yield within +/-15% of Esri's
-const FLAT_TILT_DEG = 10; // roof_planes flat cutoff; flat facets have no meaningful aspect
-const FLAT_COLOR = "#bebebe"; // = walkthrough._FLAT_RGBA, the aspect raster's flat grey
 const REMOVED_COLOR = "#9e9e9e";
 const NOFIT_COLOR = "#bdbdbd";
 const OBSTRUCTION_COLOR = "#d7301f";
@@ -143,10 +141,11 @@ const LAYER_IDS = [
 ];
 
 function aspectColorExpr(manifest) {
+  const flat = manifest.aspect_flat; // flat facets have no meaningful aspect
   const stops = manifest.rasters.aspect.legend.stops;
   const interp = ["interpolate", ["linear"], ["get", "aspect_deg"]];
   stops.forEach(([v, c]) => interp.push(v, c));
-  return ["case", ["<=", ["get", "tilt_deg"], FLAT_TILT_DEG], FLAT_COLOR, interp];
+  return ["case", ["<=", ["get", "tilt_deg"], flat.max_tilt_deg], flat.color, interp];
 }
 
 function energyColorExpr(maxMwh) {
@@ -159,7 +158,7 @@ function energyColorExpr(maxMwh) {
 function addLayers(map, ctx) {
   const { manifest, data } = ctx;
   for (const name of RASTER_NAMES) {
-    map.addSource(`src-${name}`, { type: "raster", url: "pmtiles://" + assetUrl(manifest.rasters[name].url), tileSize: 256 });
+    map.addSource(`src-${name}`, { type: "raster", url: "pmtiles://" + assetUrl(manifest.rasters[name].url), tileSize: 256, minzoom: manifest.rasters[name].minzoom, maxzoom: manifest.rasters[name].maxzoom });
     map.addLayer({ id: `raster-${name}`, type: "raster", source: `src-${name}`, layout: { visibility: "none" } });
   }
   for (const k of ["facets", "obstructions", "buildings"]) {
@@ -287,9 +286,11 @@ function wirePopups(map) {
 }
 
 // --- legend / stats / benchmark ---
+const flatRow = (manifest) => row(manifest.aspect_flat.color, `Flat (under ${manifest.aspect_flat.max_tilt_deg}° tilt)`);
+
 function rasterLegend(manifest, name, title) {
   const lg = manifest.rasters[name].legend;
-  const extra = name === "aspect" ? row(FLAT_COLOR, `Flat (under ${FLAT_TILT_DEG}° tilt)`) : "";
+  const extra = name === "aspect" ? flatRow(manifest) : "";
   return `<div class="legend-title">${title}</div>` + rampBar(lg.stops, lg.min, lg.max, lg.unit) + extra;
 }
 
@@ -298,7 +299,7 @@ function aspectLegend(manifest) {
   return (
     `<div class="legend-title">Plane aspect</div>` +
     rampBar(lg.stops, lg.min, lg.max, lg.unit) +
-    row(FLAT_COLOR, `Flat (under ${FLAT_TILT_DEG}° tilt)`)
+    flatRow(manifest)
   );
 }
 
@@ -329,9 +330,13 @@ function legendHtml(step, ctx) {
 
 function statsText(step, ctx) {
   if (step.stats) return step.stats(ctx.manifest);
+  if (step.reason === "too_small") {
+    // The 30 m² gate is per building, so it is a building count.
+    return `${fmtInt(ctx.manifest.stats.reason_counts.too_small || 0)} buildings under 30 m²`;
+  }
   if (step.reason) {
-    const n = ctx.manifest.stats.reason_counts[step.reason] || 0;
-    return `${fmtInt(n)} removed at this step`;
+    const n = ctx.manifest.stats.plane_reason_counts[step.reason] || 0;
+    return `${fmtInt(n)} planes removed at this step`;
   }
   return "";
 }

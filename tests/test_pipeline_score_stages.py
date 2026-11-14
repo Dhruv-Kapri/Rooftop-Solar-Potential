@@ -8,9 +8,11 @@ small synthetic rasters on the working-CRS grid, everything downstream runs for 
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import geopandas as gpd
 import numpy as np
+import numpy.typing as npt
 import pytest
 import rasterio
 from geopandas.testing import assert_geodataframe_equal
@@ -25,8 +27,8 @@ _X0, _Y0, _RES = 320000.0, 4306000.0, 2.0
 _SIZE = 40  # px per side
 
 
-def _write(path: Path, array: np.ndarray) -> Path:
-    profile = {
+def _write(path: Path, array: npt.NDArray[np.floating]) -> Path:
+    profile: dict[str, Any] = {
         "driver": "GTiff",
         "height": array.shape[0],
         "width": array.shape[1],

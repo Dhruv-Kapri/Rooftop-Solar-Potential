@@ -107,6 +107,7 @@ aggregation is identical downstream. Detail: `docs/architecture.md §5`.
 | City-scale tiling grid | `tiling.py` (fixed-origin grid · `floor` membership) |
 | City runner (tile → cache → merge) | `pipeline.run_city` (+ `scripts/run_city.py`) |
 | Web-map ETL (GeoJSON + PMTiles) | `web_build.py` (+ `scripts/build_web.py`; `scripts/serve_web.py` preview) |
+| Glover Park walkthrough ETL (raster PMTiles + GeoJSON) | `walkthrough.py` (+ `scripts/build_walkthrough.py`; ADR-0015) |
 | Validation (ground-truth-free) | `validation.py` (Part 2-4 step 7a: DSM self-consistency, multiplane vs ransac) |
 | Paths / keys / study-area config | `config.py` |
 
