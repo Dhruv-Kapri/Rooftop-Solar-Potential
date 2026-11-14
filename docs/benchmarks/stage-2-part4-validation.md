@@ -30,6 +30,10 @@ repeats the figures for map readers, so update it with this section (#32).
 - **Assembled (#40, 2026-11-14):** `scripts/run_city.py` re-score on the cached DSM + `r.sun` tiers
   (`data/tiles_12day_gcr`, no `r.sun` reruns; 2,817 s at 4 workers on the Mac), which also wrote the
   tracts (`run_aggregation`); then `python scripts/build_web.py`.
+- **`roofs.pmtiles` size (#40):** 13.3 → **19.6 MB** now that all 100,064 roofs ship (not just usable
+  ones) with the popup fields, with no z13 thinning. That exceeds ADR-0010's ~5–15 MB estimate for the
+  committed artifact, though it is well under GitHub's 50 MB per-file warning. Whether to take ADR-0010's
+  LFS / `gh-pages` escalation is tracked separately; each map rebuild adds another ~20 MB to history.
 - **Labels still not blind.** The ADR-0013 addendum asks for a blind relabel before more tuning. A
   later re-score writes to a new `12day_<SCORING_VERSION>` label, so it can't overwrite this run.
 
