@@ -24,6 +24,7 @@ import os
 import warnings
 from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
 
@@ -94,12 +95,7 @@ def run_stage1(
     if buffered is None:
         buffered = aoi.buffered_aoi()
 
-    # Footprints over the buffered frame, in the metric working CRS; report only the whole
-    # footprints whose representative point lies in the core (never geometrically clipped,
-    # which would chop boundary-straddling buildings).
-    fp = footprints.load_footprints(buffered, source=footprints_source).to_crs(config.WORKING_CRS)
-    core_working = _to_working_crs(core)
-    fp_core = select_by_membership(fp, lambda pts: pts.within(core_working))
+    fp_core = core_footprints(core, buffered, footprints_source=footprints_source)
 
     # DSM + shaded r.sun over the buffered frame -> roof planes -> usable -> yield (traps 1-2).
     result = _score_roofs(fp_core, buffered, day_range=day_range, method=method)
@@ -112,6 +108,20 @@ def run_stage1(
         render_choropleth(result, out_dir / CHOROPLETH_NAME)
 
     return result
+
+
+def core_footprints(
+    core: BaseGeometry, buffered: BaseGeometry, *, footprints_source: str = "ms-buildings"
+) -> gpd.GeoDataFrame:
+    """The footprints a neighbourhood run reports, in `config.WORKING_CRS` (shared by Stage 1 and
+    the walkthrough).
+
+    Footprints are fetched over the `buffered` frame; only whole footprints whose representative
+    point lies in `core` are kept (never geometrically clipped, which would chop
+    boundary-straddling buildings). Both AOIs are EPSG:4326."""
+    fp = footprints.load_footprints(buffered, source=footprints_source).to_crs(config.WORKING_CRS)
+    core_working = _to_working_crs(core)
+    return select_by_membership(fp, lambda pts: pts.within(core_working))
 
 
 def _score_roofs(
@@ -158,6 +168,51 @@ def _score_roofs(
     `nprocs` is the `r.sun` thread count, forwarded to `radiation.surface_irradiance`. It is
     speed-only, so it is never part of a cache key.
     """
+    if method == "multiplane":
+        return score_stages(
+            fp_core,
+            buffered_wgs84,
+            day_range=day_range,
+            dsm_out_path=dsm_out_path,
+            dsm_cache_key=dsm_cache_key,
+            insol_out_path=insol_out_path,
+            radiation_cache_key=radiation_cache_key,
+            nprocs=nprocs,
+        ).buildings
+    if method == "ransac":
+        dsm_path, insol_path = _build_rasters(
+            buffered_wgs84,
+            day_range=day_range,
+            dsm_out_path=dsm_out_path,
+            dsm_cache_key=dsm_cache_key,
+            insol_out_path=insol_out_path,
+            radiation_cache_key=radiation_cache_key,
+            nprocs=nprocs,
+        )
+        planes = roof_planes.fit_roof_planes(fp_core, dsm_path, method="ransac")
+        planes = radiation.zonal_insolation(planes, insol_path)
+        usable = usable_area.usable_area(planes)
+        return yield_pv.estimate_yield(usable)
+    raise NotImplementedError(
+        f"_score_roofs(method={method!r}) — only 'multiplane' (production) and 'ransac' "
+        "(baseline) are wired into the pipeline."
+    )
+
+
+def _build_rasters(
+    buffered_wgs84: BaseGeometry,
+    *,
+    day_range: list[int] | None,
+    dsm_out_path: str | Path | None,
+    dsm_cache_key: str | None,
+    insol_out_path: str | Path | None,
+    radiation_cache_key: str | None,
+    nprocs: int,
+) -> tuple[Path, Path]:
+    """The DSM + shaded `r.sun` insolation rasters over the buffered frame (traps 1-2).
+
+    The tiered cache args (ADR-0014) go straight through to `dsm.build_dsm` /
+    `radiation.surface_irradiance`. Returns ``(dsm_path, insol_path)``."""
     dsm_path = dsm.build_dsm(buffered_wgs84, out_path=dsm_out_path, cache_key=dsm_cache_key)
     insol_path = radiation.surface_irradiance(
         dsm_path,
@@ -166,20 +221,69 @@ def _score_roofs(
         cache_key=radiation_cache_key,
         nprocs=nprocs,
     )
-    if method == "ransac":
-        planes = roof_planes.fit_roof_planes(fp_core, dsm_path, method="ransac")
-        planes = radiation.zonal_insolation(planes, insol_path)
-        usable = usable_area.usable_area(planes)
-        return yield_pv.estimate_yield(usable)
-    if method == "multiplane":
-        planes = roof_planes.fit_roof_planes(fp_core, dsm_path, method="multiplane")
-        planes = radiation.plane_poa(planes, insol_path)
-        obstructions = usable_area.detect_obstructions(planes, dsm_path)
-        usable = usable_area.usable_area(planes, obstructions=obstructions)
-        return yield_pv.collapse_to_buildings(yield_pv.plane_yields(usable))
-    raise NotImplementedError(
-        f"_score_roofs(method={method!r}) — only 'multiplane' (production) and 'ransac' "
-        "(baseline) are wired into the pipeline."
+    return dsm_path, insol_path
+
+
+@dataclass(frozen=True)
+class ScoringStages:
+    """The multiplane spine's intermediates, in pipeline order (#41; `score_stages`).
+
+    `dsm_path` / `insol_path`: the DSM and annual shaded insolation rasters. `planes`: one row
+    per (building, plane) after `radiation.plane_poa`. `obstructions`: `detect_obstructions`'s
+    output, row-aligned to `planes`. `usable_planes`: `planes` after `usable_area(...)` and
+    `yield_pv.plane_yields`, i.e. exactly what `collapse_to_buildings` consumes. `buildings`: the
+    collapsed one-row-per-building result (what `_score_roofs` returns)."""
+
+    dsm_path: Path
+    insol_path: Path
+    planes: gpd.GeoDataFrame
+    obstructions: gpd.GeoDataFrame
+    usable_planes: gpd.GeoDataFrame
+    buildings: gpd.GeoDataFrame
+
+
+def score_stages(
+    fp_core: gpd.GeoDataFrame,
+    buffered_wgs84: BaseGeometry,
+    *,
+    day_range: list[int] | None,
+    dsm_out_path: str | Path | None = None,
+    dsm_cache_key: str | None = None,
+    insol_out_path: str | Path | None = None,
+    radiation_cache_key: str | None = None,
+    nprocs: int = 1,
+) -> ScoringStages:
+    """The Part 2-4 multiplane production chain, returning every stage (ADR-0011/0012/0013).
+
+    Multi-facet RANSAC -> **per-plane** POA (`radiation.plane_poa`) -> obstruction-aware per-plane
+    usable area (`detect_obstructions` + `usable_area(obstructions=…)`) -> per-plane yield ->
+    one row per building (`collapse_to_buildings`). Arguments are `_score_roofs`'s (which calls
+    this for ``method="multiplane"``); the cache args and `nprocs` have the same meaning there.
+    The walkthrough (ADR-0015) reads the intermediates, so it runs this same spine rather than
+    a copy that could drift.
+    """
+    dsm_path, insol_path = _build_rasters(
+        buffered_wgs84,
+        day_range=day_range,
+        dsm_out_path=dsm_out_path,
+        dsm_cache_key=dsm_cache_key,
+        insol_out_path=insol_out_path,
+        radiation_cache_key=radiation_cache_key,
+        nprocs=nprocs,
+    )
+    planes = roof_planes.fit_roof_planes(fp_core, dsm_path, method="multiplane")
+    planes = radiation.plane_poa(planes, insol_path)
+    obstructions = usable_area.detect_obstructions(planes, dsm_path)
+    usable_planes = yield_pv.plane_yields(
+        usable_area.usable_area(planes, obstructions=obstructions)
+    )
+    return ScoringStages(
+        dsm_path=dsm_path,
+        insol_path=insol_path,
+        planes=planes,
+        obstructions=obstructions,
+        usable_planes=usable_planes,
+        buildings=yield_pv.collapse_to_buildings(usable_planes),
     )
 
 

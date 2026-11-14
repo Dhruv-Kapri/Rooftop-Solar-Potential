@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>How a roof is scored: Glover Park walkthrough</title>
+  <meta name="description" content="Step-by-step walkthrough of how one neighbourhood's rooftops are scored for solar potential, mirroring Esri's Estimate solar power potential tutorial." />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@maplibre/maplibre-gl-compare@0.5.0/dist/maplibre-gl-compare.css" />
+  <link rel="stylesheet" href="./style.css" />
+  <link rel="stylesheet" href="./walkthrough.css" />
+</head>
+<body>
+  <div id="comparison">
+    <div id="before" class="map"></div>
+    <div id="after" class="map"></div>
+  </div>
+  <div id="tag-before" class="map-tag map-tag-left"></div>
+  <div id="tag-after" class="map-tag map-tag-right"></div>
+
+  <section id="wt-panel" aria-label="Walkthrough">
+    <header>
+      <a class="back" href="./index.html">&larr; City map</a>
+      <h1>How is a roof scored?</h1>
+      <p class="sub">Glover Park, step by step. Drag the slider to compare each step with the one before.</p>
+    </header>
+
+    <ol id="steps" class="steps"></ol>
+
+    <article id="step-card" class="step-card" aria-live="polite">
+      <h2 id="step-title"></h2>
+      <div id="step-body"></div>
+      <div id="step-stats" class="step-stats"></div>
+      <div id="legend" class="legend"></div>
+      <div id="benchmark" class="benchmark" hidden></div>
+    </article>
+
+    <nav class="nav">
+      <button id="prev" type="button">&larr; Previous</button>
+      <span id="counter"></span>
+      <button id="next" type="button">Next &rarr;</button>
+    </nav>
+    <p class="hint">Keyboard: left / right arrows. Click a roof plane or building for details.</p>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pmtiles@3.2.1/dist/pmtiles.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@maplibre/maplibre-gl-compare@0.5.0/dist/maplibre-gl-compare.js"></script>
+  <script src="./walkthrough.js"></script>
+</body>
+</html>

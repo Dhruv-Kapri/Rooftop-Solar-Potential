@@ -23,10 +23,7 @@ import geopandas as gpd
 
 from rooftop_solar import config, pipeline
 
-# Esri "Estimate solar power potential" (Glover Park tutorial) reference values — the
-# intensive quantities ADR-0005 gates on. Totals are method-dependent and not gated.
-ESRI_MEDIAN_ENERGY_MWH = 13.35  # median per-building annual energy
-ESRI_SPECIFIC_YIELD_KWH_KWP = 1150.0  # kWh per kWp per year
+# The Esri reference values (config.ESRI_*) are the intensive quantities ADR-0005 gates on.
 GATE_TOLERANCE = 0.15  # ~±15% on each intensive quantity (ADR-0005)
 
 
@@ -71,16 +68,16 @@ def _report(result: gpd.GeoDataFrame) -> bool:
     print(f"  total annual CO2 offset  : {total_co2_t:10.1f} t/yr")
 
     print("\n=== Esri benchmark — GATE: specific yield within ~±15% (ADR-0005, revised) ===")
-    yield_ok = _within_tolerance(specific_yield, ESRI_SPECIFIC_YIELD_KWH_KWP)
+    yield_ok = _within_tolerance(specific_yield, config.ESRI_SPECIFIC_YIELD_KWH_KWP)
     print(
         f"  specific yield             : {specific_yield:7.0f} kWh/kWp  "
-        f"vs Esri {ESRI_SPECIFIC_YIELD_KWH_KWP:.0f}  -> {'PASS' if yield_ok else 'FAIL'}"
+        f"vs Esri {config.ESRI_SPECIFIC_YIELD_KWH_KWP:.0f}  -> {'PASS' if yield_ok else 'FAIL'}"
     )
 
     print("\n  context (NOT gated — footprint-source-sensitive / method-dependent):")
     print(
         f"    median per-building energy : {median_energy_mwh:7.2f} MWh  "
-        f"(Esri {ESRI_MEDIAN_ENERGY_MWH:.2f}; MS merges rowhouses -> coarser, larger)"
+        f"(Esri {config.ESRI_MEDIAN_ENERGY_MWH:.2f}; MS merges rowhouses -> coarser, larger)"
     )
     print(f"    median energy density      : {median_energy_density:7.0f} kWh/m²/yr footprint")
 
