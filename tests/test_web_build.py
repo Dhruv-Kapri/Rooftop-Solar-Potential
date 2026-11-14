@@ -15,11 +15,13 @@ network.
 
 from __future__ import annotations
 
+import re
+
 import geopandas as gpd
 import numpy as np
 from shapely.geometry import Point, box
 
-from rooftop_solar import config, web_build
+from rooftop_solar import config, usable_area, web_build
 
 # A known DC lon/lat, reprojected into WORKING_CRS to build synthetic input geometry — the
 # round-trip through `tracts_to_web`/`roofs_to_web` must land back on the same lon/lat, proving
@@ -209,3 +211,13 @@ def test_roofs_to_web_reprojects_to_4326() -> None:
     assert out.crs == "EPSG:4326"
     centroid = out.geometry.iloc[0].centroid
     np.testing.assert_allclose([centroid.x, centroid.y], [_DC_LON, _DC_LAT], atol=1e-6)
+
+
+def test_every_unsuitable_reason_has_a_map_label() -> None:
+    """The popup falls back to the raw code for an unlabelled reason, so a new or renamed
+    pipeline reason must land in web/main.js's REASON_LABELS too (#40)."""
+    main_js = (config.REPO_ROOT / "web" / "main.js").read_text()
+    labels = re.search(r"const REASON_LABELS = \{(.*?)\};", main_js, re.S)
+    assert labels is not None
+    keys = set(re.findall(r"^\s*(\w+):", labels.group(1), re.M))
+    assert keys == set(usable_area.UNSUITABLE_REASONS)

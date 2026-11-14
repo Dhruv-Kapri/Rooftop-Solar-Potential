@@ -257,25 +257,25 @@ function roofPopupHtml(p) {
     ? "Suitable"
     : "Not suitable — " + (REASON_LABELS[p.unsuitable_reason] || p.unsuitable_reason || "unknown");
   const aspect = isNull(p.aspect_deg) ? "—" : `${compass(p.aspect_deg)} (${fmtInt(p.aspect_deg)}°)`;
+  // An unfittable roof has no orientation: the pipeline labels it north-facing (classify_roof's
+  // NaN fall-through) with a 1-plane placeholder row, so show no class and 0 planes (#40).
+  const unfit = p.unsuitable_reason === "no_plane_fit";
   const rows =
     popupRow("Status", status) +
     popupRow("Tilt", orDash(p.tilt_deg, fmt1, "°")) +
     popupRow("Aspect", aspect) +
     popupRow("Footprint area", orDash(p.footprint_area_m2, fmtInt, " m²")) +
     popupRow("Usable area", orDash(p.usable_area_m2, fmtInt, " m²")) +
-    popupRow("Roof class", ROOF_CLASS_LABELS[p.roof_class] || "—") +
+    popupRow("Roof class", unfit ? "—" : ROOF_CLASS_LABELS[p.roof_class] || "—") +
     popupRow("Real-sky POA", orDash(p.poa_real_kwh_m2, fmtInt, " kWh/m²/yr")) +
-    popupRow("Planes", orDash(p.n_planes, fmtInt));
+    popupRow("Planes", unfit ? "0" : orDash(p.n_planes, fmtInt)) +
+    popupRow("Low confidence", String(p.low_confidence) === "true" ? "yes — poor plane fit" : "no");
   const yields = suitable
     ? popupRow("Suitability", orDash(p.suitability, fmt1, " / 100")) +
       popupRow("Capacity", orDash(p.capacity_kw, fmt1, " kW")) +
       popupRow("Annual energy", orDash(p.annual_energy_kwh, fmtInt, " kWh/yr"))
     : "";
-  const note =
-    String(p.low_confidence) === "true"
-      ? `<div class="popup-note">Low confidence: the roof-plane fit is poor.</div>`
-      : "";
-  return `<div class="popup-title">Rooftop</div>${rows}${yields}${note}`;
+  return `<div class="popup-title">Rooftop</div>${rows}${yields}`;
 }
 
 function wirePopups() {

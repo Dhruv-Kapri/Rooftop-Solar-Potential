@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+from pathlib import Path
 
 import geopandas as gpd
 import pytest
@@ -79,7 +80,7 @@ def test_write_roof_pmtiles_emits_valid_pmtiles_with_layer_and_minzoom(tmp_path)
     assert "roofs" in layer_ids  # the single expected vector layer
 
 
-def test_write_roof_pmtiles_keeps_unsuitable_roofs_and_typed_properties(tmp_path) -> None:
+def test_write_roof_pmtiles_keeps_unsuitable_roofs_and_typed_properties(tmp_path: Path) -> None:
     # At maxzoom every roof must survive tippecanoe (no silent drop), booleans/numbers must
     # keep their types (n_planes would be a string if it were an int column), and NaN must be
     # omitted from the tile (MapLibre reads it as null) rather than serialised.

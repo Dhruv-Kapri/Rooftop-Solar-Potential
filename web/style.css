@@ -108,7 +108,6 @@ html, body { margin: 0; height: 100%; }
 .popup-title { font-weight: 600; margin-bottom: 4px; }
 .popup-row { display: flex; justify-content: space-between; gap: 14px; }
 .popup-row .k { color: var(--muted); }
-.popup-note { margin-top: 5px; color: var(--muted); font-style: italic; }
 .popup-priority { margin-top: 5px; color: var(--accent); font-weight: 600; }
 
 @media (max-width: 640px) {

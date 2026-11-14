@@ -35,6 +35,16 @@ MIN_INSOLATION_KWH_M2 = 800.0  # drop roofs below this annual shaded insolation
 # Suitable_Buildings >= 30 m2. Strictly below fails; exactly 30 passes.
 MIN_USABLE_AREA_M2 = 30.0
 
+# Every `unsuitable_reason` value, in check order (#40; ADR-0003 addendum). The web map labels
+# each one (web/main.js REASON_LABELS) — tests/test_web_build.py pins that they stay in sync.
+UNSUITABLE_REASONS: tuple[str, ...] = (
+    "no_plane_fit",
+    "too_steep",
+    "north_facing",
+    "low_insolation",
+    "too_small",
+)
+
 # --- packing realism (ADR-0003): fraction of a qualifying roof that can hold panels ---
 UTILIZATION_FRACTION = 0.70
 
