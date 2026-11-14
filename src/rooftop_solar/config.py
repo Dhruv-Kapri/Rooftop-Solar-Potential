@@ -127,6 +127,13 @@ TILES_CACHE_DIR = DATA_DIR / "tiles"
 PUBLISHED_CITY_LABEL = "12day_2-4.5"
 PUBLISHED_CITY_OUTPUTS_DIR = outputs_run_dir("dc", PUBLISHED_CITY_LABEL)
 
+# --- Esri "Estimate solar power potential" (Glover Park tutorial) reference values ---
+# The intensive quantities ADR-0005 gates on, plus the per-building median shown for context.
+# Totals are method-dependent and not gated. One home for the numbers: `scripts/run_stage1.py`
+# gates on them and the walkthrough manifest (ADR-0015) draws them as the benchmark line.
+ESRI_MEDIAN_ENERGY_MWH = 13.35  # median per-building annual energy
+ESRI_SPECIFIC_YIELD_KWH_KWP = 1150.0  # kWh per kWp per year
+
 # --- spot-check validation (Part 2-4 step 7b — plan §6) ---
 # Glover Park + one dense downtown block, as WGS84 (west, south, east, north) bboxes.
 SPOT_CHECK_AREAS_WGS84 = {

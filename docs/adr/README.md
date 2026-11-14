@@ -21,3 +21,4 @@ in the order the decision was made; do not renumber or reuse a number. ADRs 0001
 | [0012](0012-per-plane-poa.md) | Per-plane POA — insolation selected per usable plane via pixel–plane membership |
 | [0013](0013-obstruction-aware-usable-area.md) | Obstruction-aware usable area from DSM residuals — replaces the flat × 0.70 utilization fraction |
 | [0014](0014-tiered-per-tile-cache-component-versions.md) | Tiered per-tile cache (DSM/radiation/scoring) with chained component-version validity keys + sidecars; supersedes 0009's single stamp |
+| [0015](0015-walkthrough-raster-pmtiles.md) | Glover Park walkthrough (#41): raster stages as raster PMTiles (GDAL MBTiles → `pmtiles` convert), vectors as GeoJSON; extends 0010 |
