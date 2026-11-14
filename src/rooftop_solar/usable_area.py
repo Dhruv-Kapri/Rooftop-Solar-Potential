@@ -3,12 +3,17 @@
 Remove area that can't host panels: too-steep or wrong-aspect planes, setbacks/edges, and
 obstructions (chimneys, vents, HVAC — segmenting these is where the Phase 2 ML pays off,
 architecture.md §9). Output is the panel-able area per roof plane, feeding yield_pv.
+
+Four hard drop cutoffs in all: the plan's three (slope, insolation, north-facing; ADR-0003) per
+plane/footprint, plus the 30 m2 minimum usable building area (ADR-0003 addendum, #40). Every
+dropped roof/plane carries an ``unsuitable_reason`` saying which cutoff dropped it.
 """
 
 from __future__ import annotations
 
 import geopandas as gpd
 import numpy as np
+import pandas as pd
 import rasterio
 from shapely.geometry import box as _pixel_box
 from shapely.ops import unary_union
@@ -21,10 +26,14 @@ FLAT_THRESHOLD_DEG = 10.0
 SUN_FACING_MIN_DEG = 90.0
 SUN_FACING_MAX_DEG = 270.0
 
-# --- the plan's three hard drop cutoffs (§7 step 5; ADR-0003) ---
+# --- the plan's three hard drop cutoffs (§7 step 5; ADR-0003) + a 4th area gate (#40) ---
 MAX_SLOPE_DEG = 45.0  # drop roofs steeper than this
 MIN_INSOLATION_KWH_M2 = 800.0  # drop roofs below this annual shaded insolation
 # (north-facing is the third cutoff — expressed via classify_roof)
+# 4th cutoff (ADR-0003 addendum, #40), measured on a BUILDING's total usable area after
+# obstruction/setback/GCR packing, not on a plane: matches the Esri tutorial's
+# Suitable_Buildings >= 30 m2. Strictly below fails; exactly 30 passes.
+MIN_USABLE_AREA_M2 = 30.0
 
 # --- packing realism (ADR-0003): fraction of a qualifying roof that can hold panels ---
 UTILIZATION_FRACTION = 0.70
@@ -63,22 +72,42 @@ def classify_roof(tilt_deg: float, aspect_deg: float) -> str:
     return "pitched_north_facing"
 
 
+def unsuitable_reason(tilt_deg: float, aspect_deg: float, insolation_kwh_m2: float) -> str | None:
+    """Why a roof (or plane) fails the plan's three hard cutoffs, or None if it qualifies.
+
+    The FIRST failing check wins, in this order (#40, ADR-0003 addendum): NaN tilt ->
+    ``"no_plane_fit"`` (an unfittable roof, so no orientation to judge); tilt >
+    ``MAX_SLOPE_DEG`` -> ``"too_steep"``; :func:`classify_roof` ``"pitched_north_facing"`` ->
+    ``"north_facing"``; ``insolation_kwh_m2`` < ``MIN_INSOLATION_KWH_M2`` ->
+    ``"low_insolation"``. So a steep north-facing plane reads ``too_steep``. The fourth,
+    area cutoff (``"too_small"``, :data:`MIN_USABLE_AREA_M2`) is a per-building rule applied
+    after packing, not here.
+
+    ``insolation_kwh_m2`` is the per-roof mean *shaded, clear-sky* annual insolation from the
+    radiation stage (the real-sky derate is applied later, in yield_pv). A NaN insolation
+    compares False and so is not itself a failure.
+    """
+    if np.isnan(tilt_deg):
+        return "no_plane_fit"
+    if tilt_deg > MAX_SLOPE_DEG:
+        return "too_steep"
+    if classify_roof(tilt_deg, aspect_deg) == "pitched_north_facing":
+        return "north_facing"
+    if insolation_kwh_m2 < MIN_INSOLATION_KWH_M2:
+        return "low_insolation"
+    return None
+
+
 def is_usable(tilt_deg: float, aspect_deg: float, insolation_kwh_m2: float) -> bool:
     """Apply the plan's three hard drop cutoffs (ADR-0003): a roof qualifies unless it is
     steeper than ``MAX_SLOPE_DEG``, below ``MIN_INSOLATION_KWH_M2`` annual shaded insolation,
-    or pitched north-facing.
+    or pitched north-facing — i.e. :func:`unsuitable_reason` is None.
 
-    ``insolation_kwh_m2`` is the per-roof mean *shaded, clear-sky* annual insolation from the
-    radiation stage (the real-sky derate is applied later, in yield_pv). NaN tilt/aspect (an
-    unfittable roof) classifies as north-facing and is dropped — the conservative choice.
+    NaN tilt/aspect (an unfittable roof) is dropped — the conservative choice. The 4th,
+    building-area cutoff (:data:`MIN_USABLE_AREA_M2`, #40) is applied in :func:`usable_area`
+    / ``yield_pv.collapse_to_buildings``, after packing, not here.
     """
-    if tilt_deg > MAX_SLOPE_DEG:
-        return False
-    if insolation_kwh_m2 < MIN_INSOLATION_KWH_M2:
-        return False
-    if classify_roof(tilt_deg, aspect_deg) == "pitched_north_facing":
-        return False
-    return True
+    return unsuitable_reason(tilt_deg, aspect_deg, insolation_kwh_m2) is None
 
 
 def obstruction_pixels(
@@ -186,12 +215,14 @@ def usable_area(
 
     **Legacy path** (`obstructions is None`, ADR-0003, unchanged): the Phase-1
     one-row-per-footprint contract. Qualify each roof by the three hard cutoffs
-    (:func:`is_usable`), then derate qualifying roofs by the flat
-    :data:`UTILIZATION_FRACTION`. Reads ``tilt_deg``, ``aspect_deg`` and the shaded-insolation
-    column (:data:`POA_COLUMN`) plus geometry (in a metric CRS, so ``geometry.area`` is m²);
-    adds ``footprint_area_m2``, ``roof_class``, ``usable`` and ``usable_area_m2``. No rows are
-    dropped — unusable roofs are kept with ``usable_area_m2 = 0`` so they still appear on the
-    map.
+    (:func:`unsuitable_reason`), derate qualifying roofs by the flat
+    :data:`UTILIZATION_FRACTION`, then drop any whose packed area is below
+    :data:`MIN_USABLE_AREA_M2` as ``"too_small"`` (ADR-0003 addendum, #40; a footprint is a
+    building here, so the gate lives on this path). Reads ``tilt_deg``, ``aspect_deg`` and the
+    shaded-insolation column (:data:`POA_COLUMN`) plus geometry (in a metric CRS, so
+    ``geometry.area`` is m²); adds ``footprint_area_m2``, ``roof_class``, ``usable``,
+    ``unsuitable_reason`` (None when usable) and ``usable_area_m2``. No rows are dropped — unusable
+    roofs are kept with ``usable_area_m2 = 0`` so they still appear on the map.
 
     **Multiplane path** (`obstructions` given — :func:`detect_obstructions`'s output,
     row-aligned to `roof_planes`; ADR-0013 revises ADR-0003 here): same three hard cutoffs,
@@ -204,7 +235,10 @@ def usable_area(
     additionally gets :data:`FLAT_ROOF_GCR` applied on top — flat roofs use tilted racks with
     inter-row spacing, so their real panel-coverage is well below the edge-setback alone.
     ``plane_area_m2`` and ``obstruction_area_m2`` are carried onto the output alongside
-    ``roof_class``, ``usable`` and ``usable_area_m2``, still one row per plane.
+    ``roof_class``, ``usable``, ``unsuitable_reason`` (the plane's own geometric reason, None
+    when usable) and ``usable_area_m2``, still one row per plane. The 30 m2 area gate is NOT
+    applied here: it is per building, so ``yield_pv.collapse_to_buildings`` applies it on the
+    summed plane areas (#40).
     """
     if obstructions is None:
         roofs = roof_planes.copy()
@@ -212,15 +246,23 @@ def usable_area(
         roofs["roof_class"] = [
             classify_roof(t, a) for t, a in zip(roofs["tilt_deg"], roofs["aspect_deg"], strict=True)
         ]
-        roofs["usable"] = [
-            is_usable(t, a, poa)
+        reasons = [
+            unsuitable_reason(t, a, poa)
             for t, a, poa in zip(
                 roofs["tilt_deg"], roofs["aspect_deg"], roofs[POA_COLUMN], strict=True
             )
         ]
-        roofs["usable_area_m2"] = np.where(
-            roofs["usable"], roofs["footprint_area_m2"] * UTILIZATION_FRACTION, 0.0
+        packed_area = np.where(
+            [r is None for r in reasons], roofs["footprint_area_m2"] * UTILIZATION_FRACTION, 0.0
         )
+        # 4th cutoff (#40): per footprint == per building on this path; gate before yield.
+        reasons = [
+            "too_small" if r is None and area < MIN_USABLE_AREA_M2 else r
+            for r, area in zip(reasons, packed_area, strict=True)
+        ]
+        roofs["unsuitable_reason"] = pd.Series(reasons, index=roofs.index, dtype=object)
+        roofs["usable"] = [r is None for r in reasons]
+        roofs["usable_area_m2"] = np.where(roofs["usable"], packed_area, 0.0)
         return roofs
 
     planes = roof_planes.copy()
@@ -229,12 +271,14 @@ def usable_area(
     planes["roof_class"] = [
         classify_roof(t, a) for t, a in zip(planes["tilt_deg"], planes["aspect_deg"], strict=True)
     ]
-    planes["usable"] = [
-        is_usable(t, a, poa)
+    reasons = [
+        unsuitable_reason(t, a, poa)
         for t, a, poa in zip(
             planes["tilt_deg"], planes["aspect_deg"], planes[POA_COLUMN], strict=True
         )
     ]
+    planes["unsuitable_reason"] = pd.Series(reasons, index=planes.index, dtype=object)
+    planes["usable"] = [r is None for r in reasons]
     net_area = np.maximum(0.0, planes["plane_area_m2"] - planes["obstruction_area_m2"])
     packing_factor = np.where(
         planes["roof_class"] == "flat", SETBACK_FACTOR * FLAT_ROOF_GCR, SETBACK_FACTOR

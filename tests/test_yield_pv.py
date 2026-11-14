@@ -146,6 +146,7 @@ def _plane_yields_fixture():
             "aspect_deg": [180.0, 190.0, np.nan],
             "roof_class": ["pitched_sun_facing", "pitched_sun_facing", "pitched_north_facing"],
             "usable": [True, True, False],
+            "unsuitable_reason": [None, None, "no_plane_fit"],
             "usable_area_m2": [100.0, 50.0, 0.0],
             "poa_real_kwh_m2": [750.0, 600.0, np.nan],
             "capacity_kw": [20.0, 10.0, 0.0],
@@ -181,6 +182,9 @@ def test_collapse_to_buildings_sums_extensive_and_picks_dominant_plane():
     assert b1["usable_area_m2"] == 0.0
     assert not b1["usable"]
     assert b1["suitability"] == 0.0
+    # reasons: usable building -> None; unfittable placeholder -> no_plane_fit (not north-facing).
+    assert b0["unsuitable_reason"] is None
+    assert b1["unsuitable_reason"] == "no_plane_fit"
 
 
 def test_collapse_to_buildings_output_columns_and_crs():
@@ -197,6 +201,7 @@ def test_collapse_to_buildings_output_columns_and_crs():
         "roof_class",
         "footprint_area_m2",
         "usable",
+        "unsuitable_reason",
         "usable_area_m2",
         "poa_real_kwh_m2",
         "capacity_kw",
@@ -207,6 +212,95 @@ def test_collapse_to_buildings_output_columns_and_crs():
     }
     assert out.crs == config.WORKING_CRS
     assert len(out) == 2  # one row per building, not per plane
+
+
+def _planes_frame(rows: list[tuple[int, int, str | None, float, float]]) -> gpd.GeoDataFrame:
+    """Minimal `plane_yields`-shaped frame from (building_id, plane_id, reason, usable_area_m2,
+    annual_energy_kwh); every building has a distinct 100 m2 footprint, a sun-facing 20 deg
+    plane, and the rest of the columns `collapse_to_buildings` reads set to inert values.
+    """
+    n = len(rows)
+    return gpd.GeoDataFrame(
+        {
+            "building_id": [r[0] for r in rows],
+            "plane_id": [r[1] for r in rows],
+            "n_planes": [2] * n,
+            "low_confidence": [False] * n,
+            "superstructure_frac": [0.0] * n,
+            "tilt_deg": [20.0] * n,
+            "aspect_deg": [180.0] * n,
+            "roof_class": ["pitched_sun_facing"] * n,
+            "unsuitable_reason": [r[2] for r in rows],
+            "usable": [r[2] is None for r in rows],
+            "usable_area_m2": [r[3] for r in rows],
+            "poa_real_kwh_m2": [750.0] * n,
+            "capacity_kw": [r[3] * 0.2 for r in rows],
+            "annual_energy_kwh": [r[4] for r in rows],
+            "annual_co2_kg": [r[4] * 0.35 for r in rows],
+        },
+        geometry=[box(r[0] * 50.0, 0.0, r[0] * 50.0 + 10.0, 10.0) for r in rows],
+        crs=config.WORKING_CRS,
+    )
+
+
+def test_collapse_to_buildings_gates_small_buildings_before_suitability() -> None:
+    # A and C are healthy; B is the best energy density on paper but only 29.9 m2 usable
+    # (two planes summed), so it is gated: it must not occupy a rank in the percentile.
+    planes = _planes_frame(
+        [
+            (0, 0, None, 60.0, 12000.0),  # A
+            (1, 0, None, 20.0, 20000.0),  # B plane0
+            (1, 1, None, 9.9, 0.0),  # B plane1 -> 29.9 total
+            (2, 0, None, 60.0, 6000.0),  # C
+        ]
+    )
+
+    b = yield_pv.collapse_to_buildings(planes).set_index("building_id")
+
+    gated = b.loc[1]
+    assert not gated["usable"]
+    assert gated["unsuitable_reason"] == "too_small"
+    for col in (
+        "usable_area_m2",
+        "capacity_kw",
+        "annual_energy_kwh",
+        "annual_co2_kg",
+        "energy_density_kwh_m2",
+        "suitability",
+    ):
+        assert gated[col] == 0.0, col
+    # percentile over {A, C} only: ranks 2/2 and 1/2.
+    assert b.loc[0, "suitability"] == 100.0
+    assert b.loc[2, "suitability"] == 50.0
+
+
+def test_collapse_to_buildings_area_gate_boundary_exactly_30_passes() -> None:
+    planes = _planes_frame([(0, 0, None, 20.0, 5000.0), (0, 1, None, 10.0, 2500.0)])
+
+    out = yield_pv.collapse_to_buildings(planes).iloc[0]
+
+    assert out["usable"]
+    assert out["unsuitable_reason"] is None
+    assert out["usable_area_m2"] == 30.0
+    assert out["annual_energy_kwh"] == 7500.0
+
+
+def test_collapse_to_buildings_reason_comes_from_the_dominant_plane() -> None:
+    planes = _planes_frame(
+        [
+            # X: plane0 is too steep but plane1 is usable and dominant -> usable, no reason.
+            (0, 0, "too_steep", 0.0, 0.0),
+            (0, 1, None, 40.0, 4000.0),
+            # Y: nothing usable -> falls back to plane_id 0's reason, not plane1's.
+            (1, 0, "low_insolation", 0.0, 0.0),
+            (1, 1, "too_steep", 0.0, 0.0),
+        ]
+    )
+
+    b = yield_pv.collapse_to_buildings(planes).set_index("building_id")
+
+    assert b.loc[0, "unsuitable_reason"] is None
+    assert b.loc[1, "unsuitable_reason"] == "low_insolation"
 
 
 def test_estimate_yield_composer_adds_yield_columns():

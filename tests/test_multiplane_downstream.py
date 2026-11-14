@@ -53,6 +53,7 @@ def _collapsed_buildings_gdf() -> gpd.GeoDataFrame:
             ],
             "footprint_area_m2": [100.0, 100.0, 100.0],
             "usable": [r[1] for r in rows],
+            "unsuitable_reason": [None, None, "no_plane_fit"],
             "usable_area_m2": [r[2] for r in rows],
             "poa_real_kwh_m2": [750.0, 700.0, np.nan],
             "capacity_kw": [r[3] for r in rows],
@@ -86,11 +87,11 @@ def test_collapsed_rows_feed_aggregate_and_web():
     np.testing.assert_allclose(tract["median_suitability"], 60.0)  # median([80, 60, 0])
     np.testing.assert_allclose(tract["pct_usable"], 200.0 / 3.0)  # 2 of 3, as a percentage
 
-    # --- roofs_to_web: usable-only, minimal schema, reprojected ---
+    # --- roofs_to_web: every building (unsuitable ones drawn grey, #40), reprojected ---
     web = web_build.roofs_to_web(collapsed)
 
-    assert len(web) == 2  # the unusable building is dropped
-    assert set(web.columns) == {"suitability", "capacity_kw", "annual_energy_kwh", "geometry"}
+    assert len(web) == 3  # the unusable building is kept, with its reason
     assert web.crs.to_string() == "EPSG:4326"
-    np.testing.assert_allclose(sorted(web["capacity_kw"]), [1.0, 2.0])
-    np.testing.assert_allclose(sorted(web["annual_energy_kwh"]), [50.0, 100.0])
+    assert list(web["usable"]) == [True, True, False]
+    assert web["unsuitable_reason"].iloc[2] == "no_plane_fit"
+    np.testing.assert_allclose(sorted(web["capacity_kw"]), [0.0, 1.0, 2.0])

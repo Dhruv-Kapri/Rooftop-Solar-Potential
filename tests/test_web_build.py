@@ -5,8 +5,8 @@ outputs:
 
   - `tracts_to_web` — EPSG:6347 -> EPSG:4326 reprojection + exact map-property schema (plan
     §5), zero-padded `GEOID` string preserved, one feature per input tract.
-  - `roofs_to_web` — usable-only filter + exact minimal-payload schema (plan §5), same
-    reprojection.
+  - `roofs_to_web` — all roofs kept (#40) + exact popup schema, display-precision rounding,
+    same reprojection.
 
 Expected values are hand-worked or independently re-derived (e.g. via a manual pyproj
 round-trip), never read back from `web_build`'s own output. Fast: pure geopandas, no files, no
@@ -125,57 +125,86 @@ def test_write_tract_geojson_writes_valid_4326_with_schema(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
-# roofs_to_web — usable-only filter + minimal schema + reprojection           #
+# roofs_to_web — all roofs + popup schema + rounding + reprojection           #
 # --------------------------------------------------------------------------- #
 
-_ROOF_A = box(10.0, 10.0, 20.0, 20.0)
-_ROOF_B = box(30.0, 10.0, 40.0, 20.0)
-_ROOF_C = box(50.0, 10.0, 60.0, 20.0)
+_ROOF_WEB_COLUMNS = {
+    "usable",
+    "unsuitable_reason",
+    "suitability",
+    "capacity_kw",
+    "annual_energy_kwh",
+    "tilt_deg",
+    "aspect_deg",
+    "footprint_area_m2",
+    "usable_area_m2",
+    "roof_class",
+    "poa_real_kwh_m2",
+    "n_planes",
+    "low_confidence",
+    "geometry",
+}
 
 
-def _roofs_gdf():
+def _roofs_gdf() -> gpd.GeoDataFrame:
+    """A suitable roof, a too-steep roof, and a no-plane-fit roof (NaN geometry-derived fields)."""
     return gpd.GeoDataFrame(
         {
-            "usable": [True, False, True],
-            "suitability": [80.0, 0.0, 60.0],
-            "capacity_kw": [4.0, 0.0, 3.0],
-            "annual_energy_kwh": [1200.0, 0.0, 900.0],
+            "usable": [True, False, False],
+            "unsuitable_reason": [None, "too_steep", "no_plane_fit"],
+            "suitability": [80.123, 0.0, 0.0],
+            "capacity_kw": [4.456, 0.0, 0.0],
+            "annual_energy_kwh": [1200.6, 0.0, 0.0],
+            "tilt_deg": [20.26, 55.0, np.nan],
+            "aspect_deg": [183.7, 10.0, np.nan],
+            "footprint_area_m2": [100.4, 80.0, 50.0],
+            "usable_area_m2": [60.5, 0.0, 0.0],
+            "roof_class": ["pitched_sun_facing", "pitched_north_facing", "flat"],
+            "poa_real_kwh_m2": [1400.49, 900.0, np.nan],
+            "n_planes": [2, 1, 0],
+            "low_confidence": [False, True, True],
             # Extra columns present on the real roofs.parquet that must be dropped.
-            "tilt_deg": [20.0, 5.0, 25.0],
-            "poa_real_kwh_m2": [1400.0, 900.0, 1300.0],
+            "height_m": [8.0, 6.0, 4.0],
         },
-        geometry=[_ROOF_A, _ROOF_B, _ROOF_C],
+        geometry=[
+            box(10.0, 10.0, 20.0, 20.0),
+            box(30.0, 10.0, 40.0, 20.0),
+            box(50.0, 10.0, 60.0, 20.0),
+        ],
         crs=config.WORKING_CRS,
     )
 
 
-def test_roofs_to_web_keeps_only_usable_roofs():
+def test_roofs_to_web_keeps_unsuitable_roofs_with_exact_schema() -> None:
     out = web_build.roofs_to_web(_roofs_gdf())
-    # Two usable roofs (suitability 80, 60); the unusable one (suitability 0) is dropped.
-    assert len(out) == 2
-    assert set(out["suitability"]) == {80.0, 60.0}
+    assert len(out) == 3  # nothing filtered: unsuitable roofs are drawn grey (#40)
+    assert out["usable"].tolist() == [True, False, False]
+    assert out["unsuitable_reason"].isna().tolist() == [True, False, False]
+    assert out["unsuitable_reason"].iloc[1:].tolist() == ["too_steep", "no_plane_fit"]
+    assert set(out.columns) == _ROOF_WEB_COLUMNS  # `height_m` dropped
 
 
-def test_roofs_to_web_exact_schema():
+def test_roofs_to_web_rounds_to_display_precision_and_keeps_nan() -> None:
     out = web_build.roofs_to_web(_roofs_gdf())
-    # `usable` itself is dropped along with every other extra input column.
-    assert set(out.columns) == {"suitability", "capacity_kw", "annual_energy_kwh", "geometry"}
+    row = out.iloc[0]
+    assert (row["suitability"], row["capacity_kw"], row["tilt_deg"]) == (80.1, 4.5, 20.3)
+    assert row["aspect_deg"] == 184.0
+    assert row["annual_energy_kwh"] == 1201.0
+    assert row["poa_real_kwh_m2"] == 1400.0
+    # NaN must survive as NaN (tippecanoe then omits it -> null), not become a string/zero.
+    assert np.isnan(out.iloc[2]["tilt_deg"]) and np.isnan(out.iloc[2]["poa_real_kwh_m2"])
+    # n_planes is float: tippecanoe turns FlatGeobuf integer columns into strings.
+    assert out["n_planes"].dtype == "float64"
 
 
-def test_roofs_to_web_reprojects_to_4326():
+def test_roofs_to_web_reprojects_to_4326() -> None:
     cx, cy = _DC_POINT_6347.x, _DC_POINT_6347.y
-    roof = gpd.GeoDataFrame(
-        {
-            "usable": [True],
-            "suitability": [80.0],
-            "capacity_kw": [4.0],
-            "annual_energy_kwh": [1200.0],
-        },
-        geometry=[box(cx - 1.0, cy - 1.0, cx + 1.0, cy + 1.0)],
-        crs=config.WORKING_CRS,
+    roofs = _roofs_gdf().iloc[:1]
+    roofs = roofs.set_geometry(
+        [box(cx - 1.0, cy - 1.0, cx + 1.0, cy + 1.0)], crs=config.WORKING_CRS
     )
 
-    out = web_build.roofs_to_web(roof)
+    out = web_build.roofs_to_web(roofs)
 
     assert out.crs == "EPSG:4326"
     centroid = out.geometry.iloc[0].centroid

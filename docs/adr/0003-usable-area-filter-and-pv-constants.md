@@ -48,3 +48,32 @@ as documented Stage-1 baselines.
   numbered drop thresholds.
 - **Plan cutoffs alone, no utilization fraction** — rejected: overstates usable area by assuming
   100% of a qualifying roof is packable, losing the notebook's more realistic area packing.
+
+## Addendum (2026-11-14) — 30 m² minimum usable area + a recorded "why not suitable" reason (#40)
+
+**Fourth cutoff.** A building now qualifies only if its total `usable_area_m2` (after obstruction
+subtraction, setback and the flat-roof GCR; ADR-0013) is at least `MIN_USABLE_AREA_M2` = **30 m²**.
+This matches the Esri tutorial's `Suitable_Buildings` filter (suitable roof area ≥ 30 m²), the
+ADR-0005 benchmark. Strictly below 30 fails; exactly 30 passes. It is a **building-level** gate, so it
+runs after the per-plane cutoffs: inside `usable_area()` on the single-plane `ransac` path (one row
+per footprint) and inside `yield_pv.collapse_to_buildings` on the `multiplane` path, before
+`suitability` is ranked. A gated building is `usable = False`, with usable area, capacity, energy and
+CO₂ set to 0, so it drops out of the suitability percentile population (ADR-0004).
+
+Measured on `12day_2-4.3` before the change: it drops 5,204 of 65,779 usable roofs (7.9%), worth
+1.1% of city capacity; the dropped roofs have a median capacity of 4.8 kW. The re-score's headline and
+per-tract equity deltas are in `docs/benchmarks/stage-2-part4-validation.md` (published map run).
+
+**Reason column.** Each plane (each footprint on `ransac`) records `unsuitable_reason`, the
+first cutoff it fails, in this order: `no_plane_fit` (NaN tilt: no plane could be fitted),
+`too_steep` (> 45°), `north_facing`, `low_insolation` (< 800 kWh/m²/yr shaded clear-sky). It is
+`None` for a qualifying plane. The building takes its **dominant plane's** reason. That is the same
+row `collapse_to_buildings` already takes `tilt_deg` / `aspect_deg` / `roof_class` from, so the map
+popup's reason always agrees with the orientation it shows. The area gate then overrides it with
+`too_small`. The reason is computed in the pipeline because the inputs it needs are not in the
+per-building output. The clear-sky POA behind the 800 cutoff is not persisted (only
+`poa_real_kwh_m2` is). The per-plane failures collapse away. Unfittable roofs carry
+`roof_class = "pitched_north_facing"` by design, so the web ETL would have mislabelled them as
+north-facing.
+
+`SCORING_VERSION` `2-4.4` → `2-4.5`: a downstream-only re-score on the tiered cache (ADR-0014).

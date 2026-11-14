@@ -9,9 +9,10 @@ and the `tippecanoe` PMTiles build are orchestration, not transforms, and live i
 
   - `tracts_to_web` — per-tract map schema: `GEOID`, `equity_class`, `is_priority`,
     `potential_per_household`, `energy_burden`, `geometry`.
-  - `roofs_to_web` — usable-only roofs, minimal per-roof map schema: `suitability`,
-    `capacity_kw`, `annual_energy_kwh`, `geometry` (properties x 100k roofs bloats vector
-    tiles, plan §4).
+  - `roofs_to_web` — every roof (suitable or not, #40), per-roof popup schema: usable flag +
+    reason, suitability, capacity/energy, tilt/aspect, areas, roof class, POA, plane count,
+    low-confidence flag, `geometry`; floats rounded to display precision (properties x 100k
+    roofs bloats vector tiles, plan §4).
 
 Same idiom as `aggregate.py`: no hidden globals, no file I/O, no network.
 """
@@ -38,7 +39,37 @@ _TRACT_COLUMNS = [
     "geometry",
 ]
 
-_ROOF_COLUMNS = ["suitability", "capacity_kw", "annual_energy_kwh", "geometry"]
+_ROOF_COLUMNS = [
+    "usable",
+    "unsuitable_reason",
+    "suitability",
+    "capacity_kw",
+    "annual_energy_kwh",
+    "tilt_deg",
+    "aspect_deg",
+    "footprint_area_m2",
+    "usable_area_m2",
+    "roof_class",
+    "poa_real_kwh_m2",
+    "n_planes",
+    "low_confidence",
+    "geometry",
+]
+
+# Display precision per numeric roof column (decimal places) — the popup shows no more, and
+# unrounded float64s dominate the tile size x 100k roofs. `n_planes` is a float on purpose:
+# tippecanoe reads FlatGeobuf integer columns as *strings*, floats as numbers.
+_ROOF_DECIMALS: dict[str, int] = {
+    "suitability": 1,
+    "capacity_kw": 1,
+    "tilt_deg": 1,
+    "aspect_deg": 0,
+    "footprint_area_m2": 0,
+    "usable_area_m2": 0,
+    "annual_energy_kwh": 0,
+    "poa_real_kwh_m2": 0,
+    "n_planes": 0,
+}
 
 
 def tracts_to_web(tracts_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
@@ -52,14 +83,17 @@ def tracts_to_web(tracts_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
 
 
 def roofs_to_web(roofs_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-    """Filter to usable roofs, reproject to EPSG:4326, and trim to the minimal map schema.
+    """Reproject every roof to EPSG:4326 and trim to the popup schema (#40).
 
-    Keeps only rows with `usable == True`, then keeps exactly `suitability`, `capacity_kw`,
-    `annual_energy_kwh`, and `geometry` — all other input columns, including `usable` itself,
-    are dropped. Minimal payload: properties x ~100k roofs bloats the vector tiles (plan §4).
+    Unsuitable roofs are kept (the map draws them grey, with the reason in the popup), so there
+    is no `usable` filter. Keeps exactly the `_ROOF_COLUMNS`; numeric columns are rounded to
+    display precision (`_ROOF_DECIMALS`) to keep the vector tiles small (plan §4). NaN stays NaN
+    — tippecanoe omits it from the tile, so MapLibre reads it as null, never a string.
     """
-    usable = roofs_gdf[roofs_gdf["usable"]]
-    return usable[_ROOF_COLUMNS].to_crs(_WEB_CRS)
+    web = roofs_gdf[_ROOF_COLUMNS].to_crs(_WEB_CRS)
+    for col, decimals in _ROOF_DECIMALS.items():
+        web[col] = web[col].astype("float64").round(decimals)
+    return web
 
 
 def write_tract_geojson(tracts_gdf: gpd.GeoDataFrame, path: str | Path) -> Path:
@@ -83,7 +117,7 @@ def write_roof_pmtiles(
     minzoom: int = 13,
     maxzoom: int = 16,
 ) -> Path:
-    """Build usable-roof vector tiles as PMTiles via `tippecanoe`; return the path.
+    """Build all-roof vector tiles as PMTiles via `tippecanoe`; return the path.
 
     The 100k-roof layer is too heavy for client-side GeoJSON, so it is served as PMTiles vector
     tiles (plan §2a/§3). Writes `roofs_to_web` to an intermediate FlatGeobuf, then shells

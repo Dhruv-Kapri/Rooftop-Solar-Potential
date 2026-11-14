@@ -18,6 +18,7 @@ import numpy.typing as npt
 from scipy.stats import rankdata
 
 from rooftop_solar.radiation import POA_COLUMN  # per-roof shaded insolation column contract
+from rooftop_solar.usable_area import MIN_USABLE_AREA_M2  # 4th cutoff, per building (#40)
 
 # --- Stage-1 PV constants (documented baselines; ADR-0003) ---
 REAL_SKY_FACTOR = 0.75  # clear-sky -> real-sky derate (clouds/aerosols)
@@ -107,10 +108,19 @@ def collapse_to_buildings(plane_yields_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFram
 
       - ``geometry`` — the building's footprint (identical across its plane rows; take the
         first); ``footprint_area_m2 = geometry.area``.
-      - ``usable`` — True if ANY of the building's planes is usable.
+      - ``usable`` — True if ANY of the building's planes is usable AND the summed usable
+        area reaches ``usable_area.MIN_USABLE_AREA_M2`` (the 30 m2 gate, ADR-0003 addendum,
+        #40; strictly below fails, exactly 30 passes).
       - ``usable_area_m2``, ``capacity_kw``, ``annual_energy_kwh``, ``annual_co2_kg`` — summed
         over the building's planes (an unusable plane already contributes exactly 0 via
-        :func:`plane_yields`'s guard, so the sum needs no extra masking).
+        :func:`plane_yields`'s guard, so the sum needs no extra masking). A building that
+        fails the 30 m2 gate has all four forced to exactly 0.0, so its
+        ``energy_density_kwh_m2`` and ``suitability`` are 0 too; the gate runs before
+        suitability, so it also drops out of the percentile population.
+      - ``unsuitable_reason`` — None for a usable building, else the DOMINANT plane's reason
+        (the same row the orientation columns come from, below; a building with no usable
+        plane uses its `plane_id == 0` row, so an unfittable placeholder reads
+        ``"no_plane_fit"``), overridden by ``"too_small"`` when only the area gate failed.
       - ``tilt_deg``, ``aspect_deg``, ``roof_class``, ``poa_real_kwh_m2`` — taken from the
         building's DOMINANT usable plane (largest ``usable_area_m2``; a tie keeps the
         smallest ``plane_id``, i.e. the largest-inlier-count facet). A building with no
@@ -139,6 +149,10 @@ def collapse_to_buildings(plane_yields_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFram
         capacity_kw = float(group["capacity_kw"].sum())
         annual_energy_kwh = float(group["annual_energy_kwh"].sum())
         annual_co2_kg = float(group["annual_co2_kg"].sum())
+        too_small = usable and usable_area_m2 < MIN_USABLE_AREA_M2
+        if too_small:
+            usable = False
+            usable_area_m2 = capacity_kw = annual_energy_kwh = annual_co2_kg = 0.0
 
         usable_planes = group[group["usable"]]
         if len(usable_planes) > 0:
@@ -160,6 +174,7 @@ def collapse_to_buildings(plane_yields_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFram
                 "roof_class": dominant["roof_class"],
                 "footprint_area_m2": footprint_area_m2,
                 "usable": usable,
+                "unsuitable_reason": "too_small" if too_small else dominant["unsuitable_reason"],
                 "usable_area_m2": usable_area_m2,
                 "poa_real_kwh_m2": dominant["poa_real_kwh_m2"],
                 "capacity_kw": capacity_kw,
@@ -170,6 +185,10 @@ def collapse_to_buildings(plane_yields_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFram
         )
 
     out = gpd.GeoDataFrame(rows, crs=plane_yields_gdf.crs)
+    # Keep "no reason" as None: left to inference, pandas 3 turns the column into str dtype + NaN.
+    out["unsuitable_reason"] = (
+        out["unsuitable_reason"].astype(object).where(out["unsuitable_reason"].notna(), None)
+    )
     out["suitability"] = suitability_score(
         out["energy_density_kwh_m2"].to_numpy(), out["usable_area_m2"].to_numpy()
     )
@@ -184,6 +203,9 @@ def estimate_yield(usable: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     shading-adjusted value, never a raw NSRDB location value; trap 4). Adds
     ``poa_real_kwh_m2``, ``capacity_kw``, ``annual_energy_kwh``, ``annual_co2_kg``,
     ``energy_density_kwh_m2`` and the within-AOI ``suitability`` score. No rows dropped.
+    The 30 m2 area gate (ADR-0003 addendum, #40) is already applied upstream by
+    ``usable_area.usable_area`` on this path (a footprint is a building), so a gated roof
+    arrives with ``usable_area_m2 == 0`` and scores 0, outside the percentile population.
     """
     roofs = usable.copy()
     yields = [
