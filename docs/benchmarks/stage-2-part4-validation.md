@@ -21,19 +21,43 @@ The **one place the live map's headline figures are recorded**. The README, `CLA
 and the Part 2-4 plan name only the version and label and link here. `web/index.html`'s about panel
 repeats the figures for map readers, so update it with this section (#32).
 
-- **Run:** `outputs/dc/12day_2-4.3/` (`config.PUBLISHED_CITY_LABEL`), `SCORING_VERSION` `2-4.3`
-  (#30's superstructure rule), 12-day calibrated radiation (ADR-0001), 66 tiles, 100,064 roofs.
-- **Totals:** **2,196.1 MW / 2,607 GWh/yr**, specific yield **~1,187 kWh/kWp** (Stage-1
-  Esri-validated ~1,162). That is **1.69× / 1.63×** NREL's ~1.3 GW / ~1.6 TWh: a usable-area
+- **Run:** `outputs/dc/12day_2-4.5/` (`config.PUBLISHED_CITY_LABEL`), `SCORING_VERSION` `2-4.5`
+  (#40: the 30 m² usable-area gate + `unsuitable_reason`, ADR-0003 addendum), 12-day calibrated
+  radiation (ADR-0001), 66 tiles, 100,064 roofs, **60,575 suitable**.
+- **Totals:** **2,172.1 MW / 2,581 GWh/yr**, specific yield **~1,188 kWh/kWp** (Stage-1
+  Esri-validated ~1,162). That is **1.67× / 1.61×** NREL's ~1.3 GW / ~1.6 TWh: a usable-area
   over-estimate, reported, not targeted (§3).
-- **Assembled (#32, 2026-10-19)** the same way as #25: #30's city re-score `roofs.parquet` +
-  `run_log.txt` copied in, `pipeline.run_aggregation(…, area_name="Washington, DC")` for the tracts,
-  then `python scripts/build_web.py`.
+- **Assembled (#40, 2026-11-14):** `scripts/run_city.py` re-score on the cached DSM + `r.sun` tiers
+  (`data/tiles_12day_gcr`, no `r.sun` reruns; 2,817 s at 4 workers on the Mac), which also wrote the
+  tracts (`run_aggregation`); then `python scripts/build_web.py`.
 - **Labels still not blind.** The ADR-0013 addendum asks for a blind relabel before more tuning. A
   later re-score writes to a new `12day_<SCORING_VERSION>` label, so it can't overwrite this run.
-- **`2-4.4` (#33) keeps this run published.** It changes only `low_confidence` and adds
-  `superstructure_frac`; neither is on the map, and the totals are identical
-  ([tuning.md](spot_check/tuning.md)).
+
+**#40 deltas vs the previous published run `12day_2-4.3`** (2,196.1 MW / 2,607 GWh/yr, 65,779 usable):
+
+| | `12day_2-4.3` | `12day_2-4.5` | change |
+|---|---|---|---|
+| suitable roofs | 65,779 | 60,575 | −5,204 (−7.9%), all `too_small` |
+| capacity | 2,196.1 MW | 2,172.1 MW | −24.0 MW (−1.1%) |
+| energy | 2,607 GWh/yr | 2,581 GWh/yr | −1.0% |
+| specific yield | ~1,187 | ~1,188 kWh/kWp | flat (intensive; the gate drops area, not yield) |
+
+**Why not suitable** (all 100,064 roofs; the dominant plane's first failed cutoff, then the area
+gate): suitable 60,575 · `north_facing` 21,669 · `no_plane_fit` 8,393 · `too_small` 5,204 ·
+`too_steep` 4,218 · `low_insolation` 5. The 8,393 `no_plane_fit` roofs were previously shown as
+north-facing by `roof_class` (the NaN fall-through); the gated roofs have a median footprint of
+104 m².
+
+**Per-tract equity effect.** Tract capacity falls by a median **0.6%** (p10 −2.5%, worst −4.4%,
+tract 11001009400). The priority set is **unchanged (57 → 57 tracts)**. Only two tracts change
+quadrant, both in the low-burden half and neither priority: 11001003301 high → low potential, and
+11001008702 low → high (a swap across the potential median). The gate does bite harder in priority
+tracts: a median −1.28% capacity there against −0.48% elsewhere. Their many small rowhouse roofs fall
+under 30 m² more often. This is reported, not corrected. The 30 m² threshold is Esri's, not tuned
+for equity.
+
+**Glover Park benchmark (ADR-0005) with the gate:** specific yield **1,192 kWh/kWp vs Esri 1,150 →
+PASS** (612 of 771 roofs usable; `scripts/run_stage1.py`, 12-day).
 
 The sections below were measured on `2-4.2` and are not re-run; §3 adds the `2-4.3` row.
 
@@ -162,7 +186,8 @@ District (66 tiles, 100,064 roofs, 12-day calibrated radiation).
 | `12day` multiplane, pre-GCR | multiplane | — (`PIPELINE_VERSION` 2-4.0) | 3,831.5 MW | **2.9×** | 4,531 GWh/yr | 2.8× | ~1,183 |
 | `12day_gcr` (#19) | multiplane + flat GCR 0.50 | 2-4.1 | 2,302.7 MW | **1.77×** | 2,734 GWh/yr | 1.71× | ~1,187 |
 | tuned (#23 round 1), `12day_tuned` | multiplane + GCR, τ 0.5 m | 2-4.2 | 2,237.6 MW | 1.72× | 2,658 GWh/yr | 1.66× | ~1,188 |
-| **`12day_2-4.3` (#30), published** | + superstructure rule | **2-4.3** | **2,196.1 MW** | **1.69×** | **2,607 GWh/yr** | **1.63×** | ~1,187 |
+| `12day_2-4.3` (#30) | + superstructure rule | 2-4.3 | 2,196.1 MW | 1.69× | 2,607 GWh/yr | 1.63× | ~1,187 |
+| **`12day_2-4.5` (#40), published** | + 30 m² usable-area gate | **2-4.5** | **2,172.1 MW** | **1.67×** | **2,581 GWh/yr** | **1.61×** | ~1,188 |
 
 - **The GCR calibration did nearly all of the work** (2.9× → 1.77×): flat-roof arrays now get
   tilted-row spacing (plan step 6). Tuning τ took off another 2.8% of usable area (−65 MW).

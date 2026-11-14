@@ -84,8 +84,8 @@ def test_outputs_run_dir_nests_label_under_area():
 
 
 def test_published_city_label_is_the_served_run():
-    assert config.PUBLISHED_CITY_LABEL == "12day_2-4.3"
+    assert config.PUBLISHED_CITY_LABEL == "12day_2-4.5"
 
 
 def test_published_city_outputs_dir_resolves_via_helper():
-    assert config.PUBLISHED_CITY_OUTPUTS_DIR == config.outputs_run_dir("dc", "12day_2-4.3")
+    assert config.PUBLISHED_CITY_OUTPUTS_DIR == config.outputs_run_dir("dc", "12day_2-4.5")

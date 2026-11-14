@@ -122,8 +122,9 @@ TILES_CACHE_DIR = DATA_DIR / "tiles"
 # SCORING_VERSION) so a version bump can't overwrite a published run. PUBLISHED_CITY_LABEL is
 # the run the web map serves — the default input of `build_web`; it is set by hand: publishing
 # a new run = pointing this constant at it and rebuilding the map (#32). Earlier runs (12day,
-# 12day_gcr, 12day_tuned = 2-4.2) keep their own labels.
-PUBLISHED_CITY_LABEL = "12day_2-4.3"
+# 12day_gcr, 12day_tuned = 2-4.2, 12day_2-4.3) keep their own labels. 12day_2-4.5 is #40 (all
+# roofs on the map with an unsuitable_reason; the 30 m2 area gate).
+PUBLISHED_CITY_LABEL = "12day_2-4.5"
 PUBLISHED_CITY_OUTPUTS_DIR = outputs_run_dir("dc", PUBLISHED_CITY_LABEL)
 
 # --- spot-check validation (Part 2-4 step 7b — plan §6) ---

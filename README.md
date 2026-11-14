@@ -107,8 +107,8 @@ fully static: **MapLibre GL JS + PMTiles vector tiles on GitHub Pages**, no back
 </p>
 
 > **Calibrated radiation; capacity still approximate.** The map serves the calibrated 12-day run
-> `12day_2-4.3` (Part 2-4: multi-plane roofs + obstruction-aware usable area, `SCORING_VERSION`
-> `2-4.3`). The fleet specific yield is stable and close to Stage-1's Esri-validated ~1,162 kWh/kWp.
+> `12day_2-4.5` (Part 2-4: multi-plane roofs + obstruction-aware usable area, plus #40's 30 m² area
+> gate and a "why not suitable" reason on every roof, `SCORING_VERSION` `2-4.5`). The fleet specific yield is stable and close to Stage-1's Esri-validated ~1,162 kWh/kWp.
 > Capacity and energy still run about 1.6–1.7× NREL's published estimate. That is a usable-area
 > over-estimate, not a radiation one, and it is reported, not targeted. Headline figures:
 > [published map run](docs/benchmarks/stage-2-part4-validation.md#published-map-run). Rebuild the served tiles with `python scripts/build_web.py`
