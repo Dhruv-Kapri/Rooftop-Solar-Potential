@@ -4,6 +4,7 @@ Two distinct steps, tested separately:
   - `classify_roof` — the reporting label (flat / pitched sun-facing / pitched north-facing).
     This is a *label only*, never a drop threshold (ADR-0003).
   - `is_usable` — the plan's three hard drop cutoffs: tilt > 45, insolation < 800, north-facing.
+  - `unsuitable_reason` — which cutoff dropped a roof/plane (first failing check wins; #40).
   - `usable_area` — composes qualification + the 0.70 packing derate over a GeoDataFrame.
 
 Expected values come from the ADR-0003 spec thresholds, not from the implementation.
@@ -73,6 +74,26 @@ def test_classify_roof_label(tilt_deg, aspect_deg, expected):
 )
 def test_is_usable_hard_cutoffs(tilt_deg, aspect_deg, insol, expected, reason):
     assert usable_area.is_usable(tilt_deg, aspect_deg, insol) is expected, reason
+
+
+@pytest.mark.parametrize(
+    "tilt_deg, aspect_deg, insol, expected",
+    [
+        (30.0, 180.0, 1400.0, None),
+        (np.nan, np.nan, 1400.0, "no_plane_fit"),  # unfittable, not (as roof_class says) north
+        (60.0, 180.0, 1400.0, "too_steep"),
+        (30.0, 0.0, 1400.0, "north_facing"),
+        (30.0, 180.0, 799.0, "low_insolation"),
+        # precedence: first failing check wins (steep > north > insolation).
+        (60.0, 0.0, 500.0, "too_steep"),
+        (30.0, 0.0, 500.0, "north_facing"),
+        (np.nan, np.nan, 500.0, "no_plane_fit"),
+    ],
+)
+def test_unsuitable_reason_first_failing_check(
+    tilt_deg: float, aspect_deg: float, insol: float, expected: str | None
+) -> None:
+    assert usable_area.unsuitable_reason(tilt_deg, aspect_deg, insol) == expected
 
 
 def test_obstruction_pixels_flags_bump_above_plane():
@@ -271,6 +292,8 @@ def test_usable_area_multiplane_path_obstruction_aware_area():
     assert out["usable"].tolist() == [True, False]
     assert out["plane_area_m2"].tolist() == [100.0, 50.0]
     assert out["obstruction_area_m2"].tolist() == [20.0, 0.0]
+    # per-plane reason is geometric only; the 30 m2 gate is per building (collapse_to_buildings).
+    assert out["unsuitable_reason"].tolist() == [None, "too_steep"]
 
 
 def test_usable_area_multiplane_path_clamps_negative_net_area():
@@ -339,7 +362,34 @@ def test_usable_area_composer_qualifies_and_derates():
     np.testing.assert_allclose(out["footprint_area_m2"], 100.0)
     np.testing.assert_allclose(out["usable_area_m2"].to_numpy(), [70.0, 0.0, 0.0, 0.0, 70.0])
     assert out["usable"].tolist() == [True, False, False, False, True]
+    assert out["unsuitable_reason"].tolist() == [
+        None,
+        "too_steep",
+        "low_insolation",
+        "north_facing",
+        None,
+    ]
     assert out["roof_class"].tolist()[0] == "pitched_sun_facing"
     assert out["roof_class"].tolist()[4] == "flat"
     # The composer must not drop rows — every input roof appears in the output.
     assert len(out) == len(roofs)
+
+
+def test_usable_area_legacy_path_gates_buildings_below_min_area(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Pin the packing fraction to 0.5 so the packed areas land exactly on the 30 m2 boundary.
+    monkeypatch.setattr(usable_area, "UTILIZATION_FRACTION", 0.5)
+    roofs = _roofs_gdf([(30.0, 180.0, 1400.0)] * 3)
+    # footprints 59.8 / 60.0 m2 -> packed 29.9 (fails) / 30.0 (passes); third is plainly big.
+    roofs.geometry = [
+        box(0.0, 0.0, 10.0, 5.98),
+        box(50.0, 0.0, 60.0, 6.0),
+        box(100.0, 0.0, 110.0, 10.0),
+    ]
+
+    out = usable_area.usable_area(roofs)
+
+    assert out["usable"].tolist() == [False, True, True]
+    assert out["unsuitable_reason"].tolist() == ["too_small", None, None]
+    assert out["usable_area_m2"].tolist() == [0.0, 30.0, 50.0]

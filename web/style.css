@@ -57,6 +57,8 @@ html, body { margin: 0; height: 100%; }
 .legend .legend-title { font-weight: 600; margin-bottom: 6px; }
 .legend .row { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
 .legend .swatch { width: 16px; height: 12px; border-radius: 2px; flex: none; border: 1px solid rgba(0,0,0,0.15); }
+.legend .ramp { height: 10px; border-radius: 2px; border: 1px solid rgba(0,0,0,0.15); }
+.legend .ramp-labels { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; margin: 2px 0 6px; }
 .legend .priority-note { margin-top: 6px; color: var(--muted); font-size: 11px; }
 
 .hint { font-size: 11px; color: var(--muted); line-height: 1.4; margin: 12px 0 10px; }

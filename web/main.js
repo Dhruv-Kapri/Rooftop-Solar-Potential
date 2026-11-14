@@ -1,6 +1,7 @@
 // DC Rooftop Solar Potential — static MapLibre + PMTiles map (Part 2-3, ADR-0010).
 // Two layers (plan §5): a census-tract equity choropleth (inline GeoJSON, the default finding)
-// and a 100k-roof suitability layer (PMTiles vector tiles, z>=13 drill-down).
+// and a 100k-roof layer (PMTiles vector tiles, z>=13 drill-down): suitable roofs on a viridis
+// suitability ramp, non-suitable roofs dull grey with an outline (#40).
 
 // --- PMTiles protocol so MapLibre can read pmtiles:// vector sources ---
 const protocol = new pmtiles.Protocol();
@@ -24,11 +25,33 @@ const EQUITY_LABELS = {
 const POTENTIAL_RAMP = ["#ffffcc", "#c2e699", "#78c679", "#31a354", "#006837"]; // YlGn
 const BURDEN_RAMP = ["#fef0d9", "#fdcc8a", "#fc8d59", "#e34a33", "#b30000"]; // OrRd
 const NO_DATA = "#eeeeee";
+const SUITABILITY_RAMP = ["#440154", "#3b528b", "#21918c", "#5ec962", "#fde725"]; // viridis, 0→100
+const NOT_SUITABLE_FILL = "#b0b0b0";
+const NOT_SUITABLE_OUTLINE = "#6e6e6e";
+
+// Human labels for the pipeline's `unsuitable_reason` / `roof_class` values (#40).
+const REASON_LABELS = {
+  no_plane_fit: "No roof plane could be fitted",
+  too_steep: "Too steep (> 45°)",
+  north_facing: "North-facing",
+  low_insolation: "Low sunlight (< 800 kWh/m²/yr)",
+  too_small: "Too small (< 30 m² usable)",
+};
+const ROOF_CLASS_LABELS = {
+  flat: "Flat",
+  pitched_sun_facing: "Pitched, sun-facing",
+  pitched_north_facing: "Pitched, north-facing",
+};
+const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 
 // --- helpers ---
 const fmtInt = (v) => Math.round(v).toLocaleString("en-US");
 const fmtPct = (v) => (v * 100).toFixed(1) + "%";
 const fmt1 = (v) => Number(v).toFixed(1);
+const isNull = (v) => v == null || v === "" || Number.isNaN(Number(v));
+// Format a possibly-null numeric property; null shows "—".
+const orDash = (v, fmt, unit = "") => (isNull(v) ? "—" : fmt(v) + unit);
+const compass = (deg) => COMPASS[Math.round((((deg % 360) + 360) % 360) / 45) % 8];
 
 function percentile(sorted, p) {
   const i = (sorted.length - 1) * p;
@@ -108,14 +131,18 @@ map.on("load", async () => {
     paint: { "line-color": "#d7301f", "line-width": 1.8 },
   });
 
-  // 100k usable roofs as vector tiles, z>=13 drill-down (plan §5).
+  // All ~100k roofs as vector tiles, z>=13 drill-down (plan §5). Suitable roofs get the
+  // viridis ramp; the rest are grey + outlined (#40). `usable` is a boolean in the tiles, but
+  // the String() match also tolerates "true" in case a pipeline hands it over as text.
   map.addSource("roofs", { type: "vector", url: "pmtiles://./assets/roofs.pmtiles" });
+  const isUsable = ["==", ["to-string", ["get", "usable"]], "true"];
   map.addLayer({
     id: "roof-fill",
     type: "fill",
     source: "roofs",
     "source-layer": "roofs",
     minzoom: 13,
+    filter: isUsable,
     paint: {
       "fill-color": [
         "interpolate", ["linear"], ["get", "suitability"],
@@ -124,8 +151,27 @@ map.on("load", async () => {
       "fill-opacity": 0.85,
     },
   });
+  map.addLayer({
+    id: "roof-unsuitable-fill",
+    type: "fill",
+    source: "roofs",
+    "source-layer": "roofs",
+    minzoom: 13,
+    filter: ["!", isUsable],
+    paint: { "fill-color": NOT_SUITABLE_FILL, "fill-opacity": 0.6 },
+  });
+  map.addLayer({
+    id: "roof-unsuitable-outline",
+    type: "line",
+    source: "roofs",
+    "source-layer": "roofs",
+    minzoom: 13,
+    filter: ["!", isUsable],
+    paint: { "line-color": NOT_SUITABLE_OUTLINE, "line-width": 0.5 },
+  });
 
   setLayer("equity");
+  buildRoofLegend();
   wirePopups();
   window.__mapReady = true; // browser-smoke hook (plan §6)
 });
@@ -165,6 +211,17 @@ function rampRows(bins, fmt) {
   return rows.join("");
 }
 
+// Roof legend: static, independent of the tract switcher (#40).
+function buildRoofLegend() {
+  const ramp = `linear-gradient(to right, ${SUITABILITY_RAMP.join(", ")})`;
+  document.getElementById("roof-legend").innerHTML =
+    `<div class="legend-title">Rooftop suitability</div>` +
+    `<div class="ramp" style="background:${ramp}"></div>` +
+    `<div class="ramp-labels"><span>0</span><span>100</span></div>` +
+    `<div class="row"><span class="swatch" style="background:${NOT_SUITABLE_FILL};` +
+    `border:1px solid ${NOT_SUITABLE_OUTLINE}"></span><span>Not suitable</span></div>`;
+}
+
 function buildLegend(which) {
   const el = document.getElementById("legend");
   if (which === "equity") {
@@ -192,6 +249,35 @@ function popupRow(k, v) {
   return `<div class="popup-row"><span class="k">${k}</span><span>${v}</span></div>`;
 }
 
+const ROOF_LAYERS = ["roof-fill", "roof-unsuitable-fill"];
+
+function roofPopupHtml(p) {
+  const suitable = String(p.usable) === "true";
+  const status = suitable
+    ? "Suitable"
+    : "Not suitable — " + (REASON_LABELS[p.unsuitable_reason] || p.unsuitable_reason || "unknown");
+  const aspect = isNull(p.aspect_deg) ? "—" : `${compass(p.aspect_deg)} (${fmtInt(p.aspect_deg)}°)`;
+  // An unfittable roof has no orientation: the pipeline labels it north-facing (classify_roof's
+  // NaN fall-through) with a 1-plane placeholder row, so show no class and 0 planes (#40).
+  const unfit = p.unsuitable_reason === "no_plane_fit";
+  const rows =
+    popupRow("Status", status) +
+    popupRow("Tilt", orDash(p.tilt_deg, fmt1, "°")) +
+    popupRow("Aspect", aspect) +
+    popupRow("Footprint area", orDash(p.footprint_area_m2, fmtInt, " m²")) +
+    popupRow("Usable area", orDash(p.usable_area_m2, fmtInt, " m²")) +
+    popupRow("Roof class", unfit ? "—" : ROOF_CLASS_LABELS[p.roof_class] || "—") +
+    popupRow("Real-sky POA", orDash(p.poa_real_kwh_m2, fmtInt, " kWh/m²/yr")) +
+    popupRow("Planes", unfit ? "0" : orDash(p.n_planes, fmtInt)) +
+    popupRow("Low confidence", String(p.low_confidence) === "true" ? "yes — poor plane fit" : "no");
+  const yields = suitable
+    ? popupRow("Suitability", orDash(p.suitability, fmt1, " / 100")) +
+      popupRow("Capacity", orDash(p.capacity_kw, fmt1, " kW")) +
+      popupRow("Annual energy", orDash(p.annual_energy_kwh, fmtInt, " kWh/yr"))
+    : "";
+  return `<div class="popup-title">Rooftop</div>${rows}${yields}`;
+}
+
 function wirePopups() {
   map.on("click", "tract-fill", (e) => {
     const p = e.features[0].properties;
@@ -213,20 +299,16 @@ function wirePopups() {
       .addTo(map);
   });
 
-  map.on("click", "roof-fill", (e) => {
-    const p = e.features[0].properties;
-    new maplibregl.Popup({ maxWidth: "240px" })
-      .setLngLat(e.lngLat)
-      .setHTML(
-        `<div class="popup-title">Rooftop</div>` +
-          popupRow("Suitability", fmt1(p.suitability) + " / 100") +
-          popupRow("Capacity", fmt1(p.capacity_kw) + " kW") +
-          popupRow("Annual energy", fmtInt(p.annual_energy_kwh) + " kWh/yr")
-      )
-      .addTo(map);
-  });
+  for (const layer of ROOF_LAYERS) {
+    map.on("click", layer, (e) => {
+      new maplibregl.Popup({ maxWidth: "260px" })
+        .setLngLat(e.lngLat)
+        .setHTML(roofPopupHtml(e.features[0].properties))
+        .addTo(map);
+    });
+  }
 
-  for (const layer of ["tract-fill", "roof-fill"]) {
+  for (const layer of ["tract-fill", ...ROOF_LAYERS]) {
     map.on("mouseenter", layer, () => (map.getCanvas().style.cursor = "pointer"));
     map.on("mouseleave", layer, () => (map.getCanvas().style.cursor = ""));
   }

@@ -534,10 +534,11 @@ def render_potential_burden_scatter(
 # "2-4.2" is the #23 spot-check tuning (OBSTRUCTION_TAU_M 0.75 -> 0.5); "2-4.3" is the #30
 # superstructure rule (roof_planes.SUPERSTRUCTURE_MAX_PX, ADR-0013 addendum);
 # "2-4.4" is #33 (low_confidence back to fit quality over all fitted planes; new
-# superstructure_frac column).
+# superstructure_frac column); "2-4.5" is #40 (unsuitable_reason column + the 30 m2
+# usable_area.MIN_USABLE_AREA_M2 building-area gate, ADR-0003 addendum).
 DSM_VERSION = "1"
 RADIATION_VERSION = "1"
-SCORING_VERSION = "2-4.4"
+SCORING_VERSION = "2-4.5"
 
 
 def city_run_label(day_range: list[int] | None = None) -> str:

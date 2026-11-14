@@ -10,7 +10,10 @@ the `pmtiles` reader validates the output.
 
 from __future__ import annotations
 
+import json
 import shutil
+import subprocess
+from pathlib import Path
 
 import geopandas as gpd
 import pytest
@@ -31,13 +34,22 @@ _CX, _CY = _TO_WORKING(-77.03, 38.90)
 
 
 def _roofs_gdf() -> gpd.GeoDataFrame:
-    """Three roofs (two usable, one not) — small 2 m boxes near the DC anchor point."""
+    """Three roofs (two usable, one not, #40) — small 2 m boxes near the DC anchor point."""
     return gpd.GeoDataFrame(
         {
             "usable": [True, False, True],
+            "unsuitable_reason": [None, "no_plane_fit", None],
             "suitability": [80.0, 0.0, 60.0],
             "capacity_kw": [4.0, 0.0, 3.0],
             "annual_energy_kwh": [1200.0, 0.0, 900.0],
+            "tilt_deg": [20.0, float("nan"), 25.0],
+            "aspect_deg": [180.0, float("nan"), 200.0],
+            "footprint_area_m2": [4.0, 4.0, 4.0],
+            "usable_area_m2": [3.0, 0.0, 3.0],
+            "roof_class": ["flat", "flat", "pitched_sun_facing"],
+            "poa_real_kwh_m2": [1400.0, float("nan"), 1300.0],
+            "n_planes": [1, 0, 2],
+            "low_confidence": [False, True, False],
         },
         geometry=[
             box(_CX, _CY, _CX + 2.0, _CY + 2.0),
@@ -66,6 +78,32 @@ def test_write_roof_pmtiles_emits_valid_pmtiles_with_layer_and_minzoom(tmp_path)
     header, layer_ids = _pmtiles_header_and_layers(out)
     assert header["min_zoom"] == 13  # roofs are a z>=13 drill-down (plan §5), nothing below
     assert "roofs" in layer_ids  # the single expected vector layer
+
+
+def test_write_roof_pmtiles_keeps_unsuitable_roofs_and_typed_properties(tmp_path: Path) -> None:
+    # At maxzoom every roof must survive tippecanoe (no silent drop), booleans/numbers must
+    # keep their types (n_planes would be a string if it were an int column), and NaN must be
+    # omitted from the tile (MapLibre reads it as null) rather than serialised.
+    out = web_build.write_roof_pmtiles(_roofs_gdf(), tmp_path / "roofs.pmtiles")
+    mbtiles = tmp_path / "roofs.mbtiles"
+    subprocess.run(["tile-join", "-o", str(mbtiles), "-q", str(out)], check=True)
+    decoded = subprocess.run(
+        ["tippecanoe-decode", "-c", "-Z16", "-z16", str(mbtiles)],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    feats = [
+        json.loads(line.rstrip(","))
+        for line in decoded.splitlines()
+        if line.startswith('{ "type": "Feature"')
+    ]
+    props = [f["properties"] for f in feats]
+    assert len(props) == 3
+    (unsuitable,) = [p for p in props if p["usable"] is False]
+    assert unsuitable["unsuitable_reason"] == "no_plane_fit"
+    assert "tilt_deg" not in unsuitable and "poa_real_kwh_m2" not in unsuitable
+    assert sorted(p["n_planes"] for p in props) == [0, 1, 2]  # numbers, not strings
 
 
 def _tracts_gdf() -> gpd.GeoDataFrame:

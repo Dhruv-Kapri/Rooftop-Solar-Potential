@@ -32,8 +32,8 @@ overwrite an earlier run. The map serves `config.PUBLISHED_CITY_LABEL` (#32).
 **Part 2-3 — the deployed web map — is built and live** at
 <https://dhruv-kapri.github.io/Rooftop-Solar-Potential/>: a static MapLibre GL JS + PMTiles map on
 GitHub Pages (`web/`, `scripts/build_web.py`; ADR-0010), ETL unit-tested with build + browser smokes
-green, PMTiles range-requests on Pages confirmed. It serves the **Part 2-4 run `12day_2-4.3`** (below;
-#32). Capacity/energy still overstate NREL ~1.6–1.7×, a usable-area over-estimate, reported not
+green, PMTiles range-requests on Pages confirmed. It serves the **Part 2-4 run `12day_2-4.5`** (below;
+#40): every roof, non-suitable ones grey with an `unsuitable_reason` in the popup. Capacity/energy still overstate NREL ~1.6–1.7×, a usable-area over-estimate, reported not
 targeted. The headline figures live in one place, the validation write-up's
 [published map run](docs/benchmarks/stage-2-part4-validation.md#published-map-run); don't copy them here.
 **Part 2-4 — roof-geometry refinement (classical multi-plane + obstructions) — steps 1–7 done
@@ -51,8 +51,9 @@ longer the production path). #30 then added a structural facet-vs-obstruction ru
 later plane is dropped as a superstructure (`SCORING_VERSION` `2-4.3`; ADR-0013 addendum, risks §14
 item 7). #32 moved the map assets to that re-score (`12day_2-4.3`); its labels are not blind yet.
 #33 (`2-4.4`) made `low_confidence` fit quality only again (all fitted planes count) and reports
-clutter as `superstructure_frac`; yield unchanged and neither column is on the map, so the map stays
-on `12day_2-4.3`.
+clutter as `superstructure_frac`; yield unchanged and neither column is on the map.
+#40 (`2-4.5`) adds a per-roof `unsuitable_reason` (dominant plane's first failed cutoff) and a 30 m²
+building usable-area gate (ADR-0003 addendum); the map moved to `12day_2-4.5` and now draws every roof.
 #26 merged `stage-2` into `main`; Pages now deploys from `main` only, so the live map changes only
 when `web/` lands on `main`.
 **Phase 2 is planned in `docs/plans/stage-2-overview.md`** (5 parts; **Part 2-4 step 8 + Part 2-5
